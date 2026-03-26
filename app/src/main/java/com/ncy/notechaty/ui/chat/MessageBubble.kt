@@ -61,6 +61,8 @@ fun MessageBubble(
     onEnterSelectionMode: () -> Unit = {},
     bubbleColor: androidx.compose.ui.graphics.Color? = null,
     useGradient: Boolean = false,
+    isSearchResult: Boolean = false,
+    isCurrentSearchResult: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -71,9 +73,18 @@ fun MessageBubble(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (isSelected) Modifier.background(
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                ) else Modifier
+                when {
+                    isSelected -> Modifier.background(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    )
+                    isCurrentSearchResult -> Modifier.background(
+                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                    )
+                    isSearchResult -> Modifier.background(
+                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.07f)
+                    )
+                    else -> Modifier
+                }
             )
             .padding(horizontal = 12.dp, vertical = 3.dp),
         contentAlignment = Alignment.CenterEnd

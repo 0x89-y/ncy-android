@@ -21,7 +21,10 @@ import javax.inject.Inject
 data class ChatUiState(
     val chat: Chat? = null,
     val messages: List<Message> = emptyList(),
-    val editingMessage: Message? = null
+    val editingMessage: Message? = null,
+    val searchQuery: String = "",
+    val searchResultIds: Set<String> = emptySet(),
+    val searchResultIndex: Int = -1
 )
 
 @HiltViewModel
@@ -180,6 +183,61 @@ class ChatViewModel @Inject constructor(
             ReminderScheduler.schedule(appContext, message, chatName, triggerAtMillis)
             loadChat()
         }
+    }
+
+    fun setSearchQuery(query: String) {
+        val messages = _uiState.value.messages
+        if (query.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                searchQuery = "",
+                searchResultIds = emptySet(),
+                searchResultIndex = -1
+            )
+            return
+        }
+        val matchingIds = messages
+            .filter { it.type == MessageType.TEXT || it.type == MessageType.IMAGE }
+            .filter { it.plainTextPreview().contains(query, ignoreCase = true) }
+            .map { it.id }
+            .toSet()
+        _uiState.value = _uiState.value.copy(
+            searchQuery = query,
+            searchResultIds = matchingIds,
+            searchResultIndex = if (matchingIds.isNotEmpty()) 0 else -1
+        )
+    }
+
+    fun clearSearch() {
+        _uiState.value = _uiState.value.copy(
+            searchQuery = "",
+            searchResultIds = emptySet(),
+            searchResultIndex = -1
+        )
+    }
+
+    fun nextSearchResult() {
+        val state = _uiState.value
+        if (state.searchResultIds.isEmpty()) return
+        val nextIndex = (state.searchResultIndex + 1) % state.searchResultIds.size
+        _uiState.value = state.copy(searchResultIndex = nextIndex)
+    }
+
+    fun previousSearchResult() {
+        val state = _uiState.value
+        if (state.searchResultIds.isEmpty()) return
+        val prevIndex = if (state.searchResultIndex <= 0) state.searchResultIds.size - 1
+            else state.searchResultIndex - 1
+        _uiState.value = state.copy(searchResultIndex = prevIndex)
+    }
+
+    fun getSearchResultMessageId(): String? {
+        val state = _uiState.value
+        if (state.searchResultIndex < 0 || state.searchResultIds.isEmpty()) return null
+        // Return IDs in message order (chronological)
+        val orderedIds = state.messages
+            .filter { it.id in state.searchResultIds }
+            .map { it.id }
+        return orderedIds.getOrNull(state.searchResultIndex)
     }
 
     fun getChatDir(): File {

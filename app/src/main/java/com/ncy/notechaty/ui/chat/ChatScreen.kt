@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,11 +84,32 @@ fun ChatScreen(
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var reminderMessage by remember { mutableStateOf<Message?>(null) }
     val seenMessageIds = remember { mutableSetOf<String>() }
+    var isSearching by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
 
     // Scroll to bottom when new messages arrive
     LaunchedEffect(uiState.messages.size) {
-        if (uiState.messages.isNotEmpty()) {
+        if (uiState.messages.isNotEmpty() && !isSearching) {
             listState.animateScrollToItem(0)
+        }
+    }
+
+    // Auto-focus search field
+    LaunchedEffect(isSearching) {
+        if (isSearching) {
+            searchFocusRequester.requestFocus()
+        }
+    }
+
+    // Scroll to current search result
+    val currentSearchMessageId = viewModel.getSearchResultMessageId()
+    LaunchedEffect(uiState.searchResultIndex, currentSearchMessageId) {
+        if (currentSearchMessageId != null) {
+            val reversedMessages = uiState.messages.reversed()
+            val index = reversedMessages.indexOfFirst { it.id == currentSearchMessageId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+            }
         }
     }
 
@@ -132,7 +155,63 @@ fun ChatScreen(
 
     Scaffold(
         topBar = {
-            if (selectionMode) {
+            if (isSearching) {
+                TopAppBar(
+                    modifier = gradientModifier,
+                    title = {
+                        TextField(
+                            value = uiState.searchQuery,
+                            onValueChange = { viewModel.setSearchQuery(it) },
+                            placeholder = { Text("Search in chat...") },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(searchFocusRequester)
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            isSearching = false
+                            viewModel.clearSearch()
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close search")
+                        }
+                    },
+                    actions = {
+                        if (uiState.searchResultIds.isNotEmpty()) {
+                            Text(
+                                "${uiState.searchResultIndex + 1}/${uiState.searchResultIds.size}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            IconButton(onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.previousSearchResult()
+                            }) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous")
+                            }
+                            IconButton(onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.nextSearchResult()
+                            }) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = if (appSettings.topBarGradient) Color.Transparent
+                            else MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            } else if (selectionMode) {
                 TopAppBar(
                     modifier = gradientModifier,
                     title = { Text("${selectedIds.size} selected") },
@@ -210,7 +289,14 @@ fun ChatScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     },
-                    actions = { },
+                    actions = {
+                        IconButton(onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            isSearching = true
+                        }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search in chat")
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = if (appSettings.topBarGradient) Color.Transparent
                             else MaterialTheme.colorScheme.primaryContainer,
@@ -292,6 +378,8 @@ fun ChatScreen(
                                 useGradient = uiState.chat?.bubbleGradient == true,
                                 isSelectionMode = selectionMode,
                                 isSelected = message.id in selectedIds,
+                                isSearchResult = message.id in uiState.searchResultIds,
+                                isCurrentSearchResult = message.id == currentSearchMessageId,
                                 onToggleSelect = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     selectedIds = if (message.id in selectedIds) {

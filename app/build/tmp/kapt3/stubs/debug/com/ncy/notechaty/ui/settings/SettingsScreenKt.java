@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable;
 import androidx.compose.ui.Alignment;
 import androidx.compose.ui.Modifier;
 import androidx.compose.ui.graphics.vector.ImageVector;
+import android.view.HapticFeedbackConstants;
 import com.ncy.notechaty.data.model.AccentColor;
 import com.ncy.notechaty.data.model.ThemeMode;
 import com.ncy.notechaty.util.FileUtils;

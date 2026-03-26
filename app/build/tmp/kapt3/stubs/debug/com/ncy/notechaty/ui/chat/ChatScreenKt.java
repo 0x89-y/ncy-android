@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment;
 import androidx.compose.ui.Modifier;
 import androidx.compose.ui.layout.ContentScale;
 import androidx.compose.ui.graphics.Brush;
+import android.view.HapticFeedbackConstants;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleEventObserver;
 import com.ncy.notechaty.data.model.Message;

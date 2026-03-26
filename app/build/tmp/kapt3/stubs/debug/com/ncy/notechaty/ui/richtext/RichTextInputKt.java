@@ -8,6 +8,7 @@ import androidx.compose.runtime.*;
 import androidx.compose.ui.Alignment;
 import androidx.compose.ui.Modifier;
 import androidx.compose.ui.text.TextStyle;
+import android.view.HapticFeedbackConstants;
 import com.ncy.notechaty.data.model.Message;
 import com.ncy.notechaty.data.model.RichTextBlock;
 

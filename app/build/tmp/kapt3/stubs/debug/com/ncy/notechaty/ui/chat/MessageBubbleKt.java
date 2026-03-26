@@ -19,6 +19,7 @@ import androidx.compose.ui.text.SpanStyle;
 import androidx.compose.ui.text.font.FontStyle;
 import androidx.compose.ui.text.font.FontWeight;
 import androidx.compose.ui.text.style.TextDecoration;
+import android.view.HapticFeedbackConstants;
 import androidx.compose.ui.graphics.Brush;
 import com.ncy.notechaty.data.model.*;
 import java.io.File;

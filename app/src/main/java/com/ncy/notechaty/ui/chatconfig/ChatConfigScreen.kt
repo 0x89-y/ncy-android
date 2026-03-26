@@ -22,6 +22,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
@@ -41,6 +43,7 @@ fun ChatConfigScreen(
     val chat by viewModel.chat.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
     val context = LocalContext.current
+    val view = LocalView.current
     var editingName by remember { mutableStateOf(false) }
     var nameText by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -165,7 +168,10 @@ fun ChatConfigScreen(
                     }
                 }
                 FloatingActionButton(
-                    onClick = { avatarPicker.launch("image/*") },
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        avatarPicker.launch("image/*")
+                    },
                     modifier = Modifier.size(36.dp),
                     shape = CircleShape
                 ) {
@@ -287,7 +293,10 @@ fun ChatConfigScreen(
                                         )
                                         else Modifier
                                     )
-                                    .clickable { viewModel.setBubbleColor(hex) },
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        viewModel.setBubbleColor(hex)
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (hex == null) {
@@ -326,7 +335,10 @@ fun ChatConfigScreen(
                                         )
                                         else Modifier
                                     )
-                                    .clickable { viewModel.setBubbleColor(hex) }
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        viewModel.setBubbleColor(hex)
+                                    }
                             )
                         }
                     }
@@ -352,7 +364,10 @@ fun ChatConfigScreen(
                     )
                     Switch(
                         checked = chat?.bubbleGradient == true,
-                        onCheckedChange = { viewModel.setBubbleGradient(it) }
+                        onCheckedChange = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            viewModel.setBubbleGradient(it)
+                        }
                     )
                 }
             }
@@ -385,7 +400,10 @@ fun ChatConfigScreen(
                             currentTags.forEach { tag ->
                                 InputChip(
                                     selected = false,
-                                    onClick = { viewModel.removeTag(tag) },
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        viewModel.removeTag(tag)
+                                    },
                                     label = { Text(tag) },
                                     trailingIcon = {
                                         Icon(
@@ -414,6 +432,7 @@ fun ChatConfigScreen(
                         IconButton(
                             onClick = {
                                 if (newTag.isNotBlank()) {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     viewModel.addTag(newTag.trim())
                                     newTag = ""
                                 }
@@ -455,7 +474,10 @@ fun ChatConfigScreen(
 
             // Delete
             OutlinedButton(
-                onClick = { showDeleteConfirm = true },
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    showDeleteConfirm = true
+                },
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error
                 ),
@@ -476,6 +498,7 @@ fun ChatConfigScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                         viewModel.deleteChat(onDeleted)
                         showDeleteConfirm = false
                     },

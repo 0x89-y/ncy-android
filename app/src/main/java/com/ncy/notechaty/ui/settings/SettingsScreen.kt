@@ -59,6 +59,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.AccentColor
@@ -76,6 +78,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val scope = rememberCoroutineScope()
     var showAboutDialog by remember { mutableStateOf(false) }
     val settings by viewModel.settings.collectAsState()
@@ -163,13 +166,19 @@ fun SettingsScreen(
                 icon = Icons.Default.FileUpload,
                 title = "Import chat",
                 subtitle = "Import from .zip file",
-                onClick = { importLauncher.launch("application/zip") }
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    importLauncher.launch("application/zip")
+                }
             )
             SettingsRow(
                 icon = Icons.Default.FileDownload,
                 title = "Export all chats",
                 subtitle = "Save all chats as a single .zip file",
-                onClick = { exportAllLauncher.launch("ncy_all_chats.zip") }
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    exportAllLauncher.launch("ncy_all_chats.zip")
+                }
             )
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
@@ -197,7 +206,10 @@ fun SettingsScreen(
                 }
                 Switch(
                     checked = settings.autoBackupEnabled,
-                    onCheckedChange = { viewModel.setAutoBackupEnabled(it) }
+                    onCheckedChange = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.setAutoBackupEnabled(it)
+                    }
                 )
             }
             if (settings.autoBackupEnabled) {
@@ -215,7 +227,10 @@ fun SettingsScreen(
                     listOf(6, 12, 24, 48).forEach { hours ->
                         FilterChip(
                             selected = settings.autoBackupIntervalHours == hours,
-                            onClick = { viewModel.setAutoBackupInterval(hours) },
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.setAutoBackupInterval(hours)
+                            },
                             label = { Text(if (hours < 24) "${hours}h" else "${hours / 24}d") }
                         )
                     }
@@ -242,7 +257,10 @@ fun SettingsScreen(
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(
                         selected = settings.themeMode == mode,
-                        onClick = { viewModel.setThemeMode(mode) },
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            viewModel.setThemeMode(mode)
+                        },
                         label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
                     )
                 }
@@ -272,7 +290,10 @@ fun SettingsScreen(
                                 if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                                 else Modifier
                             )
-                            .clickable { viewModel.setAccentColor(color) },
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.setAccentColor(color)
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         if (color == AccentColor.DYNAMIC) {
@@ -312,7 +333,10 @@ fun SettingsScreen(
                 }
                 Switch(
                     checked = settings.topBarGradient,
-                    onCheckedChange = { viewModel.setTopBarGradient(it) }
+                    onCheckedChange = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.setTopBarGradient(it)
+                    }
                 )
             }
 

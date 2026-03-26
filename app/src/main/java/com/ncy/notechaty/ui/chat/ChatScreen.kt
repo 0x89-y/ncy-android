@@ -38,6 +38,8 @@ import coil.compose.rememberAsyncImagePainter
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -59,6 +61,7 @@ fun ChatScreen(
     val appSettings by viewModel.settings.collectAsState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    val view = LocalView.current
     val chatDir = viewModel.getChatDir()
 
     // Reload chat data when returning from config screen
@@ -135,6 +138,7 @@ fun ChatScreen(
                     title = { Text("${selectedIds.size} selected") },
                     navigationIcon = {
                         IconButton(onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             selectionMode = false
                             selectedIds = emptySet()
                         }) {
@@ -144,6 +148,7 @@ fun ChatScreen(
                     actions = {
                         IconButton(
                             onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                 viewModel.deleteMessages(selectedIds)
                                 selectionMode = false
                                 selectedIds = emptySet()
@@ -288,6 +293,7 @@ fun ChatScreen(
                                 isSelectionMode = selectionMode,
                                 isSelected = message.id in selectedIds,
                                 onToggleSelect = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     selectedIds = if (message.id in selectedIds) {
                                         selectedIds - message.id
                                     } else {
@@ -296,6 +302,7 @@ fun ChatScreen(
                                     if (selectedIds.isEmpty()) selectionMode = false
                                 },
                                 onEnterSelectionMode = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     selectionMode = true
                                     selectedIds = setOf(message.id)
                                 }
@@ -371,6 +378,7 @@ fun ChatScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                         viewModel.deleteMessage(messageId)
                         showDeleteConfirm = null
                     },

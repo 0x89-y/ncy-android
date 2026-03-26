@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -63,6 +65,7 @@ fun MessageBubble(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val view = LocalView.current
 
     Box(
         modifier = modifier
@@ -89,9 +92,13 @@ fun MessageBubble(
                 .widthIn(max = 300.dp)
                 .combinedClickable(
                     onClick = {
-                        if (isSelectionMode) onToggleSelect()
+                        if (isSelectionMode) {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            onToggleSelect()
+                        }
                     },
                     onLongClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         if (isSelectionMode) onToggleSelect()
                         else showMenu = true
                     }
@@ -165,6 +172,7 @@ fun MessageBubble(
                     DropdownMenuItem(
                         text = { Text("Copy") },
                         onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             showMenu = false
                             val plainText = message.content.joinToString("\n") { block ->
                                 block.spans.joinToString("") { it.text }
@@ -178,6 +186,7 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text(if (message.isStarred) "Unstar" else "Star") },
                     onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         showMenu = false
                         onToggleStar()
                     }
@@ -185,6 +194,7 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text("Set Reminder") },
                     onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         showMenu = false
                         onSetReminder()
                     }
@@ -192,6 +202,7 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text("Select") },
                     onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         showMenu = false
                         onEnterSelectionMode()
                     }
@@ -200,6 +211,7 @@ fun MessageBubble(
                     DropdownMenuItem(
                         text = { Text("Edit") },
                         onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             showMenu = false
                             onEdit()
                         }
@@ -208,6 +220,7 @@ fun MessageBubble(
                 DropdownMenuItem(
                     text = { Text("Delete") },
                     onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                         showMenu = false
                         onDelete()
                     }

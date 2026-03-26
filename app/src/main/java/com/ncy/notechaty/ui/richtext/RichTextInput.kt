@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ncy.notechaty.data.model.Message
@@ -35,6 +37,7 @@ fun RichTextInput(
     modifier: Modifier = Modifier
 ) {
     val state = remember { RichTextState() }
+    val view = LocalView.current
     var showToolbar by remember { mutableStateOf(false) }
 
     // Load editing message content
@@ -154,7 +157,10 @@ fun RichTextInput(
 
                         // Camera button
                         IconButton(
-                            onClick = onCameraClick,
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                onCameraClick()
+                            },
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
@@ -167,7 +173,10 @@ fun RichTextInput(
 
                         // Image button
                         IconButton(
-                            onClick = onImageClick,
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                onImageClick()
+                            },
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
@@ -195,6 +204,7 @@ fun RichTextInput(
                     if (isSend) {
                         FilledIconButton(
                             onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 val blocks = state.toBlocks()
                                 onSend(blocks)
                                 state.clear()
@@ -215,7 +225,10 @@ fun RichTextInput(
                         }
                     } else if (editingMessage == null) {
                         FilledIconButton(
-                            onClick = onVoiceClick,
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                onVoiceClick()
+                            },
                             modifier = Modifier.size(44.dp),
                             shape = CircleShape,
                             colors = IconButtonDefaults.filledIconButtonColors(

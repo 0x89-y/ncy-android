@@ -20,6 +20,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,6 +46,7 @@ fun ChatListScreen(
     val chats by viewModel.chats.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
     val baseDir = viewModel.baseDir
+    val view = LocalView.current
     var showCreateDialog by remember { mutableStateOf(false) }
     var chatToDelete by remember { mutableStateOf<Chat?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -102,7 +105,10 @@ fun ChatListScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showCreateDialog = true }
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    showCreateDialog = true
+                }
             ) {
                 Icon(Icons.Default.Add, contentDescription = "New Chat")
             }
@@ -199,6 +205,7 @@ fun ChatListScreen(
                 Column {
                     TextButton(
                         onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             viewModel.togglePin(chat)
                             longPressedChat = null
                         },
@@ -215,6 +222,7 @@ fun ChatListScreen(
                     }
                     TextButton(
                         onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             longPressedChat = null
                             chatToDelete = chat
                         },
@@ -251,6 +259,7 @@ fun ChatListScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                         viewModel.deleteChat(chat.id)
                         chatToDelete = null
                     },
@@ -278,6 +287,7 @@ private fun ChatListItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val view = LocalView.current
 
     ListItem(
         modifier = Modifier
@@ -288,7 +298,10 @@ private fun ChatListItem(
             )
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick
+                onLongClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    onLongClick()
+                }
             )
             .padding(vertical = 2.dp),
         headlineContent = {

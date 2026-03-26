@@ -82,6 +82,7 @@ class FileChatRepository @Inject constructor(
                 isPinned = chat.isPinned,
                 bubbleColor = chat.bubbleColor,
                 bubbleGradient = chat.bubbleGradient,
+                isArchived = chat.isArchived,
                 tags = chat.tags
             )
         )
@@ -285,6 +286,7 @@ class FileChatRepository @Inject constructor(
             isPinned = chat.isPinned,
             bubbleColor = chat.bubbleColor,
             bubbleGradient = chat.bubbleGradient,
+            isArchived = chat.isArchived,
             tags = chat.tags
         )
     }

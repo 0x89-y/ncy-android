@@ -94,6 +94,16 @@ class ChatConfigViewModel @Inject constructor(
         }
     }
 
+    fun toggleArchive(onDone: () -> Unit) {
+        viewModelScope.launch {
+            val current = _chat.value ?: return@launch
+            val updated = current.copy(isArchived = !current.isArchived, isPinned = false)
+            repository.updateChat(updated)
+            _chat.value = updated
+            onDone()
+        }
+    }
+
     fun deleteChat(onDeleted: () -> Unit) {
         viewModelScope.launch {
             repository.deleteChat(chatId)

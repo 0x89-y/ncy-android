@@ -14,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -471,6 +473,22 @@ fun ChatConfigScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Archive
+            OutlinedButton(
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    viewModel.toggleArchive(onBack)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    if (chat?.isArchived == true) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (chat?.isArchived == true) "Unarchive Chat" else "Archive Chat")
+            }
 
             // Delete
             OutlinedButton(

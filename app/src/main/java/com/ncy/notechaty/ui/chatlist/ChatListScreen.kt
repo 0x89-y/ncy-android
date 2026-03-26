@@ -2,6 +2,7 @@ package com.ncy.notechaty.ui.chatlist
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,7 +10,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +47,7 @@ fun ChatListScreen(
     viewModel: ChatListViewModel = hiltViewModel()
 ) {
     val chats by viewModel.chats.collectAsState()
+    val archivedChats by viewModel.archivedChats.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
     val baseDir = viewModel.baseDir
     val view = LocalView.current
@@ -51,6 +55,7 @@ fun ChatListScreen(
     var chatToDelete by remember { mutableStateOf<Chat?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
     var longPressedChat by remember { mutableStateOf<Chat?>(null) }
+    var showArchived by remember { mutableStateOf(false) }
 
     val topBarColor = MaterialTheme.colorScheme.primaryContainer
     val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
@@ -135,7 +140,7 @@ fun ChatListScreen(
                 }
             }
 
-            if (chats.isEmpty()) {
+            if (chats.isEmpty() && archivedChats.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -181,6 +186,66 @@ fun ChatListScreen(
                             onLongClick = { longPressedChat = chat }
                         )
                     }
+
+                    // Archived section
+                    if (archivedChats.isNotEmpty()) {
+                        item(key = "archived_header") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        showArchived = !showArchived
+                                    },
+                                color = Color.Transparent
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Archive,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        "Archived",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        "${archivedChats.size}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        if (showArchived) Icons.Default.KeyboardArrowUp
+                                        else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = if (showArchived) "Collapse" else "Expand",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        if (showArchived) {
+                            items(archivedChats, key = { "archived_${it.id}" }) { chat ->
+                                ChatListItem(
+                                    chat = chat,
+                                    baseDir = baseDir,
+                                    onClick = { onChatClick(chat.id, chat.name) },
+                                    onLongClick = { longPressedChat = chat }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -203,21 +268,40 @@ fun ChatListScreen(
             title = { Text(chat.name) },
             text = {
                 Column {
+                    if (!chat.isArchived) {
+                        TextButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.togglePin(chat)
+                                longPressedChat = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.PushPin,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (chat.isPinned) "Unpin" else "Pin to top")
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                     TextButton(
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            viewModel.togglePin(chat)
+                            viewModel.toggleArchive(chat)
                             longPressedChat = null
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
-                            if (chat.isPinned) Icons.Default.PushPin else Icons.Default.PushPin,
+                            if (chat.isArchived) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
                             contentDescription = null,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (chat.isPinned) "Unpin" else "Pin to top")
+                        Text(if (chat.isArchived) "Unarchive" else "Archive")
                         Spacer(modifier = Modifier.weight(1f))
                     }
                     TextButton(

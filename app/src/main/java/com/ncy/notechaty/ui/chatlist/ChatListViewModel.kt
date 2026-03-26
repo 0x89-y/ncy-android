@@ -29,8 +29,9 @@ class ChatListViewModel @Inject constructor(
         settingsRepository.settings,
         _searchQuery
     ) { chats, settings, query ->
-        val filtered = if (query.isBlank()) chats
-        else chats.filter { it.name.contains(query, ignoreCase = true) }
+        val active = chats.filter { !it.isArchived }
+        val filtered = if (query.isBlank()) active
+        else active.filter { it.name.contains(query, ignoreCase = true) }
 
         val sorted = when (settings.chatSortMode) {
             ChatSortMode.LAST_MESSAGE -> filtered.sortedByDescending { it.lastMessageAt ?: it.createdAt }
@@ -40,6 +41,15 @@ class ChatListViewModel @Inject constructor(
 
         // Pinned chats always on top
         sorted.sortedByDescending { it.isPinned }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val archivedChats: StateFlow<List<Chat>> = combine(
+        repository.observeChats(),
+        _searchQuery
+    ) { chats, query ->
+        val archived = chats.filter { it.isArchived }
+        if (query.isBlank()) archived
+        else archived.filter { it.name.contains(query, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -63,6 +73,12 @@ class ChatListViewModel @Inject constructor(
     fun togglePin(chat: Chat) {
         viewModelScope.launch {
             repository.updateChat(chat.copy(isPinned = !chat.isPinned))
+        }
+    }
+
+    fun toggleArchive(chat: Chat) {
+        viewModelScope.launch {
+            repository.updateChat(chat.copy(isArchived = !chat.isArchived, isPinned = false))
         }
     }
 

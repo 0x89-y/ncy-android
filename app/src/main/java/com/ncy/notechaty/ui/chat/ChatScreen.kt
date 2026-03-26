@@ -1,0 +1,367 @@
+package com.ncy.notechaty.ui.chat
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
+import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.ui.richtext.RichTextInput
+import com.ncy.notechaty.ui.voicemessage.VoiceRecorder
+import java.io.File
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatScreen(
+    chatId: String,
+    onBack: () -> Unit,
+    onConfigClick: () -> Unit,
+    viewModel: ChatViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val chatDir = viewModel.getChatDir()
+
+    // Reload chat data when returning from config screen
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadChat()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
+    var isRecordingVoice by remember { mutableStateOf(false) }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    var reminderMessage by remember { mutableStateOf<Message?>(null) }
+
+    // Scroll to bottom when new messages arrive
+    LaunchedEffect(uiState.messages.size) {
+        if (uiState.messages.isNotEmpty()) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
+    // Image picker (multi-image)
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        uris.forEach { uri ->
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val tempFile = File(context.cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
+            inputStream?.use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            viewModel.sendImageMessage(tempFile)
+            tempFile.delete()
+        }
+    }
+
+    // Camera capture
+    val cameraImageFile = remember {
+        File(context.cacheDir, "camera_capture.jpg")
+    }
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraImageFile.exists()) {
+            viewModel.sendImageMessage(cameraImageFile)
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            if (selectionMode) {
+                TopAppBar(
+                    title = { Text("${selectedIds.size} selected") },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Cancel selection")
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                viewModel.deleteMessages(selectedIds)
+                                selectionMode = false
+                                selectedIds = emptySet()
+                            },
+                            enabled = selectedIds.isNotEmpty()
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete selected",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            val avatarFile = uiState.chat?.avatarFile?.let { File(chatDir, it) }
+                            if (avatarFile != null && avatarFile.exists()) {
+                                AsyncImage(
+                                    model = avatarFile,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Surface(
+                                    modifier = Modifier.size(36.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = (uiState.chat?.name ?: "?").take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                            }
+                            Text(uiState.chat?.name ?: "Chat")
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onConfigClick) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Background image
+            val bgFile = uiState.chat?.backgroundFile?.let { File(chatDir, it) }
+            if (bgFile != null && bgFile.exists()) {
+                Image(
+                    painter = rememberAsyncImagePainter(bgFile),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.3f
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Messages list — reversed so newest at bottom, anchored to bottom
+                LazyColumn(
+                    state = listState,
+                    reverseLayout = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    val reversedMessages = uiState.messages.reversed()
+                    itemsIndexed(
+                        reversedMessages,
+                        key = { _, msg -> msg.id }
+                    ) { index, message ->
+                        val parsedBubbleColor = uiState.chat?.bubbleColor?.let {
+                            try { Color(android.graphics.Color.parseColor(it)) }
+                            catch (_: Exception) { null }
+                        }
+                        MessageBubble(
+                            message = message,
+                            chatDir = chatDir,
+                            onEdit = { viewModel.startEditing(message) },
+                            onDelete = { showDeleteConfirm = message.id },
+                            onToggleStar = { viewModel.toggleStar(message) },
+                            onSetReminder = { reminderMessage = message },
+                            bubbleColor = parsedBubbleColor,
+                            isSelectionMode = selectionMode,
+                            isSelected = message.id in selectedIds,
+                            onToggleSelect = {
+                                selectedIds = if (message.id in selectedIds) {
+                                    selectedIds - message.id
+                                } else {
+                                    selectedIds + message.id
+                                }
+                                if (selectedIds.isEmpty()) selectionMode = false
+                            },
+                            onEnterSelectionMode = {
+                                selectionMode = true
+                                selectedIds = setOf(message.id)
+                            }
+                        )
+                        // Show date header below (visually above due to reverseLayout)
+                        // when the next message in the reversed list is from a different day
+                        val showHeader = if (index < reversedMessages.size - 1) {
+                            getDateKey(message.createdAt) != getDateKey(reversedMessages[index + 1].createdAt)
+                        } else {
+                            true // always show header for the oldest message
+                        }
+                        if (showHeader) {
+                            DateHeader(timestamp = message.createdAt)
+                        }
+                    }
+                }
+
+                // Voice recording UI
+                if (isRecordingVoice) {
+                    VoiceRecorder(
+                        onRecorded = { file, durationMs ->
+                            viewModel.sendVoiceMessage(file, durationMs)
+                            isRecordingVoice = false
+                        },
+                        onCancel = { isRecordingVoice = false }
+                    )
+                } else {
+                    // Input bar
+                    RichTextInput(
+                        editingMessage = uiState.editingMessage,
+                        onSend = { blocks ->
+                            if (uiState.editingMessage != null) {
+                                viewModel.saveEdit(blocks)
+                            } else {
+                                viewModel.sendTextMessage(blocks)
+                            }
+                        },
+                        onCancelEdit = { viewModel.cancelEditing() },
+                        onVoiceClick = { isRecordingVoice = true },
+                        onImageClick = { imagePickerLauncher.launch("image/*") },
+                        onCameraClick = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                                == PackageManager.PERMISSION_GRANTED
+                            ) {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    cameraImageFile
+                                )
+                                cameraUri = uri
+                                cameraLauncher.launch(uri)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // Delete confirmation
+    showDeleteConfirm?.let { messageId ->
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            title = { Text("Delete Message") },
+            text = { Text("Delete this message?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteMessage(messageId)
+                        showDeleteConfirm = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Reminder picker
+    reminderMessage?.let { msg ->
+        val reminderOptions = listOf(
+            "In 15 minutes" to 15L * 60 * 1000,
+            "In 1 hour" to 60L * 60 * 1000,
+            "In 3 hours" to 3L * 60 * 60 * 1000,
+            "Tomorrow" to 24L * 60 * 60 * 1000
+        )
+        AlertDialog(
+            onDismissRequest = { reminderMessage = null },
+            title = { Text("Set Reminder") },
+            text = {
+                Column {
+                    reminderOptions.forEach { (label, delay) ->
+                        TextButton(
+                            onClick = {
+                                viewModel.setReminder(msg, System.currentTimeMillis() + delay)
+                                reminderMessage = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(label)
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { reminderMessage = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}

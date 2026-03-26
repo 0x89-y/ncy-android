@@ -1,0 +1,15 @@
+package hilt_aggregated_deps;
+
+import dagger.hilt.processor.internal.aggregateddeps.AggregatedDeps;
+import javax.annotation.processing.Generated;
+
+/**
+ * This class should only be referenced by generated code! This class aggregates information across multiple compilations.
+ */
+@AggregatedDeps(
+    components = "dagger.hilt.android.components.ActivityRetainedComponent",
+    modules = "com.ncy.notechaty.ui.starred.StarredMessagesViewModel_HiltModules.KeyModule"
+)
+@Generated("dagger.hilt.processor.internal.aggregateddeps.AggregatedDepsGenerator")
+public class _com_ncy_notechaty_ui_starred_StarredMessagesViewModel_HiltModules_KeyModule {
+}

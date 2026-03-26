@@ -196,8 +196,14 @@ class ChatViewModel @Inject constructor(
             return
         }
         val matchingIds = messages
-            .filter { it.type == MessageType.TEXT || it.type == MessageType.IMAGE }
-            .filter { it.plainTextPreview().contains(query, ignoreCase = true) }
+            .filter { it.type == MessageType.TEXT || it.type == MessageType.IMAGE || it.type == MessageType.CHECKLIST }
+            .filter {
+                if (it.type == MessageType.CHECKLIST) {
+                    it.checklistItems.any { item -> item.text.contains(query, ignoreCase = true) }
+                } else {
+                    it.plainTextPreview().contains(query, ignoreCase = true)
+                }
+            }
             .map { it.id }
             .toSet()
         _uiState.value = _uiState.value.copy(
@@ -238,6 +244,41 @@ class ChatViewModel @Inject constructor(
             .filter { it.id in state.searchResultIds }
             .map { it.id }
         return orderedIds.getOrNull(state.searchResultIndex)
+    }
+
+    fun sendChecklistMessage(items: List<String>) {
+        if (items.isEmpty() || items.all { it.isBlank() }) return
+        viewModelScope.launch {
+            val checklistItems = items.filter { it.isNotBlank() }.map { text ->
+                ChecklistItem(
+                    id = UUID.randomUUID().toString(),
+                    text = text.trim(),
+                    checked = false
+                )
+            }
+            val message = Message(
+                id = UUID.randomUUID().toString(),
+                chatId = chatId,
+                type = MessageType.CHECKLIST,
+                checklistItems = checklistItems
+            )
+            repository.addMessage(message)
+            loadChat()
+        }
+    }
+
+    fun toggleChecklistItem(message: Message, itemId: String) {
+        viewModelScope.launch {
+            val updatedItems = message.checklistItems.map {
+                if (it.id == itemId) it.copy(checked = !it.checked) else it
+            }
+            val updated = message.copy(
+                checklistItems = updatedItems,
+                editedAt = System.currentTimeMillis()
+            )
+            repository.updateMessage(updated)
+            loadChat()
+        }
     }
 
     fun getChatDir(): File {

@@ -280,6 +280,7 @@ class FileChatRepository @Inject constructor(
                 when (it.type) {
                     MessageType.VOICE -> "\uD83C\uDFA4 Voice message"
                     MessageType.IMAGE -> "\uD83D\uDDBC Image"
+                    MessageType.CHECKLIST -> "☑ ${it.plainTextPreview()}"
                     MessageType.TEXT -> it.plainTextPreview()
                 }
             },

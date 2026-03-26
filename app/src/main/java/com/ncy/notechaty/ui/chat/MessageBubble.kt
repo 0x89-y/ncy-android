@@ -14,6 +14,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,6 +56,7 @@ fun MessageBubble(
     onDelete: () -> Unit,
     onToggleStar: () -> Unit = {},
     onSetReminder: () -> Unit = {},
+    onToggleChecklistItem: (String) -> Unit = {},
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelect: () -> Unit = {},
@@ -141,6 +143,16 @@ fun MessageBubble(
                         }
                     }
                     MessageType.IMAGE -> RichTextContent(message.content, chatDir, contentColor)
+                    MessageType.CHECKLIST -> {
+                        ChecklistContent(
+                            items = message.checklistItems,
+                            contentColor = contentColor,
+                            onToggleItem = { itemId ->
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                onToggleChecklistItem(itemId)
+                            }
+                        )
+                    }
                 }
 
                 Row(
@@ -178,15 +190,21 @@ fun MessageBubble(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false }
             ) {
-                // Copy (available for text and image messages)
-                if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE) {
+                // Copy (available for text, image, and checklist messages)
+                if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
                     DropdownMenuItem(
                         text = { Text("Copy") },
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             showMenu = false
-                            val plainText = message.content.joinToString("\n") { block ->
-                                block.spans.joinToString("") { it.text }
+                            val plainText = if (message.type == MessageType.CHECKLIST) {
+                                message.checklistItems.joinToString("\n") { item ->
+                                    "${if (item.checked) "☑" else "☐"} ${item.text}"
+                                }
+                            } else {
+                                message.content.joinToString("\n") { block ->
+                                    block.spans.joinToString("") { it.text }
+                                }
                             }
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
@@ -374,6 +392,80 @@ private val urlPattern = Regex(
     "(https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+)",
     RegexOption.IGNORE_CASE
 )
+
+@Composable
+private fun ChecklistContent(
+    items: List<ChecklistItem>,
+    contentColor: Color,
+    onToggleItem: (String) -> Unit
+) {
+    val doneCount = items.count { it.checked }
+    val total = items.size
+
+    Column {
+        // Progress header
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 4.dp)
+        ) {
+            Icon(
+                Icons.Default.Checklist,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = contentColor.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "$doneCount / $total",
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor.copy(alpha = 0.7f)
+            )
+            if (total > 0) {
+                Spacer(modifier = Modifier.width(8.dp))
+                @Suppress("DEPRECATION")
+                LinearProgressIndicator(
+                    progress = doneCount.toFloat() / total,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = contentColor.copy(alpha = 0.7f),
+                    trackColor = contentColor.copy(alpha = 0.15f)
+                )
+            }
+        }
+
+        // Checklist items
+        items.forEach { item ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleItem(item.id) }
+                    .padding(vertical = 2.dp)
+            ) {
+                Checkbox(
+                    checked = item.checked,
+                    onCheckedChange = { onToggleItem(item.id) },
+                    modifier = Modifier.size(20.dp),
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = contentColor.copy(alpha = 0.7f),
+                        uncheckedColor = contentColor.copy(alpha = 0.5f),
+                        checkmarkColor = if (contentColor.luminance() > 0.5f) Color.Black else Color.White
+                    )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = item.text,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        textDecoration = if (item.checked) TextDecoration.LineThrough else null
+                    ),
+                    color = if (item.checked) contentColor.copy(alpha = 0.5f) else contentColor
+                )
+            }
+        }
+    }
+}
 
 private fun buildAnnotatedSpan(spans: List<RichTextSpan>, defaultColor: Color = Color.Unspecified) = buildAnnotatedString {
     for (span in spans) {

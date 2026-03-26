@@ -122,6 +122,7 @@ private fun StarredMessageItem(
             val preview = when (starred.message.type) {
                 MessageType.VOICE -> "\uD83C\uDFA4 Voice message"
                 MessageType.IMAGE -> "\uD83D\uDDBC Image"
+                MessageType.CHECKLIST -> "☑ ${starred.message.plainTextPreview()}"
                 MessageType.TEXT -> starred.message.plainTextPreview()
             }
             Text(

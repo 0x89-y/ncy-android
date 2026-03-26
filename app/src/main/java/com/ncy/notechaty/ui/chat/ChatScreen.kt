@@ -46,6 +46,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.model.MessageType
 import com.ncy.notechaty.ui.richtext.RichTextInput
 import com.ncy.notechaty.ui.voicemessage.VoiceRecorder
 import java.io.File
@@ -86,6 +87,7 @@ fun ChatScreen(
     val seenMessageIds = remember { mutableSetOf<String>() }
     var isSearching by remember { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
+    var showChecklistDialog by remember { mutableStateOf(false) }
 
     // Scroll to bottom when new messages arrive
     LaunchedEffect(uiState.messages.size) {
@@ -374,6 +376,9 @@ fun ChatScreen(
                                 onDelete = { showDeleteConfirm = message.id },
                                 onToggleStar = { viewModel.toggleStar(message) },
                                 onSetReminder = { reminderMessage = message },
+                                onToggleChecklistItem = { itemId ->
+                                    viewModel.toggleChecklistItem(message, itemId)
+                                },
                                 bubbleColor = parsedBubbleColor,
                                 useGradient = uiState.chat?.bubbleGradient == true,
                                 isSelectionMode = selectionMode,
@@ -437,6 +442,7 @@ fun ChatScreen(
                         onCancelEdit = { viewModel.cancelEditing() },
                         onVoiceClick = { isRecordingVoice = true },
                         onImageClick = { imagePickerLauncher.launch("image/*") },
+                        onChecklistClick = { showChecklistDialog = true },
                         onCameraClick = {
                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                                 == PackageManager.PERMISSION_GRANTED
@@ -515,4 +521,93 @@ fun ChatScreen(
             }
         )
     }
+
+    // Checklist creation dialog
+    if (showChecklistDialog) {
+        ChecklistCreateDialog(
+            onDismiss = { showChecklistDialog = false },
+            onCreate = { items ->
+                viewModel.sendChecklistMessage(items)
+                showChecklistDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun ChecklistCreateDialog(
+    onDismiss: () -> Unit,
+    onCreate: (List<String>) -> Unit
+) {
+    var items by remember { mutableStateOf(listOf("", "")) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Checklist") },
+        text = {
+            Column {
+                items.forEachIndexed { index, item ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.CheckBoxOutlineBlank,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        OutlinedTextField(
+                            value = item,
+                            onValueChange = { newText ->
+                                items = items.toMutableList().also { it[index] = newText }
+                            },
+                            placeholder = { Text("Item ${index + 1}") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            )
+                        )
+                        if (items.size > 1) {
+                            IconButton(
+                                onClick = {
+                                    items = items.toMutableList().also { it.removeAt(index) }
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Remove",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = { items = items + "" }
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add item")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onCreate(items.filter { it.isNotBlank() }) },
+                enabled = items.any { it.isNotBlank() }
+            ) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

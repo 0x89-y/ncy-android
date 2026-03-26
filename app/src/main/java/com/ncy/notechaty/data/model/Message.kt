@@ -1,8 +1,14 @@
 package com.ncy.notechaty.data.model
 
 enum class MessageType {
-    TEXT, VOICE, IMAGE
+    TEXT, VOICE, IMAGE, CHECKLIST
 }
+
+data class ChecklistItem(
+    val id: String,
+    val text: String,
+    val checked: Boolean = false
+)
 
 data class Message(
     val id: String,
@@ -16,9 +22,16 @@ data class Message(
     val isStarred: Boolean = false,
     val imageFiles: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
-    val reminderAt: Long? = null
+    val reminderAt: Long? = null,
+    val checklistItems: List<ChecklistItem> = emptyList()
 ) {
     fun plainTextPreview(): String {
+        if (type == MessageType.CHECKLIST) {
+            val done = checklistItems.count { it.checked }
+            val total = checklistItems.size
+            val firstItem = checklistItems.firstOrNull()?.text ?: ""
+            return "$done/$total $firstItem".take(100)
+        }
         return content.joinToString(" ") { block ->
             block.spans.joinToString("") { it.text }
         }.take(100)

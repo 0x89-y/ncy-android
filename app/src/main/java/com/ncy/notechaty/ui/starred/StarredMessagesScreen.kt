@@ -1,5 +1,6 @@
 package com.ncy.notechaty.ui.starred
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -28,10 +32,20 @@ fun StarredMessagesScreen(
     viewModel: StarredMessagesViewModel = hiltViewModel()
 ) {
     val starredMessages by viewModel.starredMessages.collectAsState()
+    val appSettings by viewModel.settings.collectAsState()
+    val topBarColor = MaterialTheme.colorScheme.primaryContainer
+    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
 
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = if (appSettings.topBarGradient) {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            colors = listOf(gradientTopColor, topBarColor)
+                        )
+                    )
+                } else Modifier,
                 title = { Text("Starred Messages") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -40,7 +54,12 @@ fun StarredMessagesScreen(
                             contentDescription = "Back"
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (appSettings.topBarGradient) Color.Transparent
+                        else MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { innerPadding ->

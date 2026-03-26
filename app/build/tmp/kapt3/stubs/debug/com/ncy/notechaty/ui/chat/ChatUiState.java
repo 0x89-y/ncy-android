@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle;
 import androidx.lifecycle.ViewModel;
 import com.ncy.notechaty.data.model.*;
 import com.ncy.notechaty.data.repository.ChatRepository;
+import com.ncy.notechaty.data.repository.SettingsRepository;
 import com.ncy.notechaty.notifications.ReminderScheduler;
 import dagger.hilt.android.lifecycle.HiltViewModel;
 import dagger.hilt.android.qualifiers.ApplicationContext;

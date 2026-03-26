@@ -61,6 +61,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setTopBarGradient(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings(settings.value.copy(topBarGradient = enabled))
+        }
+    }
+
     suspend fun exportAllChats(outputFile: File) {
         repository.exportAllChats(outputFile)
     }

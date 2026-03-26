@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Gradient
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -42,6 +45,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -118,9 +122,19 @@ fun SettingsScreen(
         }
     }
 
+    val topBarColor = MaterialTheme.colorScheme.primaryContainer
+    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
+
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = if (settings.topBarGradient) {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            colors = listOf(gradientTopColor, topBarColor)
+                        )
+                    )
+                } else Modifier,
                 title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -129,7 +143,12 @@ fun SettingsScreen(
                             contentDescription = "Back"
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (settings.topBarGradient) Color.Transparent
+                        else MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { innerPadding ->
@@ -152,19 +171,6 @@ fun SettingsScreen(
                 subtitle = "Save all chats as a single .zip file",
                 onClick = { exportAllLauncher.launch("ncy_all_chats.zip") }
             )
-            SettingsRow(
-                icon = Icons.Default.Folder,
-                title = "Storage location",
-                subtitle = "App internal storage",
-                onClick = {
-                    Toast.makeText(
-                        context,
-                        "Chats are stored in app internal storage. Use export to back up.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            )
-
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
             SectionHeader("Auto-backup")
@@ -281,6 +287,34 @@ fun SettingsScreen(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Top bar gradient
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Gradient,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Top bar gradient", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Subtle gradient effect on the header bar",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = settings.topBarGradient,
+                    onCheckedChange = { viewModel.setTopBarGradient(it) }
+                )
+            }
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 

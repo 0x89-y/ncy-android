@@ -1,5 +1,6 @@
 package com.ncy.notechaty.ui.search
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,7 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -34,7 +37,10 @@ fun SearchScreen(
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
+    val appSettings by viewModel.settings.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    val topBarColor = MaterialTheme.colorScheme.primaryContainer
+    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -43,6 +49,18 @@ fun SearchScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = if (appSettings.topBarGradient) {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            colors = listOf(gradientTopColor, topBarColor)
+                        )
+                    )
+                } else Modifier,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (appSettings.topBarGradient) Color.Transparent
+                        else MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 title = {
                     TextField(
                         value = query,

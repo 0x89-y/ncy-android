@@ -10,5 +10,6 @@ data class Chat(
     val lastMessagePreview: String? = null,
     val isPinned: Boolean = false,
     val bubbleColor: String? = null,
+    val bubbleGradient: Boolean = false,
     val tags: List<String> = emptyList()
 )

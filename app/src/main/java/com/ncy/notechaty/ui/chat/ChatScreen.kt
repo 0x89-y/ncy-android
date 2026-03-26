@@ -6,6 +6,13 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,13 +28,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -40,11 +50,13 @@ import java.io.File
 @Composable
 fun ChatScreen(
     chatId: String,
+    chatName: String = "",
     onBack: () -> Unit,
     onConfigClick: () -> Unit,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val appSettings by viewModel.settings.collectAsState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val chatDir = viewModel.getChatDir()
@@ -66,6 +78,7 @@ fun ChatScreen(
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var reminderMessage by remember { mutableStateOf<Message?>(null) }
+    val seenMessageIds = remember { mutableSetOf<String>() }
 
     // Scroll to bottom when new messages arrive
     LaunchedEffect(uiState.messages.size) {
@@ -104,10 +117,21 @@ fun ChatScreen(
         }
     }
 
+    val topBarColor = MaterialTheme.colorScheme.primaryContainer
+    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
+    val gradientModifier = if (appSettings.topBarGradient) {
+        Modifier.background(
+            Brush.verticalGradient(
+                colors = listOf(gradientTopColor, topBarColor)
+            )
+        )
+    } else Modifier
+
     Scaffold(
         topBar = {
             if (selectionMode) {
                 TopAppBar(
+                    modifier = gradientModifier,
                     title = { Text("${selectedIds.size} selected") },
                     navigationIcon = {
                         IconButton(onClick = {
@@ -134,16 +158,19 @@ fun ChatScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        containerColor = if (appSettings.topBarGradient) Color.Transparent
+                            else MaterialTheme.colorScheme.primaryContainer,
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 )
             } else {
                 TopAppBar(
+                    modifier = gradientModifier,
                     title = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.clickable { onConfigClick() }
                         ) {
                             val avatarFile = uiState.chat?.avatarFile?.let { File(chatDir, it) }
                             if (avatarFile != null && avatarFile.exists()) {
@@ -163,14 +190,14 @@ fun ChatScreen(
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            text = (uiState.chat?.name ?: "?").take(1).uppercase(),
+                                            text = (uiState.chat?.name ?: chatName.ifEmpty { "?" }).take(1).uppercase(),
                                             style = MaterialTheme.typography.titleSmall,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                     }
                                 }
                             }
-                            Text(uiState.chat?.name ?: "Chat")
+                            Text(uiState.chat?.name ?: chatName.ifEmpty { "Chat" })
                         }
                     },
                     navigationIcon = {
@@ -178,13 +205,10 @@ fun ChatScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     },
-                    actions = {
-                        IconButton(onClick = onConfigClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
-                        }
-                    },
+                    actions = { },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        containerColor = if (appSettings.topBarGradient) Color.Transparent
+                            else MaterialTheme.colorScheme.primaryContainer,
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 )
@@ -196,7 +220,7 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Background image
+            // Background image or subtle dot pattern
             val bgFile = uiState.chat?.backgroundFile?.let { File(chatDir, it) }
             if (bgFile != null && bgFile.exists()) {
                 Image(
@@ -206,6 +230,21 @@ fun ChatScreen(
                     contentScale = ContentScale.Crop,
                     alpha = 0.3f
                 )
+            } else {
+                val dotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val spacing = 24.dp.toPx()
+                    val radius = 1.5.dp.toPx()
+                    var x = spacing
+                    while (x < size.width) {
+                        var y = spacing
+                        while (y < size.height) {
+                            drawCircle(color = dotColor, radius = radius, center = Offset(x, y))
+                            y += spacing
+                        }
+                        x += spacing
+                    }
+                }
             }
 
             Column(
@@ -225,33 +264,43 @@ fun ChatScreen(
                         reversedMessages,
                         key = { _, msg -> msg.id }
                     ) { index, message ->
+                        val isNew = message.id !in seenMessageIds
+                        LaunchedEffect(message.id) { seenMessageIds.add(message.id) }
                         val parsedBubbleColor = uiState.chat?.bubbleColor?.let {
                             try { Color(android.graphics.Color.parseColor(it)) }
                             catch (_: Exception) { null }
                         }
-                        MessageBubble(
-                            message = message,
-                            chatDir = chatDir,
-                            onEdit = { viewModel.startEditing(message) },
-                            onDelete = { showDeleteConfirm = message.id },
-                            onToggleStar = { viewModel.toggleStar(message) },
-                            onSetReminder = { reminderMessage = message },
-                            bubbleColor = parsedBubbleColor,
-                            isSelectionMode = selectionMode,
-                            isSelected = message.id in selectedIds,
-                            onToggleSelect = {
-                                selectedIds = if (message.id in selectedIds) {
-                                    selectedIds - message.id
-                                } else {
-                                    selectedIds + message.id
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = if (isNew) fadeIn(tween(300)) + slideInVertically(
+                                tween(300)
+                            ) { it / 2 } else fadeIn(tween(0))
+                        ) {
+                            MessageBubble(
+                                message = message,
+                                chatDir = chatDir,
+                                onEdit = { viewModel.startEditing(message) },
+                                onDelete = { showDeleteConfirm = message.id },
+                                onToggleStar = { viewModel.toggleStar(message) },
+                                onSetReminder = { reminderMessage = message },
+                                bubbleColor = parsedBubbleColor,
+                                useGradient = uiState.chat?.bubbleGradient == true,
+                                isSelectionMode = selectionMode,
+                                isSelected = message.id in selectedIds,
+                                onToggleSelect = {
+                                    selectedIds = if (message.id in selectedIds) {
+                                        selectedIds - message.id
+                                    } else {
+                                        selectedIds + message.id
+                                    }
+                                    if (selectedIds.isEmpty()) selectionMode = false
+                                },
+                                onEnterSelectionMode = {
+                                    selectionMode = true
+                                    selectedIds = setOf(message.id)
                                 }
-                                if (selectedIds.isEmpty()) selectionMode = false
-                            },
-                            onEnterSelectionMode = {
-                                selectionMode = true
-                                selectedIds = setOf(message.id)
-                            }
-                        )
+                            )
+                        }
                         // Show date header below (visually above due to reverseLayout)
                         // when the next message in the reversed list is from a different day
                         val showHeader = if (index < reversedMessages.size - 1) {
@@ -276,6 +325,11 @@ fun ChatScreen(
                     )
                 } else {
                     // Input bar
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shadowElevation = 2.dp,
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
                     RichTextInput(
                         editingMessage = uiState.editingMessage,
                         onSend = { blocks ->
@@ -302,6 +356,7 @@ fun ChatScreen(
                             }
                         }
                     )
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,9 +17,11 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatConfigViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: ChatRepository
+    private val repository: ChatRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
+    val settings = settingsRepository.settings
     private val chatId: String = savedStateHandle["chatId"] ?: ""
 
     private val _chat = MutableStateFlow<Chat?>(null)
@@ -68,6 +71,15 @@ class ChatConfigViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _chat.value ?: return@launch
             val updated = current.copy(tags = current.tags - tag)
+            repository.updateChat(updated)
+            _chat.value = updated
+        }
+    }
+
+    fun setBubbleGradient(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = _chat.value ?: return@launch
+            val updated = current.copy(bubbleGradient = enabled)
             repository.updateChat(updated)
             _chat.value = updated
         }

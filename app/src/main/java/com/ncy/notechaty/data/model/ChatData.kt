@@ -17,5 +17,6 @@ data class ChatMetadata(
     val createdAt: Long,
     val isPinned: Boolean = false,
     val bubbleColor: String? = null,
+    val bubbleGradient: Boolean = false,
     val tags: List<String> = emptyList()
 )

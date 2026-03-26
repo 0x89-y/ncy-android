@@ -19,7 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
@@ -37,6 +39,7 @@ fun ChatConfigScreen(
     viewModel: ChatConfigViewModel = hiltViewModel()
 ) {
     val chat by viewModel.chat.collectAsState()
+    val appSettings by viewModel.settings.collectAsState()
     val context = LocalContext.current
     var editingName by remember { mutableStateOf(false) }
     var nameText by remember { mutableStateOf("") }
@@ -98,9 +101,19 @@ fun ChatConfigScreen(
         }
     }
 
+    val topBarColor = MaterialTheme.colorScheme.primaryContainer
+    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
+
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = if (appSettings.topBarGradient) {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            colors = listOf(gradientTopColor, topBarColor)
+                        )
+                    )
+                } else Modifier,
                 title = { Text("Chat Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -108,7 +121,8 @@ fun ChatConfigScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = if (appSettings.topBarGradient) Color.Transparent
+                        else MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
@@ -316,6 +330,30 @@ fun ChatConfigScreen(
                             )
                         }
                     }
+                }
+            }
+
+            // Bubble gradient toggle
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Gradient, contentDescription = null)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        "Bubble gradient",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = chat?.bubbleGradient == true,
+                        onCheckedChange = { viewModel.setBubbleGradient(it) }
+                    )
                 }
             }
 

@@ -33,7 +33,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
@@ -56,6 +58,7 @@ fun MessageBubble(
     onToggleSelect: () -> Unit = {},
     onEnterSelectionMode: () -> Unit = {},
     bubbleColor: androidx.compose.ui.graphics.Color? = null,
+    useGradient: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -69,7 +72,7 @@ fun MessageBubble(
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
                 ) else Modifier
             )
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 12.dp, vertical = 3.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
         val resolvedBubbleColor = bubbleColor ?: MaterialTheme.colorScheme.primaryContainer
@@ -80,6 +83,7 @@ fun MessageBubble(
         }
         val subtleColor = contentColor.copy(alpha = 0.6f)
 
+        val bubbleShape = RoundedCornerShape(12.dp, 4.dp, 12.dp, 12.dp)
         Surface(
             modifier = Modifier
                 .widthIn(max = 300.dp)
@@ -92,12 +96,21 @@ fun MessageBubble(
                         else showMenu = true
                     }
                 ),
-            shape = RoundedCornerShape(12.dp, 4.dp, 12.dp, 12.dp),
-            color = resolvedBubbleColor,
+            shape = bubbleShape,
+            color = if (useGradient) Color.Transparent else resolvedBubbleColor,
             contentColor = contentColor,
-            tonalElevation = 1.dp
+            tonalElevation = if (useGradient) 0.dp else 1.dp
         ) {
-            Column(modifier = Modifier.padding(8.dp)) {
+            val bgModifier = if (useGradient) {
+                val gradientTop = lerp(resolvedBubbleColor, Color.White, 0.3f)
+                Modifier.background(
+                    Brush.verticalGradient(
+                        colors = listOf(gradientTop, resolvedBubbleColor)
+                    ),
+                    shape = bubbleShape
+                )
+            } else Modifier
+            Column(modifier = bgModifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                 when (message.type) {
                     MessageType.TEXT -> RichTextContent(message.content, chatDir, contentColor)
                     MessageType.VOICE -> {

@@ -1,6 +1,7 @@
 package com.ncy.notechaty.ui.chatlist
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,11 +9,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,58 +35,70 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
-    onChatClick: (String) -> Unit,
+    onChatClick: (String, String) -> Unit,
     onSettingsClick: () -> Unit,
     onStarredClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     viewModel: ChatListViewModel = hiltViewModel()
 ) {
     val chats by viewModel.chats.collectAsState()
+    val appSettings by viewModel.settings.collectAsState()
     val baseDir = viewModel.baseDir
     var showCreateDialog by remember { mutableStateOf(false) }
     var chatToDelete by remember { mutableStateOf<Chat?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
     var longPressedChat by remember { mutableStateOf<Chat?>(null) }
 
+    val topBarColor = MaterialTheme.colorScheme.primaryContainer
+    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
+
     Scaffold(
         topBar = {
-                TopAppBar(
-                    title = { Text("Ncy") },
-                    actions = {
-                        IconButton(onClick = onSearchClick) {
-                            Icon(Icons.Default.Search, contentDescription = "Search")
-                        }
-                        IconButton(onClick = onStarredClick) {
-                            Icon(Icons.Default.Star, contentDescription = "Starred")
-                        }
-                        Box {
-                            IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort")
-                            }
-                            DropdownMenu(
-                                expanded = showSortMenu,
-                                onDismissRequest = { showSortMenu = false }
-                            ) {
-                                ChatSortMode.entries.forEach { mode ->
-                                    DropdownMenuItem(
-                                        text = { Text(mode.displayName) },
-                                        onClick = {
-                                            viewModel.setSortMode(mode)
-                                            showSortMenu = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            TopAppBar(
+                modifier = if (appSettings.topBarGradient) {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            colors = listOf(gradientTopColor, topBarColor)
+                        )
                     )
+                } else Modifier,
+                title = { },
+                actions = {
+                    IconButton(onClick = onSearchClick) {
+                        Icon(Icons.Default.Search, contentDescription = "Search")
+                    }
+                    IconButton(onClick = onStarredClick) {
+                        Icon(Icons.Default.Star, contentDescription = "Starred")
+                    }
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            ChatSortMode.entries.forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(mode.displayName) },
+                                    onClick = {
+                                        viewModel.setSortMode(mode)
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (appSettings.topBarGradient) Color.Transparent
+                        else MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -89,47 +108,73 @@ fun ChatListScreen(
             }
         }
     ) { padding ->
-        if (chats.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.Chat,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "No chats yet",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Tap + to create your first note chat",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Subtle dot pattern background
+            val dotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val spacing = 24.dp.toPx()
+                val radius = 1.5.dp.toPx()
+                var x = spacing
+                while (x < size.width) {
+                    var y = spacing
+                    while (y < size.height) {
+                        drawCircle(color = dotColor, radius = radius, center = Offset(x, y))
+                        y += spacing
+                    }
+                    x += spacing
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                items(chats, key = { it.id }) { chat ->
-                    ChatListItem(
-                        chat = chat,
-                        baseDir = baseDir,
-                        onClick = { onChatClick(chat.id) },
-                        onLongClick = { longPressedChat = chat }
-                    )
+
+            if (chats.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Surface(
+                            modifier = Modifier.size(128.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            "No chats yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Tap + to create your first note chat",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(chats, key = { it.id }) { chat ->
+                        ChatListItem(
+                            chat = chat,
+                            baseDir = baseDir,
+                            onClick = { onChatClick(chat.id, chat.name) },
+                            onLongClick = { longPressedChat = chat }
+                        )
+                    }
                 }
             }
         }
@@ -236,10 +281,16 @@ private fun ChatListItem(
 
     ListItem(
         modifier = Modifier
+            .then(
+                if (chat.isPinned) Modifier.background(
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.08f)
+                ) else Modifier
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
-            ),
+            )
+            .padding(vertical = 2.dp),
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -309,7 +360,6 @@ private fun ChatListItem(
             }
         }
     )
-    Divider(modifier = Modifier.padding(start = 72.dp))
 }
 
 @Composable

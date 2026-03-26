@@ -3,6 +3,7 @@ package com.ncy.notechaty;
 import android.os.Bundle;
 import androidx.activity.ComponentActivity;
 import androidx.compose.ui.Modifier;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.ncy.notechaty.data.repository.SettingsRepository;
 import dagger.hilt.android.AndroidEntryPoint;
 import javax.inject.Inject;

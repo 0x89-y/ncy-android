@@ -25,5 +25,6 @@ data class AppSettings(
     val chatSortMode: ChatSortMode = ChatSortMode.LAST_MESSAGE,
     val autoBackupEnabled: Boolean = false,
     val autoBackupFolder: String? = null,
-    val autoBackupIntervalHours: Int = 24
+    val autoBackupIntervalHours: Int = 24,
+    val topBarGradient: Boolean = false
 )

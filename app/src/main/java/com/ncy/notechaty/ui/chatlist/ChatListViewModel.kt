@@ -19,6 +19,7 @@ class ChatListViewModel @Inject constructor(
 ) : ViewModel() {
 
     val baseDir: File = repository.getBaseDir()
+    val settings = settingsRepository.settings
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()

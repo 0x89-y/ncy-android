@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.MessageType
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,8 +24,11 @@ data class SearchResult(
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val repository: ChatRepository
+    private val repository: ChatRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
+
+    val settings = settingsRepository.settings
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()

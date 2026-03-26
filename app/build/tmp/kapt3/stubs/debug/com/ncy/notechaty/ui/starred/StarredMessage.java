@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel;
 import com.ncy.notechaty.data.model.Chat;
 import com.ncy.notechaty.data.model.Message;
 import com.ncy.notechaty.data.repository.ChatRepository;
+import com.ncy.notechaty.data.repository.SettingsRepository;
 import dagger.hilt.android.lifecycle.HiltViewModel;
 import kotlinx.coroutines.flow.StateFlow;
 import javax.inject.Inject;

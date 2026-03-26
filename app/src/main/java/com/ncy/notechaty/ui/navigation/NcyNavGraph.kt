@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -16,14 +18,14 @@ import com.ncy.notechaty.ui.starred.StarredMessagesScreen
 
 object Routes {
     const val CHAT_LIST = "chat_list"
-    const val CHAT = "chat/{chatId}"
+    const val CHAT = "chat/{chatId}?name={name}"
     const val CHAT_CONFIG = "chat_config/{chatId}"
     const val SETTINGS = "settings"
     const val LICENSES = "licenses"
     const val STARRED = "starred"
     const val SEARCH = "search"
 
-    fun chat(chatId: String) = "chat/$chatId"
+    fun chat(chatId: String, name: String = "") = "chat/$chatId?name=${java.net.URLEncoder.encode(name, "UTF-8")}"
     fun chatConfig(chatId: String) = "chat_config/$chatId"
 }
 
@@ -31,12 +33,16 @@ object Routes {
 fun NcyNavGraph(navController: NavHostController) {
     NavHost(
         navController = navController,
-        startDestination = Routes.CHAT_LIST
+        startDestination = Routes.CHAT_LIST,
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None }
     ) {
         composable(Routes.CHAT_LIST) {
             ChatListScreen(
-                onChatClick = { chatId ->
-                    navController.navigate(Routes.chat(chatId))
+                onChatClick = { chatId, chatName ->
+                    navController.navigate(Routes.chat(chatId, chatName))
                 },
                 onSettingsClick = {
                     navController.navigate(Routes.SETTINGS)
@@ -52,11 +58,16 @@ fun NcyNavGraph(navController: NavHostController) {
 
         composable(
             route = Routes.CHAT,
-            arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("chatId") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType; defaultValue = "" }
+            )
         ) { backStackEntry ->
             val chatId = backStackEntry.arguments?.getString("chatId") ?: return@composable
+            val chatName = backStackEntry.arguments?.getString("name") ?: ""
             ChatScreen(
                 chatId = chatId,
+                chatName = chatName,
                 onBack = { navController.popBackStack() },
                 onConfigClick = { navController.navigate(Routes.chatConfig(chatId)) }
             )

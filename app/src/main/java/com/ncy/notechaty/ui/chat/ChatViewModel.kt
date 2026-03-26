@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.notifications.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -27,10 +28,13 @@ data class ChatUiState(
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ChatRepository,
+    private val settingsRepository: SettingsRepository,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val chatId: String = savedStateHandle["chatId"] ?: ""
+
+    val settings = settingsRepository.settings
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()

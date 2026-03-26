@@ -37,7 +37,8 @@ class SettingsRepository @Inject constructor(
                     ?: ChatSortMode.LAST_MESSAGE,
                 autoBackupEnabled = prefs.getBoolean("autoBackupEnabled", false),
                 autoBackupFolder = prefs.getString("autoBackupFolder", null),
-                autoBackupIntervalHours = prefs.getInt("autoBackupIntervalHours", 24)
+                autoBackupIntervalHours = prefs.getInt("autoBackupIntervalHours", 24),
+                topBarGradient = prefs.getBoolean("topBarGradient", false)
             )
         } catch (_: Exception) {
             AppSettings()
@@ -53,6 +54,7 @@ class SettingsRepository @Inject constructor(
             .putBoolean("autoBackupEnabled", settings.autoBackupEnabled)
             .putString("autoBackupFolder", settings.autoBackupFolder)
             .putInt("autoBackupIntervalHours", settings.autoBackupIntervalHours)
+            .putBoolean("topBarGradient", settings.topBarGradient)
             .apply()
     }
 }

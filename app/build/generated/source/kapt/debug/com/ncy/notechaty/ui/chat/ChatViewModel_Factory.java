@@ -3,6 +3,7 @@ package com.ncy.notechaty.ui.chat;
 import android.content.Context;
 import androidx.lifecycle.SavedStateHandle;
 import com.ncy.notechaty.data.repository.ChatRepository;
+import com.ncy.notechaty.data.repository.SettingsRepository;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
@@ -28,27 +29,34 @@ public final class ChatViewModel_Factory implements Factory<ChatViewModel> {
 
   private final Provider<ChatRepository> repositoryProvider;
 
+  private final Provider<SettingsRepository> settingsRepositoryProvider;
+
   private final Provider<Context> appContextProvider;
 
   public ChatViewModel_Factory(Provider<SavedStateHandle> savedStateHandleProvider,
-      Provider<ChatRepository> repositoryProvider, Provider<Context> appContextProvider) {
+      Provider<ChatRepository> repositoryProvider,
+      Provider<SettingsRepository> settingsRepositoryProvider,
+      Provider<Context> appContextProvider) {
     this.savedStateHandleProvider = savedStateHandleProvider;
     this.repositoryProvider = repositoryProvider;
+    this.settingsRepositoryProvider = settingsRepositoryProvider;
     this.appContextProvider = appContextProvider;
   }
 
   @Override
   public ChatViewModel get() {
-    return newInstance(savedStateHandleProvider.get(), repositoryProvider.get(), appContextProvider.get());
+    return newInstance(savedStateHandleProvider.get(), repositoryProvider.get(), settingsRepositoryProvider.get(), appContextProvider.get());
   }
 
   public static ChatViewModel_Factory create(Provider<SavedStateHandle> savedStateHandleProvider,
-      Provider<ChatRepository> repositoryProvider, Provider<Context> appContextProvider) {
-    return new ChatViewModel_Factory(savedStateHandleProvider, repositoryProvider, appContextProvider);
+      Provider<ChatRepository> repositoryProvider,
+      Provider<SettingsRepository> settingsRepositoryProvider,
+      Provider<Context> appContextProvider) {
+    return new ChatViewModel_Factory(savedStateHandleProvider, repositoryProvider, settingsRepositoryProvider, appContextProvider);
   }
 
   public static ChatViewModel newInstance(SavedStateHandle savedStateHandle,
-      ChatRepository repository, Context appContext) {
-    return new ChatViewModel(savedStateHandle, repository, appContext);
+      ChatRepository repository, SettingsRepository settingsRepository, Context appContext) {
+    return new ChatViewModel(savedStateHandle, repository, settingsRepository, appContext);
   }
 }

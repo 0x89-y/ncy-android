@@ -6,6 +6,7 @@ import androidx.compose.material3.*;
 import androidx.compose.runtime.Composable;
 import androidx.compose.ui.Alignment;
 import androidx.compose.ui.Modifier;
+import androidx.compose.ui.graphics.Brush;
 import androidx.compose.ui.text.style.TextOverflow;
 import com.ncy.notechaty.data.model.MessageType;
 import java.text.SimpleDateFormat;

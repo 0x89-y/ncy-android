@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,8 +21,11 @@ data class StarredMessage(
 
 @HiltViewModel
 class StarredMessagesViewModel @Inject constructor(
-    private val repository: ChatRepository
+    private val repository: ChatRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
+
+    val settings = settingsRepository.settings
 
     private val _starredMessages = MutableStateFlow<List<StarredMessage>>(emptyList())
     val starredMessages: StateFlow<List<StarredMessage>> = _starredMessages.asStateFlow()

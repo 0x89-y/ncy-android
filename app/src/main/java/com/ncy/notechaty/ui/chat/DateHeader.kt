@@ -15,7 +15,7 @@ fun DateHeader(timestamp: Long) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(

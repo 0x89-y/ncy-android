@@ -485,22 +485,22 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
       public T get() {
         switch (id) {
           case 0: // com.ncy.notechaty.ui.chatconfig.ChatConfigViewModel 
-          return (T) new ChatConfigViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get());
+          return (T) new ChatConfigViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
           case 1: // com.ncy.notechaty.ui.chatlist.ChatListViewModel 
           return (T) new ChatListViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
           case 2: // com.ncy.notechaty.ui.chat.ChatViewModel 
-          return (T) new ChatViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+          return (T) new ChatViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
           case 3: // com.ncy.notechaty.ui.search.SearchViewModel 
-          return (T) new SearchViewModel(singletonCImpl.fileChatRepositoryProvider.get());
+          return (T) new SearchViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
           case 4: // com.ncy.notechaty.ui.settings.SettingsViewModel 
           return (T) new SettingsViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
           case 5: // com.ncy.notechaty.ui.starred.StarredMessagesViewModel 
-          return (T) new StarredMessagesViewModel(singletonCImpl.fileChatRepositoryProvider.get());
+          return (T) new StarredMessagesViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
           default: throw new AssertionError(id);
         }

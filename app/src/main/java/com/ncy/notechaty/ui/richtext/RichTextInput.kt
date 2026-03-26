@@ -1,5 +1,11 @@
 package com.ncy.notechaty.ui.richtext
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -176,43 +182,55 @@ fun RichTextInput(
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Send or Voice button (circular)
-                if (state.textFieldValue.text.isNotEmpty()) {
-                    FilledIconButton(
-                        onClick = {
-                            val blocks = state.toBlocks()
-                            onSend(blocks)
-                            state.clear()
-                            showToolbar = false
-                        },
-                        modifier = Modifier.size(44.dp),
-                        shape = CircleShape,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                } else if (editingMessage == null) {
-                    FilledIconButton(
-                        onClick = onVoiceClick,
-                        modifier = Modifier.size(44.dp),
-                        shape = CircleShape,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Mic,
-                            contentDescription = "Voice message",
-                            modifier = Modifier.size(20.dp)
-                        )
+                // Send or Voice button (circular) with animated transition
+                val showSend = state.textFieldValue.text.isNotEmpty()
+                AnimatedContent(
+                    targetState = showSend,
+                    transitionSpec = {
+                        (scaleIn(initialScale = 0.7f) + fadeIn())
+                            .togetherWith(scaleOut(targetScale = 0.7f) + fadeOut())
+                    },
+                    label = "send_mic_toggle"
+                ) { isSend ->
+                    if (isSend) {
+                        FilledIconButton(
+                            onClick = {
+                                val blocks = state.toBlocks()
+                                onSend(blocks)
+                                state.clear()
+                                showToolbar = false
+                            },
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else if (editingMessage == null) {
+                        FilledIconButton(
+                            onClick = onVoiceClick,
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Mic,
+                                contentDescription = "Voice message",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.size(44.dp))
                     }
                 }
             }

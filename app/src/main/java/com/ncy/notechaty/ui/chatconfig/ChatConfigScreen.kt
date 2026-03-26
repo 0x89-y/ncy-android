@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,7 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChatConfigScreen(
     chatId: String,
@@ -215,8 +216,6 @@ fun ChatConfigScreen(
                 }
             }
 
-            Divider()
-
             // Background image
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -254,7 +253,7 @@ fun ChatConfigScreen(
                 }
             }
 
-            // Bubble color
+            // Appearance card (bubble color + gradient)
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -263,45 +262,54 @@ fun ChatConfigScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Palette, contentDescription = null)
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text("Bubble Color", style = MaterialTheme.typography.bodyLarge)
-                    }
+                    Text(
+                        "Appearance",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
-                    // Pastel row
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+
+                    // Bubble color
+                    Text("Bubble color", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val defaultContainerColor = MaterialTheme.colorScheme.primaryContainer
+                    val allPresets = listOf(
+                        null to defaultContainerColor,
+                        "#DCF8C6" to Color(0xFFDCF8C6),
+                        "#BBDEFB" to Color(0xFFBBDEFB),
+                        "#F8BBD0" to Color(0xFFF8BBD0),
+                        "#FFF9C4" to Color(0xFFFFF9C4),
+                        "#005C4B" to Color(0xFF005C4B),
+                        "#1A3A5C" to Color(0xFF1A3A5C),
+                        "#4A1942" to Color(0xFF4A1942),
+                        "#5D2E0C" to Color(0xFF5D2E0C)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val pastelPresets = listOf(
-                            null to MaterialTheme.colorScheme.primaryContainer,  // Default
-                            "#DCF8C6" to Color(0xFFDCF8C6),  // WhatsApp green
-                            "#BBDEFB" to Color(0xFFBBDEFB),  // Light blue
-                            "#F8BBD0" to Color(0xFFF8BBD0),  // Light pink
-                            "#FFF9C4" to Color(0xFFFFF9C4)   // Light yellow
-                        )
-                        pastelPresets.forEach { (hex, color) ->
+                        allPresets.forEach { (hex, color) ->
                             val isSelected = chat?.bubbleColor == hex
+                            val checkTint = if (color.luminance() > 0.4f) Color.Black else Color.White
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
                                     .background(color)
-                                    .then(
-                                        if (isSelected) Modifier.border(
-                                            2.dp,
-                                            MaterialTheme.colorScheme.onSurface,
-                                            CircleShape
-                                        )
-                                        else Modifier
-                                    )
                                     .clickable {
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         viewModel.setBubbleColor(hex)
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (hex == null) {
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = checkTint
+                                    )
+                                } else if (hex == null) {
                                     Text(
                                         "A",
                                         style = MaterialTheme.typography.labelSmall,
@@ -311,66 +319,37 @@ fun ChatConfigScreen(
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    // Dark row
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Bubble gradient toggle
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val darkPresets = listOf(
-                            "#005C4B" to Color(0xFF005C4B),  // WhatsApp dark green
-                            "#1A3A5C" to Color(0xFF1A3A5C),  // Navy blue
-                            "#4A1942" to Color(0xFF4A1942),  // Deep purple
-                            "#5D2E0C" to Color(0xFF5D2E0C)   // Dark brown
+                        Icon(
+                            Icons.Default.Gradient,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
                         )
-                        darkPresets.forEach { (hex, color) ->
-                            val isSelected = chat?.bubbleColor == hex
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .then(
-                                        if (isSelected) Modifier.border(
-                                            2.dp,
-                                            MaterialTheme.colorScheme.onSurface,
-                                            CircleShape
-                                        )
-                                        else Modifier
-                                    )
-                                    .clickable {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        viewModel.setBubbleColor(hex)
-                                    }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Bubble gradient", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "Subtle gradient effect on message bubbles",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Switch(
+                            checked = chat?.bubbleGradient == true,
+                            onCheckedChange = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.setBubbleGradient(it)
+                            }
+                        )
                     }
-                }
-            }
-
-            // Bubble gradient toggle
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Gradient, contentDescription = null)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        "Bubble gradient",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = chat?.bubbleGradient == true,
-                        onCheckedChange = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            viewModel.setBubbleGradient(it)
-                        }
-                    )
                 }
             }
 
@@ -395,8 +374,9 @@ fun ChatConfigScreen(
 
                     // Existing tags as chips
                     if (currentTags.isNotEmpty()) {
-                        Row(
+                        FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             currentTags.forEach { tag ->
@@ -491,13 +471,14 @@ fun ChatConfigScreen(
             }
 
             // Delete
-            OutlinedButton(
+            Button(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                     showDeleteConfirm = true
                 },
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {

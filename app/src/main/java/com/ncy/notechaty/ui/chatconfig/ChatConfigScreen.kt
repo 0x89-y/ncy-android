@@ -216,10 +216,15 @@ fun ChatConfigScreen(
                 }
             }
 
+            val accentCardColors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            )
+
             // Background image
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = { bgPicker.launch("image/*") }
+                onClick = { bgPicker.launch("image/*") },
+                colors = accentCardColors
             ) {
                 Row(
                     modifier = Modifier
@@ -255,7 +260,8 @@ fun ChatConfigScreen(
 
             // Appearance card (bubble color + gradient)
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = accentCardColors
             ) {
                 Column(
                     modifier = Modifier
@@ -355,7 +361,8 @@ fun ChatConfigScreen(
 
             // Tags
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = accentCardColors
             ) {
                 Column(
                     modifier = Modifier
@@ -431,7 +438,8 @@ fun ChatConfigScreen(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     exportLauncher.launch("${chat?.name ?: "chat"}.zip")
-                }
+                },
+                colors = accentCardColors
             ) {
                 Row(
                     modifier = Modifier

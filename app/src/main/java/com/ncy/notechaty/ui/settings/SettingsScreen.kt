@@ -137,7 +137,12 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Data card
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(
                         "Data",
@@ -167,7 +172,12 @@ fun SettingsScreen(
             }
 
             // Auto-backup card
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         "Auto-backup",
@@ -229,7 +239,12 @@ fun SettingsScreen(
             }
 
             // Appearance card
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         "Appearance",
@@ -333,7 +348,12 @@ fun SettingsScreen(
             }
 
             // About card
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(
                         "About",

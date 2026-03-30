@@ -17,13 +17,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.model.MessageType
 import com.ncy.notechaty.data.model.RichTextBlock
 
 @Composable
@@ -33,7 +41,7 @@ fun RichTextInput(
     onCancelEdit: () -> Unit,
     onVoiceClick: () -> Unit,
     onImageClick: () -> Unit,
-    onChecklistClick: () -> Unit = {},
+    onSendChecklist: (List<String>) -> Unit = {},
     onCameraClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -41,12 +49,34 @@ fun RichTextInput(
     val view = LocalView.current
     var showToolbar by remember { mutableStateOf(false) }
     var showAttachMenu by remember { mutableStateOf(false) }
+    var checklistMode by remember { mutableStateOf(false) }
+    var checklistItems by remember { mutableStateOf(listOf("")) }
+    val checklistFocusRequesters = remember(checklistItems.size) {
+        List(checklistItems.size) { FocusRequester() }
+    }
 
     // Load editing message content
     LaunchedEffect(editingMessage) {
         if (editingMessage != null) {
-            state.loadFromBlocks(editingMessage.content)
-            showToolbar = true
+            if (editingMessage.type == MessageType.CHECKLIST) {
+                checklistItems = editingMessage.checklistItems.map { it.text }.ifEmpty { listOf("") }
+                checklistMode = true
+            } else {
+                state.loadFromBlocks(editingMessage.content)
+                showToolbar = true
+            }
+        } else {
+            if (checklistMode) {
+                checklistMode = false
+                checklistItems = listOf("")
+            }
+        }
+    }
+
+    // Auto-focus last checklist item when a new one is added
+    LaunchedEffect(checklistItems.size) {
+        if (checklistMode && checklistItems.isNotEmpty()) {
+            checklistFocusRequesters.last().requestFocus()
         }
     }
 
@@ -54,8 +84,8 @@ fun RichTextInput(
         modifier = modifier
             .fillMaxWidth()
     ) {
-        // Editing indicator
-        if (editingMessage != null) {
+        // Editing indicator (hidden when checklist edit is active — checklist banner covers it)
+        if (editingMessage != null && !checklistMode) {
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier.fillMaxWidth()
@@ -94,8 +124,53 @@ fun RichTextInput(
             }
         }
 
+        // Checklist mode indicator
+        if (checklistMode) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Checklist,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        if (editingMessage != null) "Editing checklist" else "Checklist",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = {
+                            if (editingMessage != null) {
+                                onCancelEdit()
+                                // LaunchedEffect(editingMessage) resets checklistMode + checklistItems
+                            } else {
+                                checklistMode = false
+                                checklistItems = listOf("")
+                            }
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Cancel checklist",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         // Formatting toolbar
-        if (showToolbar) {
+        if (showToolbar && !checklistMode) {
             FormattingToolbar(state = state)
         }
 
@@ -115,55 +190,131 @@ fun RichTextInput(
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Format toggle
-                        IconButton(
-                            onClick = { showToolbar = !showToolbar },
-                            modifier = Modifier.size(44.dp)
+                    if (checklistMode) {
+                        Column(
+                            modifier = Modifier
+                                .heightIn(min = 44.dp, max = 200.dp)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
-                            Icon(
-                                if (showToolbar) Icons.Default.KeyboardArrowDown
-                                else Icons.Default.TextFormat,
-                                contentDescription = "Toggle formatting",
-                                modifier = Modifier.size(22.dp),
-                                tint = if (showToolbar) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            checklistItems.forEachIndexed { index, item ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckBoxOutlineBlank,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    val isLast = index == checklistItems.lastIndex
+                                    TextField(
+                                        value = item,
+                                        onValueChange = { newText ->
+                                            checklistItems = checklistItems.toMutableList().also { it[index] = newText }
+                                        },
+                                        placeholder = {
+                                            Text(
+                                                if (index == 0 && checklistItems.size == 1) "Add item" else "Item ${index + 1}",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(
+                                            imeAction = if (isLast) ImeAction.Done else ImeAction.Next
+                                        ),
+                                        keyboardActions = KeyboardActions(
+                                            onNext = {
+                                                checklistItems = checklistItems + ""
+                                            },
+                                            onDone = {
+                                                if (item.isNotBlank()) {
+                                                    checklistItems = checklistItems + ""
+                                                }
+                                            }
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .focusRequester(checklistFocusRequesters[index]),
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent,
+                                            focusedIndicatorColor = Color.Transparent,
+                                            unfocusedIndicatorColor = Color.Transparent,
+                                            cursorColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        textStyle = MaterialTheme.typography.bodyLarge
+                                    )
+                                    if (checklistItems.size > 1) {
+                                        IconButton(
+                                            onClick = {
+                                                checklistItems = checklistItems.toMutableList().also { it.removeAt(index) }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Remove item",
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Format toggle
+                            IconButton(
+                                onClick = { showToolbar = !showToolbar },
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Icon(
+                                    if (showToolbar) Icons.Default.KeyboardArrowDown
+                                    else Icons.Default.TextFormat,
+                                    contentDescription = "Toggle formatting",
+                                    modifier = Modifier.size(22.dp),
+                                    tint = if (showToolbar) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // Text field (no border, transparent background)
+                            TextField(
+                                value = state.textFieldValue,
+                                onValueChange = { state.updateTextField(it) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 44.dp, max = 150.dp),
+                                placeholder = {
+                                    Text(
+                                        "Message",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    cursorColor = MaterialTheme.colorScheme.primary
+                                ),
+                                textStyle = MaterialTheme.typography.bodyLarge,
+                                maxLines = 6
                             )
                         }
-
-                        // Text field (no border, transparent background)
-                        TextField(
-                            value = state.textFieldValue,
-                            onValueChange = { state.updateTextField(it) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 44.dp, max = 150.dp),
-                            placeholder = {
-                                Text(
-                                    "Message",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            ),
-                            textStyle = MaterialTheme.typography.bodyLarge,
-                            maxLines = 6
-                        )
-
                     }
                 }
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Send or Voice button (circular) with animated transition
-                val showSend = state.textFieldValue.text.isNotEmpty()
+                // Send or Add button (circular) with animated transition
+                val showSend = checklistMode || state.textFieldValue.text.isNotEmpty()
                 AnimatedContent(
                     targetState = showSend,
                     transitionSpec = {
@@ -176,10 +327,19 @@ fun RichTextInput(
                         FilledIconButton(
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                val blocks = state.toBlocks()
-                                onSend(blocks)
-                                state.clear()
-                                showToolbar = false
+                                if (checklistMode) {
+                                    val items = checklistItems.filter { it.isNotBlank() }
+                                    if (items.isNotEmpty()) {
+                                        onSendChecklist(items)
+                                        checklistMode = false
+                                        checklistItems = listOf("")
+                                    }
+                                } else {
+                                    val blocks = state.toBlocks()
+                                    onSend(blocks)
+                                    state.clear()
+                                    showToolbar = false
+                                }
                             },
                             modifier = Modifier.size(44.dp),
                             shape = CircleShape,
@@ -251,7 +411,7 @@ fun RichTextInput(
                                     onClick = {
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         showAttachMenu = false
-                                        onChecklistClick()
+                                        checklistMode = true
                                     }
                                 )
                             }

@@ -14,8 +14,14 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -186,72 +192,125 @@ fun MessageBubble(
                 }
             }
 
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false }
-            ) {
-                // Copy (available for text, image, and checklist messages)
-                if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
-                    DropdownMenuItem(
-                        text = { Text("Copy") },
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            showMenu = false
-                            val plainText = if (message.type == MessageType.CHECKLIST) {
-                                message.checklistItems.joinToString("\n") { item ->
-                                    "${if (item.checked) "☑" else "☐"} ${item.text}"
-                                }
-                            } else {
-                                message.content.joinToString("\n") { block ->
-                                    block.spans.joinToString("") { it.text }
+            if (showMenu) {
+                val menuTitle = when (message.type) {
+                    MessageType.CHECKLIST -> "Checklist (${message.checklistItems.size} items)"
+                    MessageType.IMAGE -> "Image"
+                    MessageType.VOICE -> "Voice message"
+                    MessageType.TEXT -> message.content
+                        .joinToString(" ") { block -> block.spans.joinToString("") { it.text } }
+                        .take(40)
+                        .let { if (it.length == 40) "$it…" else it }
+                }
+                AlertDialog(
+                    onDismissRequest = { showMenu = false },
+                    title = { Text(menuTitle) },
+                    text = {
+                        Column {
+                            if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
+                                TextButton(
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        showMenu = false
+                                        val plainText = if (message.type == MessageType.CHECKLIST) {
+                                            message.checklistItems.joinToString("\n") { item ->
+                                                "${if (item.checked) "☑" else "☐"} ${item.text}"
+                                            }
+                                        } else {
+                                            message.content.joinToString("\n") { block ->
+                                                block.spans.joinToString("") { it.text }
+                                            }
+                                        }
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
+                                        Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Copy")
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
-                            Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                            TextButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    showMenu = false
+                                    onToggleStar()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(if (message.isStarred) "Unstar" else "Star")
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                            TextButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    showMenu = false
+                                    onSetReminder()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Alarm, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Set Reminder")
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                            TextButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    showMenu = false
+                                    onEnterSelectionMode()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.CheckBox, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Select")
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                            if (message.type == MessageType.TEXT || message.type == MessageType.CHECKLIST) {
+                                TextButton(
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        showMenu = false
+                                        onEdit()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Edit")
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                            TextButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    showMenu = false
+                                    onDelete()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Delete")
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text(if (message.isStarred) "Unstar" else "Star") },
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        showMenu = false
-                        onToggleStar()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Set Reminder") },
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        showMenu = false
-                        onSetReminder()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Select") },
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        showMenu = false
-                        onEnterSelectionMode()
-                    }
-                )
-                if (message.type == MessageType.TEXT) {
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            showMenu = false
-                            onEdit()
-                        }
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text("Delete") },
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                        showMenu = false
-                        onDelete()
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showMenu = false }) { Text("Cancel") }
                     }
                 )
             }
@@ -402,11 +461,11 @@ private fun ChecklistContent(
     val doneCount = items.count { it.checked }
     val total = items.size
 
-    Column {
+    Column(modifier = Modifier.width(IntrinsicSize.Max)) {
         // Progress header
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 4.dp)
+            modifier = Modifier.padding(bottom = 2.dp)
         ) {
             Icon(
                 Icons.Default.Checklist,
@@ -420,19 +479,19 @@ private fun ChecklistContent(
                 style = MaterialTheme.typography.labelMedium,
                 color = contentColor.copy(alpha = 0.7f)
             )
-            if (total > 0) {
-                Spacer(modifier = Modifier.width(8.dp))
-                @Suppress("DEPRECATION")
-                LinearProgressIndicator(
-                    progress = doneCount.toFloat() / total,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = contentColor.copy(alpha = 0.7f),
-                    trackColor = contentColor.copy(alpha = 0.15f)
-                )
-            }
+        }
+        if (total > 0) {
+            @Suppress("DEPRECATION")
+            LinearProgressIndicator(
+                progress = doneCount.toFloat() / total,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .padding(bottom = 4.dp),
+                color = contentColor.copy(alpha = 0.7f),
+                trackColor = contentColor.copy(alpha = 0.15f)
+            )
         }
 
         // Checklist items
@@ -440,14 +499,13 @@ private fun ChecklistContent(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .fillMaxWidth()
                     .clickable { onToggleItem(item.id) }
-                    .padding(vertical = 2.dp)
+                    .padding(vertical = 4.dp)
             ) {
                 Checkbox(
                     checked = item.checked,
                     onCheckedChange = { onToggleItem(item.id) },
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(24.dp),
                     colors = CheckboxDefaults.colors(
                         checkedColor = contentColor.copy(alpha = 0.7f),
                         uncheckedColor = contentColor.copy(alpha = 0.5f),

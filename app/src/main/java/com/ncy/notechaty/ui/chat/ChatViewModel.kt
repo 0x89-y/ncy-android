@@ -142,6 +142,28 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun saveChecklistEdit(items: List<String>) {
+        val editing = _uiState.value.editingMessage ?: return
+        viewModelScope.launch {
+            val oldByText = editing.checklistItems.associateBy { it.text }
+            val updatedItems = items.filter { it.isNotBlank() }.map { text ->
+                val trimmed = text.trim()
+                oldByText[trimmed] ?: ChecklistItem(
+                    id = UUID.randomUUID().toString(),
+                    text = trimmed,
+                    checked = false
+                )
+            }
+            val updated = editing.copy(
+                checklistItems = updatedItems,
+                editedAt = System.currentTimeMillis()
+            )
+            repository.updateMessage(updated)
+            _uiState.value = _uiState.value.copy(editingMessage = null)
+            loadChat()
+        }
+    }
+
     fun saveEditPlainText(text: String) {
         saveEdit(
             listOf(

@@ -83,7 +83,9 @@ class FileChatRepository @Inject constructor(
                 bubbleColor = chat.bubbleColor,
                 bubbleGradient = chat.bubbleGradient,
                 isArchived = chat.isArchived,
-                tags = chat.tags
+                tags = chat.tags,
+                isProtected = chat.isProtected,
+                hideName = chat.hideName
             )
         )
         serializer.writeToFile(chatFile, updatedData)
@@ -288,7 +290,9 @@ class FileChatRepository @Inject constructor(
             bubbleColor = chat.bubbleColor,
             bubbleGradient = chat.bubbleGradient,
             isArchived = chat.isArchived,
-            tags = chat.tags
+            tags = chat.tags,
+            isProtected = chat.isProtected,
+            hideName = chat.hideName
         )
     }
 }

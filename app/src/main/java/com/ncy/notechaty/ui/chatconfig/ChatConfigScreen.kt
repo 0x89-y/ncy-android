@@ -359,6 +359,87 @@ fun ChatConfigScreen(
                 }
             }
 
+            // Protection
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = accentCardColors
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        "Protection",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val hasPin = viewModel.hasAppPin()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Protect this chat", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                if (hasPin) "Require PIN/biometric to open"
+                                else "Set an app PIN in Settings first",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = chat?.isProtected == true,
+                            enabled = hasPin,
+                            onCheckedChange = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.setProtected(it)
+                            }
+                        )
+                    }
+
+                    if (chat?.isProtected == true) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Hide name on chat list", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    "Show gibberish instead of the real name",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = chat?.hideName == true,
+                                onCheckedChange = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    viewModel.setHideName(it)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             // Tags
             Card(
                 modifier = Modifier.fillMaxWidth(),

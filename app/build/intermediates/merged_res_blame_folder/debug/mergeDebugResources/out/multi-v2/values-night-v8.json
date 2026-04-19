@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-65:/values-night-v8/values-night-v8.xml",
+            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-69:/values-night-v8/values-night-v8.xml",
             "map": [
                 {
                     "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\6e3c7a5193e0597aa8440d215c4c8afa\\transformed\\core-splashscreen-1.0.1\\res\\values-night-v8\\values-night-v8.xml",
@@ -11,6 +11,23 @@
                         "startOffsets": "55",
                         "endColumns": "85",
                         "endOffsets": "136"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\76b71aa6798a15c1381019d6f5d514fc\\transformed\\appcompat-1.6.1\\res\\values-night-v8\\values-night-v8.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,125,209,293,389,491,593,687",
+                        "endColumns": "69,83,83,95,101,101,93,88",
+                        "endOffsets": "120,204,288,384,486,588,682,771"
+                    },
+                    "to": {
+                        "startLines": "3,4,5,6,7,8,9,10",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "141,211,295,379,475,577,679,773",
+                        "endColumns": "69,83,83,95,101,101,93,88",
+                        "endOffsets": "206,290,374,470,572,674,768,857"
                     }
                 }
             ]

@@ -26,5 +26,8 @@ data class AppSettings(
     val autoBackupEnabled: Boolean = false,
     val autoBackupFolder: String? = null,
     val autoBackupIntervalHours: Int = 24,
-    val topBarGradient: Boolean = false
+    val topBarGradient: Boolean = false,
+    val protectionPinHash: String? = null,
+    val protectionPinSalt: String? = null,
+    val protectionUseBiometric: Boolean = false
 )

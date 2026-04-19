@@ -9,9 +9,12 @@ import com.ncy.notechaty.data.model.AppSettings
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.security.ChatLockState
+import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -20,10 +23,34 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val settingsRepository: SettingsRepository,
+    private val pinManager: PinManager,
+    private val chatLockState: ChatLockState,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = settingsRepository.settings
+
+    fun hasPin(): Boolean = pinManager.hasPin()
+
+    fun setPin(pin: String) {
+        viewModelScope.launch { pinManager.setPin(pin) }
+    }
+
+    fun clearPin() {
+        viewModelScope.launch {
+            pinManager.clearPin()
+            // Unprotect every chat so they remain accessible.
+            val chats = repository.observeChats().first()
+            chats.filter { it.isProtected }.forEach { c ->
+                repository.updateChat(c.copy(isProtected = false, hideName = false))
+            }
+            chatLockState.lockAll()
+        }
+    }
+
+    fun setUseBiometric(enabled: Boolean) {
+        viewModelScope.launch { pinManager.setUseBiometric(enabled) }
+    }
 
     suspend fun importChat(zipFile: File) {
         repository.importChat(zipFile)

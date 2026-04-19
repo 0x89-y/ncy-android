@@ -1,38 +1,30 @@
 [
     {
-        "merged": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-debug-67:\\drawable_ic_launcher_foreground.xml.flat",
-        "source": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-main-69:\\drawable\\ic_launcher_foreground.xml"
+        "merged": "com.ncy.notechaty.app-debug-71:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.ncy.notechaty.app-main-73:/drawable/ic_launcher_background.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-67:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.ncy.notechaty.app-main-69:/drawable/ic_launcher_background.xml"
+        "merged": "com.ncy.notechaty.app-debug-71:/xml_file_paths.xml.flat",
+        "source": "com.ncy.notechaty.app-main-73:/xml/file_paths.xml"
     },
     {
-        "merged": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-debug-67:\\mipmap-hdpi_ic_launcher_round.xml.flat",
-        "source": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-main-69:\\mipmap-hdpi\\ic_launcher_round.xml"
+        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-hdpi_ic_launcher.xml.flat",
+        "source": "com.ncy.notechaty.app-main-73:/mipmap-hdpi/ic_launcher.xml"
     },
     {
-        "merged": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-debug-67:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-main-69:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
+        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.ncy.notechaty.app-main-73:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-debug-67:\\mipmap-hdpi_ic_launcher.xml.flat",
-        "source": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-main-69:\\mipmap-hdpi\\ic_launcher.xml"
+        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-hdpi_ic_launcher_round.xml.flat",
+        "source": "com.ncy.notechaty.app-main-73:/mipmap-hdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-debug-67:\\xml_file_paths.xml.flat",
-        "source": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-main-69:\\xml\\file_paths.xml"
+        "merged": "com.ncy.notechaty.app-debug-71:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.ncy.notechaty.app-main-73:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-67:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.ncy.notechaty.app-main-69:/drawable/ic_launcher_foreground.xml"
-    },
-    {
-        "merged": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-debug-67:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-main-69:\\mipmap-anydpi-v26\\ic_launcher.xml"
-    },
-    {
-        "merged": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-debug-67:\\drawable_ic_launcher_background.xml.flat",
-        "source": "C:\\Users\\Syfae\\.gradle\\daemon\\8.13\\com.ncy.notechaty.app-main-69:\\drawable\\ic_launcher_background.xml"
+        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.ncy.notechaty.app-main-73:/mipmap-anydpi-v26/ic_launcher_round.xml"
     }
 ]

@@ -21,10 +21,16 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Gradient
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.ncy.notechaty.security.BiometricHelper
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +60,8 @@ fun SettingsScreen(
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showPinSetup by remember { mutableStateOf(false) }
+    var showRemovePinConfirm by remember { mutableStateOf(false) }
     val settings by viewModel.settings.collectAsState()
 
     // Export all launcher
@@ -233,6 +241,76 @@ fun SettingsScreen(
                                     label = { Text(if (hours < 24) "${hours}h" else "${hours / 24}d") }
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // Privacy card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(
+                        "Privacy",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                    )
+                    val hasPin = viewModel.hasPin()
+                    SettingsRow(
+                        icon = Icons.Default.Lock,
+                        title = if (hasPin) "Change PIN" else "Set protected chats PIN",
+                        subtitle = if (hasPin) "PIN is set" else "Required to protect any chat",
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            showPinSetup = true
+                        }
+                    )
+                    if (hasPin) {
+                        SettingsRow(
+                            icon = Icons.Default.LockOpen,
+                            title = "Remove PIN",
+                            subtitle = "Unprotects all chats",
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                showRemovePinConfirm = true
+                            }
+                        )
+                        val biometricAvailable = BiometricHelper.canUseBiometric(context)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Use fingerprint", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    if (biometricAvailable) "Unlock protected chats with biometrics"
+                                    else "No biometrics enrolled on this device",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = settings.protectionUseBiometric && biometricAvailable,
+                                enabled = biometricAvailable,
+                                onCheckedChange = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    viewModel.setUseBiometric(it)
+                                }
+                            )
                         }
                     }
                 }
@@ -429,6 +507,105 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (showPinSetup) {
+        PinSetupDialog(
+            isChange = viewModel.hasPin(),
+            onDismiss = { showPinSetup = false },
+            onConfirm = { newPin ->
+                viewModel.setPin(newPin)
+                showPinSetup = false
+                Toast.makeText(context, "PIN saved", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    if (showRemovePinConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRemovePinConfirm = false },
+            title = { Text("Remove PIN?") },
+            text = { Text("Removing the PIN will unprotect every chat that's currently protected. Continue?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearPin()
+                        showRemovePinConfirm = false
+                        Toast.makeText(context, "PIN removed", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemovePinConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PinSetupDialog(
+    isChange: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var pin by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    val mismatch = confirm.isNotEmpty() && pin != confirm
+    val tooShort = pin.isNotEmpty() && pin.length < 4
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+        title = { Text(if (isChange) "Change PIN" else "Set PIN") },
+        text = {
+            Column {
+                Text(
+                    "Choose a numeric PIN of at least 4 digits.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { pin = it.filter { c -> c.isDigit() }.take(12) },
+                    label = { Text("New PIN") },
+                    singleLine = true,
+                    isError = tooShort,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.NumberPassword
+                    ),
+                    supportingText = if (tooShort) { { Text("Minimum 4 digits") } } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = confirm,
+                    onValueChange = { confirm = it.filter { c -> c.isDigit() }.take(12) },
+                    label = { Text("Confirm PIN") },
+                    singleLine = true,
+                    isError = mismatch,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.NumberPassword
+                    ),
+                    supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(pin) },
+                enabled = pin.length >= 4 && pin == confirm
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 private fun accentPreviewColor(accent: AccentColor): Color = when (accent) {

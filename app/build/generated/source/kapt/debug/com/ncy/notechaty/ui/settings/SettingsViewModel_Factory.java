@@ -3,6 +3,8 @@ package com.ncy.notechaty.ui.settings;
 import android.content.Context;
 import com.ncy.notechaty.data.repository.ChatRepository;
 import com.ncy.notechaty.data.repository.SettingsRepository;
+import com.ncy.notechaty.security.ChatLockState;
+import com.ncy.notechaty.security.PinManager;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
@@ -28,27 +30,38 @@ public final class SettingsViewModel_Factory implements Factory<SettingsViewMode
 
   private final Provider<SettingsRepository> settingsRepositoryProvider;
 
+  private final Provider<PinManager> pinManagerProvider;
+
+  private final Provider<ChatLockState> chatLockStateProvider;
+
   private final Provider<Context> contextProvider;
 
   public SettingsViewModel_Factory(Provider<ChatRepository> repositoryProvider,
-      Provider<SettingsRepository> settingsRepositoryProvider, Provider<Context> contextProvider) {
+      Provider<SettingsRepository> settingsRepositoryProvider,
+      Provider<PinManager> pinManagerProvider, Provider<ChatLockState> chatLockStateProvider,
+      Provider<Context> contextProvider) {
     this.repositoryProvider = repositoryProvider;
     this.settingsRepositoryProvider = settingsRepositoryProvider;
+    this.pinManagerProvider = pinManagerProvider;
+    this.chatLockStateProvider = chatLockStateProvider;
     this.contextProvider = contextProvider;
   }
 
   @Override
   public SettingsViewModel get() {
-    return newInstance(repositoryProvider.get(), settingsRepositoryProvider.get(), contextProvider.get());
+    return newInstance(repositoryProvider.get(), settingsRepositoryProvider.get(), pinManagerProvider.get(), chatLockStateProvider.get(), contextProvider.get());
   }
 
   public static SettingsViewModel_Factory create(Provider<ChatRepository> repositoryProvider,
-      Provider<SettingsRepository> settingsRepositoryProvider, Provider<Context> contextProvider) {
-    return new SettingsViewModel_Factory(repositoryProvider, settingsRepositoryProvider, contextProvider);
+      Provider<SettingsRepository> settingsRepositoryProvider,
+      Provider<PinManager> pinManagerProvider, Provider<ChatLockState> chatLockStateProvider,
+      Provider<Context> contextProvider) {
+    return new SettingsViewModel_Factory(repositoryProvider, settingsRepositoryProvider, pinManagerProvider, chatLockStateProvider, contextProvider);
   }
 
   public static SettingsViewModel newInstance(ChatRepository repository,
-      SettingsRepository settingsRepository, Context context) {
-    return new SettingsViewModel(repository, settingsRepository, context);
+      SettingsRepository settingsRepository, PinManager pinManager, ChatLockState chatLockState,
+      Context context) {
+    return new SettingsViewModel(repository, settingsRepository, pinManager, chatLockState, context);
   }
 }

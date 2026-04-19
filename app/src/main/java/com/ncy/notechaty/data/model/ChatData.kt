@@ -19,5 +19,7 @@ data class ChatMetadata(
     val bubbleColor: String? = null,
     val bubbleGradient: Boolean = false,
     val isArchived: Boolean = false,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val isProtected: Boolean = false,
+    val hideName: Boolean = false
 )

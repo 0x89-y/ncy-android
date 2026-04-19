@@ -8,6 +8,8 @@ import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.notifications.ReminderScheduler
+import com.ncy.notechaty.security.ChatLockState
+import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +26,8 @@ data class ChatUiState(
     val editingMessage: Message? = null,
     val searchQuery: String = "",
     val searchResultIds: Set<String> = emptySet(),
-    val searchResultIndex: Int = -1
+    val searchResultIndex: Int = -1,
+    val unlockRequired: Boolean = false
 )
 
 @HiltViewModel
@@ -32,10 +35,22 @@ class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ChatRepository,
     private val settingsRepository: SettingsRepository,
+    private val chatLockState: ChatLockState,
+    private val pinManager: PinManager,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val chatId: String = savedStateHandle["chatId"] ?: ""
+
+    private var hasUnlockToken: Boolean = chatLockState.consume(chatId)
+
+    fun markUnlocked() {
+        hasUnlockToken = true
+        val chat = _uiState.value.chat
+        if (chat != null) {
+            _uiState.value = _uiState.value.copy(unlockRequired = false)
+        }
+    }
 
     val settings = settingsRepository.settings
 
@@ -50,9 +65,16 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val chat = repository.getChat(chatId)
             val messages = repository.getMessages(chatId)
-            _uiState.value = _uiState.value.copy(chat = chat, messages = messages)
+            val unlockRequired = chat?.isProtected == true && !hasUnlockToken
+            _uiState.value = _uiState.value.copy(
+                chat = chat,
+                messages = messages,
+                unlockRequired = unlockRequired
+            )
         }
     }
+
+    fun verifyPin(pin: String): Boolean = pinManager.verifyPin(pin)
 
     fun sendTextMessage(blocks: List<RichTextBlock>) {
         if (blocks.isEmpty() || blocks.all { it.spans.isEmpty() || it.spans.all { s -> s.text.isEmpty() } }) return

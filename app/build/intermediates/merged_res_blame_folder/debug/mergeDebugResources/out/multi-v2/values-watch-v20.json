@@ -1,8 +1,27 @@
 {
     "logs": [
         {
-            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-65:/values-watch-v20/values-watch-v20.xml",
+            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-69:/values-watch-v20/values-watch-v20.xml",
             "map": [
+                {
+                    "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\76b71aa6798a15c1381019d6f5d514fc\\transformed\\appcompat-1.6.1\\res\\values-watch-v20\\values-watch-v20.xml",
+                    "from": {
+                        "startLines": "2,5,8",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "55,214,385",
+                        "endLines": "4,7,10",
+                        "endColumns": "12,12,12",
+                        "endOffsets": "209,380,553"
+                    },
+                    "to": {
+                        "startLines": "10,13,16",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "634,793,964",
+                        "endLines": "12,15,18",
+                        "endColumns": "12,12,12",
+                        "endOffsets": "788,959,1132"
+                    }
+                },
                 {
                     "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\6e3c7a5193e0597aa8440d215c4c8afa\\transformed\\core-splashscreen-1.0.1\\res\\values-watch-v20\\values-watch-v20.xml",
                     "from": {

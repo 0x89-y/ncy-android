@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,10 +19,13 @@ import javax.inject.Inject
 class ChatConfigViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ChatRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val pinManager: PinManager
 ) : ViewModel() {
 
     val settings = settingsRepository.settings
+
+    fun hasAppPin(): Boolean = pinManager.hasPin()
     private val chatId: String = savedStateHandle["chatId"] ?: ""
 
     private val _chat = MutableStateFlow<Chat?>(null)
@@ -80,6 +84,27 @@ class ChatConfigViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _chat.value ?: return@launch
             val updated = current.copy(bubbleGradient = enabled)
+            repository.updateChat(updated)
+            _chat.value = updated
+        }
+    }
+
+    fun setProtected(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = _chat.value ?: return@launch
+            val updated = current.copy(
+                isProtected = enabled,
+                hideName = if (!enabled) false else current.hideName
+            )
+            repository.updateChat(updated)
+            _chat.value = updated
+        }
+    }
+
+    fun setHideName(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = _chat.value ?: return@launch
+            val updated = current.copy(hideName = enabled)
             repository.updateChat(updated)
             _chat.value = updated
         }

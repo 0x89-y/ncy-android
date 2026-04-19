@@ -3,6 +3,7 @@ package com.ncy.notechaty.ui.chatconfig;
 import androidx.lifecycle.SavedStateHandle;
 import com.ncy.notechaty.data.repository.ChatRepository;
 import com.ncy.notechaty.data.repository.SettingsRepository;
+import com.ncy.notechaty.security.PinManager;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
@@ -30,28 +31,33 @@ public final class ChatConfigViewModel_Factory implements Factory<ChatConfigView
 
   private final Provider<SettingsRepository> settingsRepositoryProvider;
 
+  private final Provider<PinManager> pinManagerProvider;
+
   public ChatConfigViewModel_Factory(Provider<SavedStateHandle> savedStateHandleProvider,
       Provider<ChatRepository> repositoryProvider,
-      Provider<SettingsRepository> settingsRepositoryProvider) {
+      Provider<SettingsRepository> settingsRepositoryProvider,
+      Provider<PinManager> pinManagerProvider) {
     this.savedStateHandleProvider = savedStateHandleProvider;
     this.repositoryProvider = repositoryProvider;
     this.settingsRepositoryProvider = settingsRepositoryProvider;
+    this.pinManagerProvider = pinManagerProvider;
   }
 
   @Override
   public ChatConfigViewModel get() {
-    return newInstance(savedStateHandleProvider.get(), repositoryProvider.get(), settingsRepositoryProvider.get());
+    return newInstance(savedStateHandleProvider.get(), repositoryProvider.get(), settingsRepositoryProvider.get(), pinManagerProvider.get());
   }
 
   public static ChatConfigViewModel_Factory create(
       Provider<SavedStateHandle> savedStateHandleProvider,
       Provider<ChatRepository> repositoryProvider,
-      Provider<SettingsRepository> settingsRepositoryProvider) {
-    return new ChatConfigViewModel_Factory(savedStateHandleProvider, repositoryProvider, settingsRepositoryProvider);
+      Provider<SettingsRepository> settingsRepositoryProvider,
+      Provider<PinManager> pinManagerProvider) {
+    return new ChatConfigViewModel_Factory(savedStateHandleProvider, repositoryProvider, settingsRepositoryProvider, pinManagerProvider);
   }
 
   public static ChatConfigViewModel newInstance(SavedStateHandle savedStateHandle,
-      ChatRepository repository, SettingsRepository settingsRepository) {
-    return new ChatConfigViewModel(savedStateHandle, repository, settingsRepository);
+      ChatRepository repository, SettingsRepository settingsRepository, PinManager pinManager) {
+    return new ChatConfigViewModel(savedStateHandle, repository, settingsRepository, pinManager);
   }
 }

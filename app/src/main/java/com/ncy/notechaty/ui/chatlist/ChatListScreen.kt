@@ -26,13 +26,20 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.ChatSortMode
+import com.ncy.notechaty.security.BiometricHelper
+import com.ncy.notechaty.util.gibberishFor
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -56,6 +63,15 @@ fun ChatListScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var longPressedChat by remember { mutableStateOf<Chat?>(null) }
     var showArchived by remember { mutableStateOf(false) }
+    var chatToUnlock by remember { mutableStateOf<Chat?>(null) }
+
+    val openChat: (Chat) -> Unit = { chat ->
+        if (chat.isProtected) {
+            chatToUnlock = chat
+        } else {
+            onChatClick(chat.id, chat.name)
+        }
+    }
 
     val topBarColor = MaterialTheme.colorScheme.primaryContainer
     val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
@@ -182,7 +198,7 @@ fun ChatListScreen(
                         ChatListItem(
                             chat = chat,
                             baseDir = baseDir,
-                            onClick = { onChatClick(chat.id, chat.name) },
+                            onClick = { openChat(chat) },
                             onLongClick = { longPressedChat = chat }
                         )
                     }
@@ -240,7 +256,7 @@ fun ChatListScreen(
                                 ChatListItem(
                                     chat = chat,
                                     baseDir = baseDir,
-                                    onClick = { onChatClick(chat.id, chat.name) },
+                                    onClick = { openChat(chat) },
                                     onLongClick = { longPressedChat = chat }
                                 )
                             }
@@ -334,6 +350,22 @@ fun ChatListScreen(
         )
     }
 
+    // Unlock dialog
+    chatToUnlock?.let { chat ->
+        ChatUnlockDialog(
+            chat = chat,
+            useBiometric = appSettings.protectionUseBiometric,
+            onDismiss = { chatToUnlock = null },
+            onVerify = { pin -> viewModel.verifyPin(pin) },
+            onUnlocked = {
+                viewModel.markUnlocked(chat.id)
+                val unlocked = chat
+                chatToUnlock = null
+                onChatClick(unlocked.id, unlocked.name)
+            }
+        )
+    }
+
     // Delete confirmation
     chatToDelete?.let { chat ->
         AlertDialog(
@@ -390,8 +422,13 @@ private fun ChatListItem(
             .padding(vertical = 2.dp),
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val displayName = if (chat.isProtected && chat.hideName) {
+                    gibberishFor(chat.id)
+                } else {
+                    chat.name
+                }
                 Text(
-                    text = chat.name,
+                    text = displayName,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -406,16 +443,34 @@ private fun ChatListItem(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
+                if (chat.isProtected) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = "Protected",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         },
         supportingContent = {
-            chat.lastMessagePreview?.let { preview ->
+            if (chat.isProtected) {
                 Text(
-                    text = preview,
+                    text = "Protected chat",
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    fontStyle = FontStyle.Italic,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else {
+                chat.lastMessagePreview?.let { preview ->
+                    Text(
+                        text = preview,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         trailingContent = {
@@ -447,11 +502,20 @@ private fun ChatListItem(
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = chat.name.take(1).uppercase(),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        if (chat.isProtected && chat.hideName) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        } else {
+                            Text(
+                                text = chat.name.take(1).uppercase(),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
             }
@@ -490,6 +554,101 @@ private fun CreateChatDialog(
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
+        }
+    )
+}
+
+@Composable
+private fun ChatUnlockDialog(
+    chat: Chat,
+    useBiometric: Boolean,
+    onDismiss: () -> Unit,
+    onVerify: (String) -> Boolean,
+    onUnlocked: () -> Unit
+) {
+    var pin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
+
+    LaunchedEffect(canUseBio) {
+        if (canUseBio && activity != null) {
+            BiometricHelper.authenticate(
+                activity = activity,
+                title = "Unlock chat",
+                subtitle = "Verify to open this protected chat",
+                onSuccess = onUnlocked
+            )
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+        title = { Text("Protected chat") },
+        text = {
+            Column {
+                Text(
+                    "Enter your PIN to open this chat.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = {
+                        pin = it.filter { c -> c.isDigit() }
+                        error = false
+                    },
+                    label = { Text("PIN") },
+                    singleLine = true,
+                    isError = error,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.NumberPassword
+                    ),
+                    supportingText = if (error) {
+                        { Text("Wrong PIN") }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (canUseBio && activity != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        onClick = {
+                            BiometricHelper.authenticate(
+                                activity = activity,
+                                title = "Unlock chat",
+                                subtitle = "Verify to open this protected chat",
+                                onSuccess = onUnlocked
+                            )
+                        }
+                    ) {
+                        Icon(Icons.Default.Fingerprint, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Use fingerprint")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (onVerify(pin)) {
+                        onUnlocked()
+                    } else {
+                        error = true
+                        pin = ""
+                    }
+                },
+                enabled = pin.isNotEmpty()
+            ) {
+                Text("Unlock")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
 }

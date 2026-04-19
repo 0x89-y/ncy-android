@@ -6,6 +6,8 @@ import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.security.ChatLockState
+import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,11 +17,16 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
     private val repository: ChatRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    val pinManager: PinManager,
+    val chatLockState: ChatLockState
 ) : ViewModel() {
 
     val baseDir: File = repository.getBaseDir()
     val settings = settingsRepository.settings
+
+    fun verifyPin(pin: String): Boolean = pinManager.verifyPin(pin)
+    fun markUnlocked(chatId: String) = chatLockState.unlock(chatId)
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()

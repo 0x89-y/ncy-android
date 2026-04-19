@@ -38,7 +38,10 @@ class SettingsRepository @Inject constructor(
                 autoBackupEnabled = prefs.getBoolean("autoBackupEnabled", false),
                 autoBackupFolder = prefs.getString("autoBackupFolder", null),
                 autoBackupIntervalHours = prefs.getInt("autoBackupIntervalHours", 24),
-                topBarGradient = prefs.getBoolean("topBarGradient", false)
+                topBarGradient = prefs.getBoolean("topBarGradient", false),
+                protectionPinHash = prefs.getString("protectionPinHash", null),
+                protectionPinSalt = prefs.getString("protectionPinSalt", null),
+                protectionUseBiometric = prefs.getBoolean("protectionUseBiometric", false)
             )
         } catch (_: Exception) {
             AppSettings()
@@ -55,6 +58,9 @@ class SettingsRepository @Inject constructor(
             .putString("autoBackupFolder", settings.autoBackupFolder)
             .putInt("autoBackupIntervalHours", settings.autoBackupIntervalHours)
             .putBoolean("topBarGradient", settings.topBarGradient)
+            .putString("protectionPinHash", settings.protectionPinHash)
+            .putString("protectionPinSalt", settings.protectionPinSalt)
+            .putBoolean("protectionUseBiometric", settings.protectionUseBiometric)
             .apply()
     }
 }

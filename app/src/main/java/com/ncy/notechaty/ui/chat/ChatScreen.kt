@@ -67,6 +67,17 @@ fun ChatScreen(
     val view = LocalView.current
     val chatDir = viewModel.getChatDir()
 
+    if (uiState.unlockRequired) {
+        ChatLockOverlay(
+            chatName = if (uiState.chat?.hideName == true) "Protected chat" else (uiState.chat?.name ?: chatName),
+            useBiometric = appSettings.protectionUseBiometric,
+            onBack = onBack,
+            onVerify = { viewModel.verifyPin(it) },
+            onUnlocked = { viewModel.markUnlocked() }
+        )
+        return
+    }
+
     // Reload chat data when returning from config screen
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -524,4 +535,124 @@ fun ChatScreen(
         )
     }
 
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatLockOverlay(
+    chatName: String,
+    useBiometric: Boolean,
+    onBack: () -> Unit,
+    onVerify: (String) -> Boolean,
+    onUnlocked: () -> Unit
+) {
+    val context = LocalContext.current
+    val activity = context as? androidx.fragment.app.FragmentActivity
+    val canUseBio = useBiometric && activity != null &&
+        com.ncy.notechaty.security.BiometricHelper.canUseBiometric(context)
+    var pin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+
+    LaunchedEffect(canUseBio) {
+        if (canUseBio && activity != null) {
+            com.ncy.notechaty.security.BiometricHelper.authenticate(
+                activity = activity,
+                title = "Unlock chat",
+                subtitle = "Verify to open this protected chat",
+                onSuccess = onUnlocked
+            )
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(chatName) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Protected chat",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Enter your PIN to continue",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            OutlinedTextField(
+                value = pin,
+                onValueChange = {
+                    pin = it.filter { c -> c.isDigit() }
+                    error = false
+                },
+                label = { Text("PIN") },
+                singleLine = true,
+                isError = error,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                ),
+                supportingText = if (error) { { Text("Wrong PIN") } } else null,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    if (onVerify(pin)) onUnlocked() else {
+                        error = true
+                        pin = ""
+                    }
+                },
+                enabled = pin.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Unlock")
+            }
+            if (canUseBio && activity != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = {
+                        com.ncy.notechaty.security.BiometricHelper.authenticate(
+                            activity = activity,
+                            title = "Unlock chat",
+                            subtitle = "Verify to open this protected chat",
+                            onSuccess = onUnlocked
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Fingerprint, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Use fingerprint")
+                }
+            }
+        }
+    }
 }

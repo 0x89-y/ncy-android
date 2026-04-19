@@ -29,5 +29,7 @@ data class AppSettings(
     val topBarGradient: Boolean = false,
     val protectionPinHash: String? = null,
     val protectionPinSalt: String? = null,
-    val protectionUseBiometric: Boolean = false
+    val protectionUseBiometric: Boolean = false,
+    val lockOnAppStart: Boolean = false,
+    val protectionGracePeriodMinutes: Int = 0
 )

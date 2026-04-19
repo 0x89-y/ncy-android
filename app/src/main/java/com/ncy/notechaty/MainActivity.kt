@@ -10,6 +10,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
@@ -18,6 +21,9 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.rememberNavController
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.security.ChatLockState
+import com.ncy.notechaty.security.PinManager
+import com.ncy.notechaty.security.PinPromptContent
 import com.ncy.notechaty.ui.navigation.NcyNavGraph
 import com.ncy.notechaty.ui.theme.NoteChatyTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -28,6 +34,12 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
+
+    @Inject
+    lateinit var pinManager: PinManager
+
+    @Inject
+    lateinit var chatLockState: ChatLockState
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -54,8 +66,28 @@ class MainActivity : FragmentActivity() {
                     }
                 }
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    val navController = rememberNavController()
-                    NcyNavGraph(navController = navController)
+                    var appUnlocked by remember { mutableStateOf(chatLockState.isAppUnlocked()) }
+                    val needsAppLock = settings.lockOnAppStart &&
+                        pinManager.hasPin() &&
+                        !appUnlocked
+
+                    if (needsAppLock) {
+                        PinPromptContent(
+                            title = "NoteChaty",
+                            subtitle = "Enter your PIN to continue",
+                            biometricTitle = "Unlock NoteChaty",
+                            biometricSubtitle = "Verify to open the app",
+                            useBiometric = settings.protectionUseBiometric,
+                            onVerify = { pin -> pinManager.verifyPin(pin) },
+                            onUnlocked = {
+                                chatLockState.unlockApp()
+                                appUnlocked = true
+                            }
+                        )
+                    } else {
+                        val navController = rememberNavController()
+                        NcyNavGraph(navController = navController)
+                    }
                 }
             }
         }

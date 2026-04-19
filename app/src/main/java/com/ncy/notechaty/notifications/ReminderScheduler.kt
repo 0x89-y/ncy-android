@@ -12,11 +12,14 @@ object ReminderScheduler {
         context: Context,
         message: Message,
         chatName: String,
-        triggerAtMillis: Long
+        triggerAtMillis: Long,
+        isProtected: Boolean = false
     ) {
+        val title = if (isProtected) "Protected chat" else chatName
+        val preview = if (isProtected) "New reminder" else message.plainTextPreview()
         val intent = Intent(context, ReminderReceiver::class.java).apply {
-            putExtra(ReminderReceiver.EXTRA_MESSAGE_PREVIEW, message.plainTextPreview())
-            putExtra(ReminderReceiver.EXTRA_CHAT_NAME, chatName)
+            putExtra(ReminderReceiver.EXTRA_MESSAGE_PREVIEW, preview)
+            putExtra(ReminderReceiver.EXTRA_CHAT_NAME, title)
             putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, message.id.hashCode())
         }
 

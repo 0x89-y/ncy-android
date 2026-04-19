@@ -32,7 +32,8 @@ class BootReceiver : BroadcastReceiver() {
                                 context,
                                 message,
                                 data.chat.name,
-                                message.reminderAt!!
+                                message.reminderAt!!,
+                                isProtected = data.chat.isProtected
                             )
                         }
                 } catch (_: Exception) {

@@ -312,6 +312,61 @@ fun SettingsScreen(
                                 }
                             )
                         }
+                        // Lock on app start
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Lock app on start", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    "Require PIN to open NoteChaty",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = settings.lockOnAppStart,
+                                onCheckedChange = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    viewModel.setLockOnAppStart(it)
+                                }
+                            )
+                        }
+                        // Re-lock interval
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text("Re-lock chats", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "How long an unlock stays valid",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                listOf(0 to "Always", 1 to "1m", 5 to "5m", 15 to "15m").forEach { (mins, label) ->
+                                    FilterChip(
+                                        selected = settings.protectionGracePeriodMinutes == mins,
+                                        onClick = {
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                            viewModel.setProtectionGracePeriod(mins)
+                                        },
+                                        label = { Text(label) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

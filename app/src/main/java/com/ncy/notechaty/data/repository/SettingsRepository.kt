@@ -41,7 +41,9 @@ class SettingsRepository @Inject constructor(
                 topBarGradient = prefs.getBoolean("topBarGradient", false),
                 protectionPinHash = prefs.getString("protectionPinHash", null),
                 protectionPinSalt = prefs.getString("protectionPinSalt", null),
-                protectionUseBiometric = prefs.getBoolean("protectionUseBiometric", false)
+                protectionUseBiometric = prefs.getBoolean("protectionUseBiometric", false),
+                lockOnAppStart = prefs.getBoolean("lockOnAppStart", false),
+                protectionGracePeriodMinutes = prefs.getInt("protectionGracePeriodMinutes", 0)
             )
         } catch (_: Exception) {
             AppSettings()
@@ -61,6 +63,8 @@ class SettingsRepository @Inject constructor(
             .putString("protectionPinHash", settings.protectionPinHash)
             .putString("protectionPinSalt", settings.protectionPinSalt)
             .putBoolean("protectionUseBiometric", settings.protectionUseBiometric)
+            .putBoolean("lockOnAppStart", settings.lockOnAppStart)
+            .putInt("protectionGracePeriodMinutes", settings.protectionGracePeriodMinutes)
             .apply()
     }
 }

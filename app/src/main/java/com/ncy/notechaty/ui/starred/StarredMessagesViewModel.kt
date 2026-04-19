@@ -39,7 +39,7 @@ class StarredMessagesViewModel @Inject constructor(
             val chats = mutableListOf<Pair<Chat, List<Message>>>()
             repository.observeChats().collect { chatList ->
                 val starred = mutableListOf<StarredMessage>()
-                chatList.forEach { chat ->
+                chatList.filter { !it.isProtected }.forEach { chat ->
                     val messages = repository.getMessages(chat.id)
                     messages.filter { it.isStarred }.forEach { msg ->
                         starred.add(StarredMessage(msg, chat.name, chat.id))

@@ -66,7 +66,7 @@ fun ChatListScreen(
     var chatToUnlock by remember { mutableStateOf<Chat?>(null) }
 
     val openChat: (Chat) -> Unit = { chat ->
-        if (chat.isProtected) {
+        if (chat.isProtected && !viewModel.isChatUnlockedWithinGrace(chat.id)) {
             chatToUnlock = chat
         } else {
             onChatClick(chat.id, chat.name)

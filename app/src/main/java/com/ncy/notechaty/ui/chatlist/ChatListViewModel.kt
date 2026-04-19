@@ -28,6 +28,13 @@ class ChatListViewModel @Inject constructor(
     fun verifyPin(pin: String): Boolean = pinManager.verifyPin(pin)
     fun markUnlocked(chatId: String) = chatLockState.unlock(chatId)
 
+    /** Returns true only when grace > 0 AND the chat is within its unlock window. */
+    fun isChatUnlockedWithinGrace(chatId: String): Boolean {
+        val grace = settingsRepository.settings.value.protectionGracePeriodMinutes
+        if (grace <= 0) return false
+        return chatLockState.isUnlocked(chatId, grace)
+    }
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 

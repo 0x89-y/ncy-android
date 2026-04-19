@@ -42,7 +42,10 @@ class ChatViewModel @Inject constructor(
 
     private val chatId: String = savedStateHandle["chatId"] ?: ""
 
-    private var hasUnlockToken: Boolean = chatLockState.consume(chatId)
+    private var hasUnlockToken: Boolean = chatLockState.isUnlocked(
+        chatId,
+        settingsRepository.settings.value.protectionGracePeriodMinutes
+    )
 
     fun markUnlocked() {
         hasUnlockToken = true
@@ -222,9 +225,11 @@ class ChatViewModel @Inject constructor(
 
     fun setReminder(message: Message, triggerAtMillis: Long) {
         viewModelScope.launch {
-            val chatName = _uiState.value.chat?.name ?: "Ncy"
+            val chat = _uiState.value.chat
+            val chatName = chat?.name ?: "Ncy"
+            val isProtected = chat?.isProtected == true
             repository.updateMessage(message.copy(reminderAt = triggerAtMillis))
-            ReminderScheduler.schedule(appContext, message, chatName, triggerAtMillis)
+            ReminderScheduler.schedule(appContext, message, chatName, triggerAtMillis, isProtected)
             loadChat()
         }
     }

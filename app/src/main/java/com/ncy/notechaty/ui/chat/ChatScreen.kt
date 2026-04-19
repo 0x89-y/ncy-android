@@ -546,24 +546,6 @@ private fun ChatLockOverlay(
     onVerify: (String) -> Boolean,
     onUnlocked: () -> Unit
 ) {
-    val context = LocalContext.current
-    val activity = context as? androidx.fragment.app.FragmentActivity
-    val canUseBio = useBiometric && activity != null &&
-        com.ncy.notechaty.security.BiometricHelper.canUseBiometric(context)
-    var pin by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
-
-    LaunchedEffect(canUseBio) {
-        if (canUseBio && activity != null) {
-            com.ncy.notechaty.security.BiometricHelper.authenticate(
-                activity = activity,
-                title = "Unlock chat",
-                subtitle = "Verify to open this protected chat",
-                onSuccess = onUnlocked
-            )
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -580,79 +562,15 @@ private fun ChatLockOverlay(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                Icons.Default.Lock,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "Protected chat",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "Enter your PIN to continue",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            OutlinedTextField(
-                value = pin,
-                onValueChange = {
-                    pin = it.filter { c -> c.isDigit() }
-                    error = false
-                },
-                label = { Text("PIN") },
-                singleLine = true,
-                isError = error,
-                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
-                ),
-                supportingText = if (error) { { Text("Wrong PIN") } } else null,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    if (onVerify(pin)) onUnlocked() else {
-                        error = true
-                        pin = ""
-                    }
-                },
-                enabled = pin.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Unlock")
-            }
-            if (canUseBio && activity != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(
-                    onClick = {
-                        com.ncy.notechaty.security.BiometricHelper.authenticate(
-                            activity = activity,
-                            title = "Unlock chat",
-                            subtitle = "Verify to open this protected chat",
-                            onSuccess = onUnlocked
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Fingerprint, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Use fingerprint")
-                }
-            }
-        }
+        com.ncy.notechaty.security.PinPromptContent(
+            title = "Protected chat",
+            subtitle = "Enter your PIN to continue",
+            biometricTitle = "Unlock chat",
+            biometricSubtitle = "Verify to open this protected chat",
+            useBiometric = useBiometric,
+            onVerify = onVerify,
+            onUnlocked = onUnlocked,
+            modifier = Modifier.padding(padding)
+        )
     }
 }

@@ -409,6 +409,8 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     private MainActivity injectMainActivity2(MainActivity instance) {
       MainActivity_MembersInjector.injectSettingsRepository(instance, singletonCImpl.settingsRepositoryProvider.get());
+      MainActivity_MembersInjector.injectPinManager(instance, singletonCImpl.pinManagerProvider.get());
+      MainActivity_MembersInjector.injectChatLockState(instance, singletonCImpl.chatLockStateProvider.get());
       return instance;
     }
   }
@@ -619,8 +621,8 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
     }
 
     @Override
-    public void injectNcyApp(NcyApp arg0) {
-      injectNcyApp2(arg0);
+    public void injectNcyApp(NcyApp ncyApp) {
+      injectNcyApp2(ncyApp);
     }
 
     @Override

@@ -55,7 +55,7 @@ class SearchViewModel @Inject constructor(
             val chats = repository.observeChats().first()
             val searchResults = mutableListOf<SearchResult>()
 
-            chats.forEach { chat ->
+            chats.filter { !it.isProtected }.forEach { chat ->
                 val messages = repository.getMessages(chat.id)
                 messages
                     .filter { it.type == MessageType.TEXT }

@@ -94,6 +94,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setLockOnAppStart(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings(settings.value.copy(lockOnAppStart = enabled))
+        }
+    }
+
+    fun setProtectionGracePeriod(minutes: Int) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings(settings.value.copy(protectionGracePeriodMinutes = minutes))
+        }
+    }
+
     suspend fun exportAllChats(outputFile: File) {
         repository.exportAllChats(outputFile)
     }

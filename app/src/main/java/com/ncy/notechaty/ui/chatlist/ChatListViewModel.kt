@@ -66,6 +66,27 @@ class ChatListViewModel @Inject constructor(
         else archived.filter { it.name.contains(query, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Chat ids that are currently inside the unlock grace window (or app-wide unlocked). Empty when grace = 0. */
+    val unlockedChatIds: StateFlow<Set<String>> = combine(
+        repository.observeChats(),
+        settingsRepository.settings,
+        chatLockState.timestamps,
+        chatLockState.appUnlockedAt
+    ) { chats, settings, timestamps, appUnlockedAt ->
+        val grace = settings.protectionGracePeriodMinutes
+        if (grace <= 0) return@combine emptySet()
+        val now = System.currentTimeMillis()
+        val perChat = timestamps
+            .asSequence()
+            .filter { (_, ts) -> now - ts < grace * 60_000L }
+            .map { it.key }
+            .toMutableSet()
+        if (appUnlockedAt > 0L) {
+            chats.asSequence().filter { it.isProtected }.forEach { perChat.add(it.id) }
+        }
+        perChat
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     init {
         viewModelScope.launch {
             repository.scanForNewChats()

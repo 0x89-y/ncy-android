@@ -56,6 +56,7 @@ fun ChatListScreen(
     val chats by viewModel.chats.collectAsState()
     val archivedChats by viewModel.archivedChats.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
+    val unlockedChatIds by viewModel.unlockedChatIds.collectAsState()
     val baseDir = viewModel.baseDir
     val view = LocalView.current
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -198,6 +199,7 @@ fun ChatListScreen(
                         ChatListItem(
                             chat = chat,
                             baseDir = baseDir,
+                            isUnlocked = chat.id in unlockedChatIds,
                             onClick = { openChat(chat) },
                             onLongClick = { longPressedChat = chat }
                         )
@@ -256,6 +258,7 @@ fun ChatListScreen(
                                 ChatListItem(
                                     chat = chat,
                                     baseDir = baseDir,
+                                    isUnlocked = chat.id in unlockedChatIds,
                                     onClick = { openChat(chat) },
                                     onLongClick = { longPressedChat = chat }
                                 )
@@ -400,9 +403,11 @@ fun ChatListScreen(
 private fun ChatListItem(
     chat: Chat,
     baseDir: File,
+    isUnlocked: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val showLocked = chat.isProtected && !isUnlocked
     val view = LocalView.current
 
     ListItem(
@@ -422,7 +427,7 @@ private fun ChatListItem(
             .padding(vertical = 2.dp),
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val displayName = if (chat.isProtected && chat.hideName) {
+                val displayName = if (showLocked && chat.hideName) {
                     gibberishFor(chat.id)
                 } else {
                     chat.name
@@ -446,8 +451,8 @@ private fun ChatListItem(
                 if (chat.isProtected) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
-                        Icons.Default.Lock,
-                        contentDescription = "Protected",
+                        if (showLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                        contentDescription = if (showLocked) "Protected" else "Unlocked",
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -455,7 +460,7 @@ private fun ChatListItem(
             }
         },
         supportingContent = {
-            if (chat.isProtected) {
+            if (showLocked) {
                 Text(
                     text = "Protected chat",
                     maxLines = 1,
@@ -502,7 +507,7 @@ private fun ChatListItem(
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        if (chat.isProtected && chat.hideName) {
+                        if (showLocked && chat.hideName) {
                             Icon(
                                 Icons.Default.Lock,
                                 contentDescription = null,

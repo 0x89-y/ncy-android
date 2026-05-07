@@ -6,6 +6,7 @@ import com.ncy.notechaty.di.AppModule;
 import com.ncy.notechaty.ui.chat.ChatViewModel_HiltModules;
 import com.ncy.notechaty.ui.chatconfig.ChatConfigViewModel_HiltModules;
 import com.ncy.notechaty.ui.chatlist.ChatListViewModel_HiltModules;
+import com.ncy.notechaty.ui.profiles.ProfilesViewModel_HiltModules;
 import com.ncy.notechaty.ui.search.SearchViewModel_HiltModules;
 import com.ncy.notechaty.ui.settings.SettingsViewModel_HiltModules;
 import com.ncy.notechaty.ui.starred.StarredMessagesViewModel_HiltModules;
@@ -169,6 +170,7 @@ public final class NcyApp_HiltComponents {
           HiltWrapper_SavedStateHandleModule.class,
           ActivityCBuilderModule.class,
           ViewModelCBuilderModule.class,
+          ProfilesViewModel_HiltModules.KeyModule.class,
           SearchViewModel_HiltModules.KeyModule.class,
           SettingsViewModel_HiltModules.KeyModule.class,
           StarredMessagesViewModel_HiltModules.KeyModule.class
@@ -211,6 +213,7 @@ public final class NcyApp_HiltComponents {
           ChatListViewModel_HiltModules.BindsModule.class,
           ChatViewModel_HiltModules.BindsModule.class,
           HiltWrapper_HiltViewModelFactory_ViewModelModule.class,
+          ProfilesViewModel_HiltModules.BindsModule.class,
           SearchViewModel_HiltModules.BindsModule.class,
           SettingsViewModel_HiltModules.BindsModule.class,
           StarredMessagesViewModel_HiltModules.BindsModule.class

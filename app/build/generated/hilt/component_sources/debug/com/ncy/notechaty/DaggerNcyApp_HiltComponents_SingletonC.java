@@ -15,15 +15,19 @@ import androidx.work.WorkerParameters;
 import com.ncy.notechaty.backup.AutoBackupWorker;
 import com.ncy.notechaty.backup.AutoBackupWorker_AssistedFactory;
 import com.ncy.notechaty.data.repository.FileChatRepository;
+import com.ncy.notechaty.data.repository.ProfileRepository;
 import com.ncy.notechaty.data.repository.SettingsRepository;
 import com.ncy.notechaty.security.ChatLockState;
 import com.ncy.notechaty.security.PinManager;
+import com.ncy.notechaty.security.ProfileLockState;
 import com.ncy.notechaty.ui.chat.ChatViewModel;
 import com.ncy.notechaty.ui.chat.ChatViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.ncy.notechaty.ui.chatconfig.ChatConfigViewModel;
 import com.ncy.notechaty.ui.chatconfig.ChatConfigViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.ncy.notechaty.ui.chatlist.ChatListViewModel;
 import com.ncy.notechaty.ui.chatlist.ChatListViewModel_HiltModules_KeyModule_ProvideFactory;
+import com.ncy.notechaty.ui.profiles.ProfilesViewModel;
+import com.ncy.notechaty.ui.profiles.ProfilesViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.ncy.notechaty.ui.search.SearchViewModel;
 import com.ncy.notechaty.ui.search.SearchViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.ncy.notechaty.ui.settings.SettingsViewModel;
@@ -389,7 +393,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     @Override
     public Set<String> getViewModelKeys() {
-      return SetBuilder.<String>newSetBuilder(6).add(ChatConfigViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatListViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(SearchViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(SettingsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(StarredMessagesViewModel_HiltModules_KeyModule_ProvideFactory.provide()).build();
+      return SetBuilder.<String>newSetBuilder(7).add(ChatConfigViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatListViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ProfilesViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(SearchViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(SettingsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(StarredMessagesViewModel_HiltModules_KeyModule_ProvideFactory.provide()).build();
     }
 
     @Override
@@ -430,6 +434,8 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     private Provider<ChatViewModel> chatViewModelProvider;
 
+    private Provider<ProfilesViewModel> profilesViewModelProvider;
+
     private Provider<SearchViewModel> searchViewModelProvider;
 
     private Provider<SettingsViewModel> settingsViewModelProvider;
@@ -452,14 +458,15 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
       this.chatConfigViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 0);
       this.chatListViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 1);
       this.chatViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 2);
-      this.searchViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 3);
-      this.settingsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 4);
-      this.starredMessagesViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 5);
+      this.profilesViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 3);
+      this.searchViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 4);
+      this.settingsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 5);
+      this.starredMessagesViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 6);
     }
 
     @Override
     public Map<String, javax.inject.Provider<ViewModel>> getHiltViewModelMap() {
-      return MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(6).put("com.ncy.notechaty.ui.chatconfig.ChatConfigViewModel", ((Provider) chatConfigViewModelProvider)).put("com.ncy.notechaty.ui.chatlist.ChatListViewModel", ((Provider) chatListViewModelProvider)).put("com.ncy.notechaty.ui.chat.ChatViewModel", ((Provider) chatViewModelProvider)).put("com.ncy.notechaty.ui.search.SearchViewModel", ((Provider) searchViewModelProvider)).put("com.ncy.notechaty.ui.settings.SettingsViewModel", ((Provider) settingsViewModelProvider)).put("com.ncy.notechaty.ui.starred.StarredMessagesViewModel", ((Provider) starredMessagesViewModelProvider)).build();
+      return MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(7).put("com.ncy.notechaty.ui.chatconfig.ChatConfigViewModel", ((Provider) chatConfigViewModelProvider)).put("com.ncy.notechaty.ui.chatlist.ChatListViewModel", ((Provider) chatListViewModelProvider)).put("com.ncy.notechaty.ui.chat.ChatViewModel", ((Provider) chatViewModelProvider)).put("com.ncy.notechaty.ui.profiles.ProfilesViewModel", ((Provider) profilesViewModelProvider)).put("com.ncy.notechaty.ui.search.SearchViewModel", ((Provider) searchViewModelProvider)).put("com.ncy.notechaty.ui.settings.SettingsViewModel", ((Provider) settingsViewModelProvider)).put("com.ncy.notechaty.ui.starred.StarredMessagesViewModel", ((Provider) starredMessagesViewModelProvider)).build();
     }
 
     @Override
@@ -492,18 +499,21 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
           return (T) new ChatConfigViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.pinManagerProvider.get());
 
           case 1: // com.ncy.notechaty.ui.chatlist.ChatListViewModel 
-          return (T) new ChatListViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.pinManagerProvider.get(), singletonCImpl.chatLockStateProvider.get());
+          return (T) new ChatListViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.profileLockStateProvider.get(), singletonCImpl.pinManagerProvider.get(), singletonCImpl.chatLockStateProvider.get());
 
           case 2: // com.ncy.notechaty.ui.chat.ChatViewModel 
           return (T) new ChatViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get(), singletonCImpl.pinManagerProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 3: // com.ncy.notechaty.ui.search.SearchViewModel 
+          case 3: // com.ncy.notechaty.ui.profiles.ProfilesViewModel 
+          return (T) new ProfilesViewModel(singletonCImpl.profileRepositoryProvider.get());
+
+          case 4: // com.ncy.notechaty.ui.search.SearchViewModel 
           return (T) new SearchViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
-          case 4: // com.ncy.notechaty.ui.settings.SettingsViewModel 
+          case 5: // com.ncy.notechaty.ui.settings.SettingsViewModel 
           return (T) new SettingsViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.pinManagerProvider.get(), singletonCImpl.chatLockStateProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 5: // com.ncy.notechaty.ui.starred.StarredMessagesViewModel 
+          case 6: // com.ncy.notechaty.ui.starred.StarredMessagesViewModel 
           return (T) new StarredMessagesViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
           default: throw new AssertionError(id);
@@ -586,6 +596,10 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     private final SingletonCImpl singletonCImpl = this;
 
+    private Provider<ProfileRepository> profileRepositoryProvider;
+
+    private Provider<ChatLockState> chatLockStateProvider;
+
     private Provider<FileChatRepository> fileChatRepositoryProvider;
 
     private Provider<AutoBackupWorker_AssistedFactory> autoBackupWorker_AssistedFactoryProvider;
@@ -594,7 +608,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     private Provider<PinManager> pinManagerProvider;
 
-    private Provider<ChatLockState> chatLockStateProvider;
+    private Provider<ProfileLockState> profileLockStateProvider;
 
     private SingletonCImpl(ApplicationContextModule applicationContextModuleParam) {
       this.applicationContextModule = applicationContextModuleParam;
@@ -613,11 +627,13 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     @SuppressWarnings("unchecked")
     private void initialize(final ApplicationContextModule applicationContextModuleParam) {
+      this.profileRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<ProfileRepository>(singletonCImpl, 2));
+      this.chatLockStateProvider = DoubleCheck.provider(new SwitchingProvider<ChatLockState>(singletonCImpl, 3));
       this.fileChatRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<FileChatRepository>(singletonCImpl, 1));
       this.autoBackupWorker_AssistedFactoryProvider = SingleCheck.provider(new SwitchingProvider<AutoBackupWorker_AssistedFactory>(singletonCImpl, 0));
-      this.settingsRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<SettingsRepository>(singletonCImpl, 2));
-      this.pinManagerProvider = DoubleCheck.provider(new SwitchingProvider<PinManager>(singletonCImpl, 3));
-      this.chatLockStateProvider = DoubleCheck.provider(new SwitchingProvider<ChatLockState>(singletonCImpl, 4));
+      this.settingsRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<SettingsRepository>(singletonCImpl, 4));
+      this.pinManagerProvider = DoubleCheck.provider(new SwitchingProvider<PinManager>(singletonCImpl, 5));
+      this.profileLockStateProvider = DoubleCheck.provider(new SwitchingProvider<ProfileLockState>(singletonCImpl, 6));
     }
 
     @Override
@@ -643,6 +659,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
     private NcyApp injectNcyApp2(NcyApp instance) {
       NcyApp_MembersInjector.injectWorkerFactory(instance, hiltWorkerFactory());
       NcyApp_MembersInjector.injectSettingsRepository(instance, settingsRepositoryProvider.get());
+      NcyApp_MembersInjector.injectProfileRepository(instance, profileRepositoryProvider.get());
       return instance;
     }
 
@@ -669,16 +686,22 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
           };
 
           case 1: // com.ncy.notechaty.data.repository.FileChatRepository 
-          return (T) new FileChatRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+          return (T) new FileChatRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get());
 
-          case 2: // com.ncy.notechaty.data.repository.SettingsRepository 
+          case 2: // com.ncy.notechaty.data.repository.ProfileRepository 
+          return (T) new ProfileRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+
+          case 3: // com.ncy.notechaty.security.ChatLockState 
+          return (T) new ChatLockState();
+
+          case 4: // com.ncy.notechaty.data.repository.SettingsRepository 
           return (T) new SettingsRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 3: // com.ncy.notechaty.security.PinManager 
+          case 5: // com.ncy.notechaty.security.PinManager 
           return (T) new PinManager(singletonCImpl.settingsRepositoryProvider.get());
 
-          case 4: // com.ncy.notechaty.security.ChatLockState 
-          return (T) new ChatLockState();
+          case 6: // com.ncy.notechaty.security.ProfileLockState 
+          return (T) new ProfileLockState();
 
           default: throw new AssertionError(id);
         }

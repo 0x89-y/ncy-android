@@ -25,6 +25,7 @@ interface ChatRepository {
 
     suspend fun exportChat(chatId: String, outputFile: File)
     suspend fun exportAllChats(outputFile: File)
+    suspend fun exportEveryProfile(outputFile: File)
     suspend fun importChat(zipFile: File)
     suspend fun scanForNewChats()
 

@@ -12,6 +12,7 @@ import com.ncy.notechaty.ui.chat.ChatScreen
 import com.ncy.notechaty.ui.chatconfig.ChatConfigScreen
 import com.ncy.notechaty.ui.chatlist.ChatListScreen
 import com.ncy.notechaty.ui.licenses.LicensesScreen
+import com.ncy.notechaty.ui.profiles.ProfilesScreen
 import com.ncy.notechaty.ui.search.SearchScreen
 import com.ncy.notechaty.ui.settings.SettingsScreen
 import com.ncy.notechaty.ui.starred.StarredMessagesScreen
@@ -24,6 +25,7 @@ object Routes {
     const val LICENSES = "licenses"
     const val STARRED = "starred"
     const val SEARCH = "search"
+    const val PROFILES = "profiles"
 
     fun chat(chatId: String, name: String = "") = "chat/$chatId?name=${java.net.URLEncoder.encode(name, "UTF-8")}"
     fun chatConfig(chatId: String) = "chat_config/$chatId"
@@ -52,6 +54,9 @@ fun NcyNavGraph(navController: NavHostController) {
                 },
                 onSearchClick = {
                     navController.navigate(Routes.SEARCH)
+                },
+                onManageProfilesClick = {
+                    navController.navigate(Routes.PROFILES)
                 }
             )
         }
@@ -115,6 +120,12 @@ fun NcyNavGraph(navController: NavHostController) {
                 onChatClick = { chatId ->
                     navController.navigate(Routes.chat(chatId))
                 }
+            )
+        }
+
+        composable(Routes.PROFILES) {
+            ProfilesScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

@@ -27,7 +27,7 @@ class AutoBackupWorker @AssistedInject constructor(
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val backupFile = File(backupDir, "ncy_backup_$timestamp.zip")
 
-            repository.exportAllChats(backupFile)
+            repository.exportEveryProfile(backupFile)
 
             // Keep only the last 5 backups
             backupDir.listFiles()

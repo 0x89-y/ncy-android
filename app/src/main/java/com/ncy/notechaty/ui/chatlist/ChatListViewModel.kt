@@ -4,26 +4,46 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.ChatSortMode
+import com.ncy.notechaty.data.model.Profile
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.repository.ProfileRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
+import com.ncy.notechaty.security.ProfileLockState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
+sealed class SwitchResult {
+    object Switched : SwitchResult()
+    data class RequiresAuth(val profile: Profile) : SwitchResult()
+    object NoChange : SwitchResult()
+}
+
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val settingsRepository: SettingsRepository,
+    private val profileRepository: ProfileRepository,
+    private val profileLockState: ProfileLockState,
     val pinManager: PinManager,
     val chatLockState: ChatLockState
 ) : ViewModel() {
 
-    val baseDir: File = repository.getBaseDir()
+    val baseDir: StateFlow<File> = profileRepository.activeProfileId
+        .map { repository.getBaseDir() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, repository.getBaseDir())
+
     val settings = settingsRepository.settings
+
+    val profiles: StateFlow<List<Profile>> = profileRepository.profiles
+    val activeProfileId: StateFlow<String> = profileRepository.activeProfileId
+    val activeProfile: StateFlow<Profile?> = combine(profiles, activeProfileId) { all, id ->
+        all.firstOrNull { it.id == id }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun verifyPin(pin: String): Boolean = pinManager.verifyPin(pin)
     fun markUnlocked(chatId: String) = chatLockState.unlock(chatId)
@@ -33,6 +53,37 @@ class ChatListViewModel @Inject constructor(
         val grace = settingsRepository.settings.value.protectionGracePeriodMinutes
         if (grace <= 0) return false
         return chatLockState.isUnlocked(chatId, grace)
+    }
+
+    /**
+     * Attempt a profile switch. If the target profile is protected and not within its
+     * unlock grace, returns [SwitchResult.RequiresAuth] without switching — the screen
+     * should then show a PIN/biometric prompt and call [confirmProfileUnlock] on success.
+     */
+    fun switchProfile(targetId: String): SwitchResult {
+        if (targetId == profileRepository.activeProfileId.value) return SwitchResult.NoChange
+        val target = profileRepository.profileById(targetId) ?: return SwitchResult.NoChange
+        val grace = settingsRepository.settings.value.protectionGracePeriodMinutes
+        if (target.isProtected && !profileLockState.isUnlocked(targetId, grace)) {
+            return SwitchResult.RequiresAuth(target)
+        }
+        profileRepository.setActive(targetId)
+        return SwitchResult.Switched
+    }
+
+    fun verifyProfilePin(profileId: String, pin: String): Boolean =
+        profileRepository.verifyProfilePin(profileId, pin)
+
+    fun confirmProfileUnlock(profileId: String) {
+        profileLockState.unlock(profileId)
+        profileRepository.setActive(profileId)
+    }
+
+    fun createProfileAndSwitch(name: String): Profile? {
+        if (name.isBlank()) return null
+        val created = profileRepository.createProfile(name)
+        profileRepository.setActive(created.id)
+        return created
     }
 
     private val _searchQuery = MutableStateFlow("")

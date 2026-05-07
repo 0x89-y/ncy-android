@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.ChatSortMode
+import com.ncy.notechaty.data.model.Profile
 import com.ncy.notechaty.security.BiometricHelper
 import com.ncy.notechaty.util.gibberishFor
 import java.io.File
@@ -51,13 +52,16 @@ fun ChatListScreen(
     onSettingsClick: () -> Unit,
     onStarredClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
+    onManageProfilesClick: () -> Unit = {},
     viewModel: ChatListViewModel = hiltViewModel()
 ) {
     val chats by viewModel.chats.collectAsState()
     val archivedChats by viewModel.archivedChats.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
     val unlockedChatIds by viewModel.unlockedChatIds.collectAsState()
-    val baseDir = viewModel.baseDir
+    val baseDir by viewModel.baseDir.collectAsState()
+    val profiles by viewModel.profiles.collectAsState()
+    val activeProfileId by viewModel.activeProfileId.collectAsState()
     val view = LocalView.current
     var showCreateDialog by remember { mutableStateOf(false) }
     var chatToDelete by remember { mutableStateOf<Chat?>(null) }
@@ -65,6 +69,8 @@ fun ChatListScreen(
     var longPressedChat by remember { mutableStateOf<Chat?>(null) }
     var showArchived by remember { mutableStateOf(false) }
     var chatToUnlock by remember { mutableStateOf<Chat?>(null) }
+    var profileToUnlock by remember { mutableStateOf<Profile?>(null) }
+    var showAddProfileDialog by remember { mutableStateOf(false) }
 
     val openChat: (Chat) -> Unit = { chat ->
         if (chat.isProtected && !viewModel.isChatUnlockedWithinGrace(chat.id)) {
@@ -87,7 +93,21 @@ fun ChatListScreen(
                         )
                     )
                 } else Modifier,
-                title = { },
+                title = {
+                    ProfileSwitcherDropdown(
+                        profiles = profiles,
+                        activeProfileId = activeProfileId,
+                        onProfileSelected = { id ->
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            when (val result = viewModel.switchProfile(id)) {
+                                is SwitchResult.RequiresAuth -> profileToUnlock = result.profile
+                                else -> Unit
+                            }
+                        },
+                        onAddProfile = { showAddProfileDialog = true },
+                        onManageProfiles = onManageProfilesClick
+                    )
+                },
                 actions = {
                     IconButton(onClick = onSearchClick) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
@@ -348,6 +368,34 @@ fun ChatListScreen(
             confirmButton = {
                 TextButton(onClick = { longPressedChat = null }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Profile unlock dialog
+    profileToUnlock?.let { profile ->
+        ProfileUnlockDialog(
+            profile = profile,
+            useBiometric = appSettings.protectionUseBiometric,
+            onDismiss = { profileToUnlock = null },
+            onVerify = { pin -> viewModel.verifyProfilePin(profile.id, pin) },
+            onUnlocked = {
+                viewModel.confirmProfileUnlock(profile.id)
+                profileToUnlock = null
+            }
+        )
+    }
+
+    if (showAddProfileDialog) {
+        AddProfileDialog(
+            onDismiss = { showAddProfileDialog = false },
+            onCreate = { name ->
+                showAddProfileDialog = false
+                // Create + switch immediately so the user lands in the new profile.
+                val created = viewModel.createProfileAndSwitch(name)
+                if (created != null) {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 }
             }
         )
@@ -651,6 +699,128 @@ private fun ChatUnlockDialog(
             ) {
                 Text("Unlock")
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun ProfileUnlockDialog(
+    profile: Profile,
+    useBiometric: Boolean,
+    onDismiss: () -> Unit,
+    onVerify: (String) -> Boolean,
+    onUnlocked: () -> Unit
+) {
+    var pin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
+
+    LaunchedEffect(canUseBio) {
+        if (canUseBio && activity != null) {
+            BiometricHelper.authenticate(
+                activity = activity,
+                title = "Switch to ${profile.name}",
+                subtitle = "Verify to open this profile",
+                onSuccess = onUnlocked
+            )
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+        title = { Text("Switch to ${profile.name}") },
+        text = {
+            Column {
+                Text(
+                    "Enter the PIN for this profile.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = {
+                        pin = it.filter { c -> c.isDigit() }
+                        error = false
+                    },
+                    label = { Text("PIN") },
+                    singleLine = true,
+                    isError = error,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.NumberPassword
+                    ),
+                    supportingText = if (error) { { Text("Wrong PIN") } } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (canUseBio && activity != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        onClick = {
+                            BiometricHelper.authenticate(
+                                activity = activity,
+                                title = "Switch to ${profile.name}",
+                                subtitle = "Verify to open this profile",
+                                onSuccess = onUnlocked
+                            )
+                        }
+                    ) {
+                        Icon(Icons.Default.Fingerprint, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Use fingerprint")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (onVerify(pin)) {
+                        onUnlocked()
+                    } else {
+                        error = true
+                        pin = ""
+                    }
+                },
+                enabled = pin.isNotEmpty()
+            ) { Text("Switch") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun AddProfileDialog(
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New profile") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Profile name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onCreate(name.trim()) },
+                enabled = name.isNotBlank()
+            ) { Text("Create") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

@@ -3,11 +3,16 @@ package com.ncy.notechaty.data.repository
 import android.content.Context
 import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.serialization.ChatSerializer
+import com.ncy.notechaty.security.ChatLockState
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
@@ -21,25 +26,47 @@ import javax.inject.Singleton
 
 @Singleton
 class FileChatRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val profileRepository: ProfileRepository,
+    private val chatLockState: ChatLockState
 ) : ChatRepository {
 
     private val serializer = ChatSerializer()
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val rootDir: File
+        get() = profileRepository.rootDir()
+
+    private val profileDir: File
         get() {
-            val dir = File(context.filesDir, "NoteChaty")
+            val id = profileRepository.activeProfileId.value
+            val dir = if (id.isEmpty()) rootDir else File(rootDir, "profile_$id")
             if (!dir.exists()) dir.mkdirs()
             return dir
         }
 
-    override fun getBaseDir(): File = rootDir
+    init {
+        // Initial load + react to profile switches.
+        scope.launch { refreshChats() }
+        scope.launch {
+            profileRepository.activeProfileId
+                .drop(1) // initial value already handled above
+                .collect {
+                    chatLockState.clearChatUnlocks()
+                    _chats.value = emptyList()
+                    refreshChats()
+                }
+        }
+    }
+
+    override fun getBaseDir(): File = profileDir
 
     override fun observeChats(): Flow<List<Chat>> = _chats.asStateFlow()
 
     override suspend fun getChat(chatId: String): Chat? = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_$chatId")
+        val chatDir = File(profileDir, "chat_$chatId")
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext null
         val data = serializer.readFromFile(chatFile)
@@ -48,7 +75,7 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun createChat(name: String): Chat = withContext(Dispatchers.IO) {
         val id = UUID.randomUUID().toString()
-        val chatDir = File(rootDir, "chat_$id")
+        val chatDir = File(profileDir, "chat_$id")
         chatDir.mkdirs()
         File(chatDir, "images").mkdirs()
         File(chatDir, "voice").mkdirs()
@@ -69,7 +96,7 @@ class FileChatRepository @Inject constructor(
     }
 
     override suspend fun updateChat(chat: Chat): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_${chat.id}")
+        val chatDir = File(profileDir, "chat_${chat.id}")
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
 
@@ -93,19 +120,19 @@ class FileChatRepository @Inject constructor(
     }
 
     override suspend fun deleteChat(chatId: String): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_$chatId")
+        val chatDir = File(profileDir, "chat_$chatId")
         chatDir.deleteRecursively()
         refreshChats()
     }
 
     override suspend fun getMessages(chatId: String): List<Message> = withContext(Dispatchers.IO) {
-        val chatFile = File(File(rootDir, "chat_$chatId"), "chat.json")
+        val chatFile = File(File(profileDir, "chat_$chatId"), "chat.json")
         if (!chatFile.exists()) return@withContext emptyList()
         serializer.readFromFile(chatFile).messages
     }
 
     override suspend fun addMessage(message: Message): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_${message.chatId}")
+        val chatDir = File(profileDir, "chat_${message.chatId}")
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
 
@@ -116,7 +143,7 @@ class FileChatRepository @Inject constructor(
     }
 
     override suspend fun updateMessage(message: Message): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_${message.chatId}")
+        val chatDir = File(profileDir, "chat_${message.chatId}")
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
 
@@ -129,7 +156,7 @@ class FileChatRepository @Inject constructor(
     }
 
     override suspend fun deleteMessage(chatId: String, messageId: String): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_$chatId")
+        val chatDir = File(profileDir, "chat_$chatId")
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
 
@@ -140,7 +167,7 @@ class FileChatRepository @Inject constructor(
     }
 
     override suspend fun setChatAvatar(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_$chatId")
+        val chatDir = File(profileDir, "chat_$chatId")
         val avatarFile = File(chatDir, "avatar.jpg")
         sourceFile.copyTo(avatarFile, overwrite = true)
 
@@ -151,7 +178,7 @@ class FileChatRepository @Inject constructor(
     }
 
     override suspend fun setChatBackground(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_$chatId")
+        val chatDir = File(profileDir, "chat_$chatId")
         val bgFile = File(chatDir, "background.jpg")
         sourceFile.copyTo(bgFile, overwrite = true)
 
@@ -161,22 +188,22 @@ class FileChatRepository @Inject constructor(
         refreshChats()
     }
 
-    override suspend fun getChatDir(chatId: String): File = File(rootDir, "chat_$chatId")
+    override suspend fun getChatDir(chatId: String): File = File(profileDir, "chat_$chatId")
 
     override suspend fun getImagesDir(chatId: String): File {
-        val dir = File(File(rootDir, "chat_$chatId"), "images")
+        val dir = File(File(profileDir, "chat_$chatId"), "images")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
 
     override suspend fun getVoiceDir(chatId: String): File {
-        val dir = File(File(rootDir, "chat_$chatId"), "voice")
+        val dir = File(File(profileDir, "chat_$chatId"), "voice")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
 
     override suspend fun exportChat(chatId: String, outputFile: File): Unit = withContext(Dispatchers.IO) {
-        val chatDir = File(rootDir, "chat_$chatId")
+        val chatDir = File(profileDir, "chat_$chatId")
         if (!chatDir.exists()) return@withContext
 
         ZipOutputStream(FileOutputStream(outputFile)).use { zos ->
@@ -193,7 +220,7 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun exportAllChats(outputFile: File): Unit = withContext(Dispatchers.IO) {
         ZipOutputStream(FileOutputStream(outputFile)).use { zos ->
-            rootDir.listFiles()
+            profileDir.listFiles()
                 ?.filter { it.isDirectory && it.name.startsWith("chat_") }
                 ?.forEach { chatDir ->
                     chatDir.walkTopDown().forEach { file ->
@@ -208,8 +235,29 @@ class FileChatRepository @Inject constructor(
         }
     }
 
+    override suspend fun exportEveryProfile(outputFile: File): Unit = withContext(Dispatchers.IO) {
+        ZipOutputStream(FileOutputStream(outputFile)).use { zos ->
+            rootDir.listFiles()
+                ?.filter { it.isDirectory && it.name.startsWith("profile_") }
+                ?.forEach { pDir ->
+                    pDir.listFiles()
+                        ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+                        ?.forEach { chatDir ->
+                            chatDir.walkTopDown().forEach { file ->
+                                if (file.isFile) {
+                                    val entryName = "${pDir.name}/${chatDir.name}/${file.relativeTo(chatDir).path.replace("\\", "/")}"
+                                    zos.putNextEntry(ZipEntry(entryName))
+                                    file.inputStream().use { it.copyTo(zos) }
+                                    zos.closeEntry()
+                                }
+                            }
+                        }
+                }
+        }
+    }
+
     override suspend fun importChat(zipFile: File): Unit = withContext(Dispatchers.IO) {
-        val tempDir = File(rootDir, "import_temp_${System.currentTimeMillis()}")
+        val tempDir = File(profileDir, "import_temp_${System.currentTimeMillis()}")
         tempDir.mkdirs()
 
         try {
@@ -230,7 +278,7 @@ class FileChatRepository @Inject constructor(
             if (chatFile.exists()) {
                 val data = serializer.readFromFile(chatFile)
                 val newId = UUID.randomUUID().toString()
-                val targetDir = File(rootDir, "chat_$newId")
+                val targetDir = File(profileDir, "chat_$newId")
 
                 tempDir.renameTo(targetDir)
 
@@ -251,7 +299,7 @@ class FileChatRepository @Inject constructor(
     }
 
     suspend fun refreshChats() = withContext(Dispatchers.IO) {
-        val chats = rootDir.listFiles()
+        val chats = profileDir.listFiles()
             ?.filter { it.isDirectory && it.name.startsWith("chat_") }
             ?.mapNotNull { dir ->
                 val chatFile = File(dir, "chat.json")
@@ -280,8 +328,8 @@ class FileChatRepository @Inject constructor(
             lastMessageAt = lastMsg?.createdAt,
             lastMessagePreview = lastMsg?.let {
                 when (it.type) {
-                    MessageType.VOICE -> "\uD83C\uDFA4 Voice message"
-                    MessageType.IMAGE -> "\uD83D\uDDBC Image"
+                    MessageType.VOICE -> "🎤 Voice message"
+                    MessageType.IMAGE -> "🖼 Image"
                     MessageType.CHECKLIST -> "☑ ${it.plainTextPreview()}"
                     MessageType.TEXT -> it.plainTextPreview()
                 }

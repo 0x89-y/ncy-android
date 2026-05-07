@@ -56,4 +56,11 @@ class ChatLockState @Inject constructor() {
         _timestamps.value = emptyMap()
         _appUnlockedAt.value = 0L
     }
+
+    /** Clear per-chat unlocks without touching the app-wide unlock. Used on profile switch. */
+    @Synchronized
+    fun clearChatUnlocks() {
+        unlockedAt.clear()
+        _timestamps.value = emptyMap()
+    }
 }

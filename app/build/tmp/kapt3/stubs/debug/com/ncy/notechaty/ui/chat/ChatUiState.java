@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel;
 import com.ncy.notechaty.data.model.*;
 import com.ncy.notechaty.data.repository.ChatRepository;
 import com.ncy.notechaty.data.repository.SettingsRepository;
+import com.ncy.notechaty.data.sync.ChatEventBus;
 import com.ncy.notechaty.notifications.ReminderScheduler;
 import com.ncy.notechaty.security.ChatLockState;
 import com.ncy.notechaty.security.PinManager;

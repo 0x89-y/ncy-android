@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-69:/values-uk/values-uk.xml",
+            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-70:/values-uk/values-uk.xml",
             "map": [
                 {
                     "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\88deb9c1a3dc4eb808836ac8fce49bf1\\transformed\\biometric-1.1.0\\res\\values-uk\\values-uk.xml",
@@ -86,6 +86,23 @@
                         "startOffsets": "4010,4103,7943,8138,8310,9729,9811,9900,9988,10070,10140,10211,10296,10548,10899,10979,11049",
                         "endColumns": "92,83,101,100,83,81,88,87,81,69,70,84,87,71,79,69,122",
                         "endOffsets": "4098,4182,8040,8234,8389,9806,9895,9983,10065,10135,10206,10291,10379,10615,10974,11044,11167"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\7e596d2c950e3aa70573e1e4552751e8\\transformed\\zxing-android-embedded-4.3.0\\res\\values-uk\\values-uk.xml",
+                    "from": {
+                        "startLines": "2,3,4,5",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "55,117,164,306",
+                        "endColumns": "61,46,141,121",
+                        "endOffsets": "112,159,301,423"
+                    },
+                    "to": {
+                        "startLines": "124,125,126,127",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "12680,12742,12789,12931",
+                        "endColumns": "61,46,141,121",
+                        "endOffsets": "12737,12784,12926,13048"
                     }
                 },
                 {

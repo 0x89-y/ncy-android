@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.sync.ChatEventBus
+import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.notifications.ReminderScheduler
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
@@ -15,6 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
@@ -37,6 +40,7 @@ class ChatViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val chatLockState: ChatLockState,
     private val pinManager: PinManager,
+    private val eventBus: ChatEventBus,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -62,6 +66,13 @@ class ChatViewModel @Inject constructor(
 
     init {
         loadChat()
+        // Reload when an event for this chat lands — covers events received from peers
+        // (sync inbound) without coupling the repository to the UI directly.
+        viewModelScope.launch {
+            eventBus.events
+                .filter { it.chatId == chatId }
+                .collect { loadChat() }
+        }
     }
 
     fun loadChat() {
@@ -109,9 +120,7 @@ class ChatViewModel @Inject constructor(
     fun sendVoiceMessage(voiceFile: File, durationMs: Long) {
         viewModelScope.launch {
             val voiceDir = repository.getVoiceDir(chatId)
-            val targetFile = File(voiceDir, "voice_${UUID.randomUUID()}.m4a")
-            voiceFile.copyTo(targetFile, overwrite = true)
-
+            val targetFile = ingestMedia(voiceDir, voiceFile, "m4a")
             val message = Message(
                 id = UUID.randomUUID().toString(),
                 chatId = chatId,
@@ -127,9 +136,7 @@ class ChatViewModel @Inject constructor(
     fun sendImageMessage(imageFile: File) {
         viewModelScope.launch {
             val imagesDir = repository.getImagesDir(chatId)
-            val targetFile = File(imagesDir, "img_${UUID.randomUUID()}.jpg")
-            imageFile.copyTo(targetFile, overwrite = true)
-
+            val targetFile = ingestMedia(imagesDir, imageFile, "jpg")
             val message = Message(
                 id = UUID.randomUUID().toString(),
                 chatId = chatId,
@@ -144,6 +151,26 @@ class ChatViewModel @Inject constructor(
             repository.addMessage(message)
             loadChat()
         }
+    }
+
+    /**
+     * Copy [source] into [destDir] under a content-addressed name (`<sha256>.<ext>`).
+     * Subsequent ingests of the same bytes reuse the existing file (dedup). The
+     * SHA-256 in the filename is what the desktop later asks for via `BlobRequest`.
+     */
+    private fun ingestMedia(destDir: File, source: File, ext: String): File {
+        if (!destDir.exists()) destDir.mkdirs()
+        val temp = File(destDir, "incoming_${UUID.randomUUID()}.$ext")
+        source.copyTo(temp, overwrite = true)
+        val hash = MediaHash.ofFile(temp)
+        val target = File(destDir, "$hash.$ext")
+        if (target.exists()) {
+            temp.delete()
+        } else if (!temp.renameTo(target)) {
+            temp.copyTo(target, overwrite = false)
+            temp.delete()
+        }
+        return target
     }
 
     fun startEditing(message: Message) {

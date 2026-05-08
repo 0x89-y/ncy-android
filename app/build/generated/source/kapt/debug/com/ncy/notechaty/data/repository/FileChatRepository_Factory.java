@@ -1,6 +1,8 @@
 package com.ncy.notechaty.data.repository;
 
 import android.content.Context;
+import com.ncy.notechaty.data.sync.ChatEventBus;
+import com.ncy.notechaty.data.sync.DeviceIdentity;
 import com.ncy.notechaty.security.ChatLockState;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
@@ -29,27 +31,35 @@ public final class FileChatRepository_Factory implements Factory<FileChatReposit
 
   private final Provider<ChatLockState> chatLockStateProvider;
 
+  private final Provider<DeviceIdentity> deviceIdentityProvider;
+
+  private final Provider<ChatEventBus> eventBusProvider;
+
   public FileChatRepository_Factory(Provider<Context> contextProvider,
       Provider<ProfileRepository> profileRepositoryProvider,
-      Provider<ChatLockState> chatLockStateProvider) {
+      Provider<ChatLockState> chatLockStateProvider,
+      Provider<DeviceIdentity> deviceIdentityProvider, Provider<ChatEventBus> eventBusProvider) {
     this.contextProvider = contextProvider;
     this.profileRepositoryProvider = profileRepositoryProvider;
     this.chatLockStateProvider = chatLockStateProvider;
+    this.deviceIdentityProvider = deviceIdentityProvider;
+    this.eventBusProvider = eventBusProvider;
   }
 
   @Override
   public FileChatRepository get() {
-    return newInstance(contextProvider.get(), profileRepositoryProvider.get(), chatLockStateProvider.get());
+    return newInstance(contextProvider.get(), profileRepositoryProvider.get(), chatLockStateProvider.get(), deviceIdentityProvider.get(), eventBusProvider.get());
   }
 
   public static FileChatRepository_Factory create(Provider<Context> contextProvider,
       Provider<ProfileRepository> profileRepositoryProvider,
-      Provider<ChatLockState> chatLockStateProvider) {
-    return new FileChatRepository_Factory(contextProvider, profileRepositoryProvider, chatLockStateProvider);
+      Provider<ChatLockState> chatLockStateProvider,
+      Provider<DeviceIdentity> deviceIdentityProvider, Provider<ChatEventBus> eventBusProvider) {
+    return new FileChatRepository_Factory(contextProvider, profileRepositoryProvider, chatLockStateProvider, deviceIdentityProvider, eventBusProvider);
   }
 
   public static FileChatRepository newInstance(Context context, ProfileRepository profileRepository,
-      ChatLockState chatLockState) {
-    return new FileChatRepository(context, profileRepository, chatLockState);
+      ChatLockState chatLockState, DeviceIdentity deviceIdentity, ChatEventBus eventBus) {
+    return new FileChatRepository(context, profileRepository, chatLockState, deviceIdentity, eventBus);
   }
 }

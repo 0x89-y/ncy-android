@@ -3,6 +3,15 @@ package com.ncy.notechaty.data.repository;
 import android.content.Context;
 import com.ncy.notechaty.data.model.*;
 import com.ncy.notechaty.data.serialization.ChatSerializer;
+import com.ncy.notechaty.data.sync.ChatEventBus;
+import com.ncy.notechaty.data.sync.DeviceIdentity;
+import com.ncy.notechaty.data.sync.event.ChatEvent;
+import com.ncy.notechaty.data.sync.event.ChatEventCodec;
+import com.ncy.notechaty.data.sync.event.ChatEventOp;
+import com.ncy.notechaty.data.sync.event.EventLog;
+import com.ncy.notechaty.data.sync.event.EventLogMigrator;
+import com.ncy.notechaty.data.sync.event.HlcTimestamp;
+import com.ncy.notechaty.data.sync.event.MaterializedView;
 import com.ncy.notechaty.security.ChatLockState;
 import dagger.hilt.android.qualifiers.ApplicationContext;
 import kotlinx.coroutines.Dispatchers;
@@ -18,7 +27,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @javax.inject.Singleton()
-@kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000f\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\u0010 \n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0005\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0003\n\u0002\u0010\u000e\n\u0002\b\u0015\n\u0002\u0018\u0002\n\u0002\b\u000b\n\u0002\u0018\u0002\n\u0002\b\u0003\b\u0007\u0018\u00002\u00020\u0001B!\b\u0007\u0012\b\b\u0001\u0010\u0002\u001a\u00020\u0003\u0012\u0006\u0010\u0004\u001a\u00020\u0005\u0012\u0006\u0010\u0006\u001a\u00020\u0007\u00a2\u0006\u0002\u0010\bJ\u0016\u0010\u0017\u001a\u00020\u00182\u0006\u0010\u0019\u001a\u00020\u001aH\u0096@\u00a2\u0006\u0002\u0010\u001bJ\u0016\u0010\u001c\u001a\u00020\f2\u0006\u0010\u001d\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010\u001fJ\u0016\u0010 \u001a\u00020\u00182\u0006\u0010!\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010\u001fJ\u001e\u0010\"\u001a\u00020\u00182\u0006\u0010!\u001a\u00020\u001e2\u0006\u0010#\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010$J\u0016\u0010%\u001a\u00020\u00182\u0006\u0010&\u001a\u00020\u000eH\u0096@\u00a2\u0006\u0002\u0010\'J\u001e\u0010(\u001a\u00020\u00182\u0006\u0010!\u001a\u00020\u001e2\u0006\u0010&\u001a\u00020\u000eH\u0096@\u00a2\u0006\u0002\u0010)J\u0016\u0010*\u001a\u00020\u00182\u0006\u0010&\u001a\u00020\u000eH\u0096@\u00a2\u0006\u0002\u0010\'J\b\u0010+\u001a\u00020\u000eH\u0016J\u0018\u0010,\u001a\u0004\u0018\u00010\f2\u0006\u0010!\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010\u001fJ\u0016\u0010-\u001a\u00020\u000e2\u0006\u0010!\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010\u001fJ\u0016\u0010.\u001a\u00020\u000e2\u0006\u0010!\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010\u001fJ\u001c\u0010/\u001a\b\u0012\u0004\u0012\u00020\u001a0\u000b2\u0006\u0010!\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010\u001fJ\u0016\u00100\u001a\u00020\u000e2\u0006\u0010!\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010\u001fJ\u0016\u00101\u001a\u00020\u00182\u0006\u00102\u001a\u00020\u000eH\u0096@\u00a2\u0006\u0002\u0010\'J\u0014\u00103\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\f0\u000b04H\u0016J\u000e\u00105\u001a\u00020\u0018H\u0086@\u00a2\u0006\u0002\u00106J\u000e\u00107\u001a\u00020\u0018H\u0096@\u00a2\u0006\u0002\u00106J\u001e\u00108\u001a\u00020\u00182\u0006\u0010!\u001a\u00020\u001e2\u0006\u00109\u001a\u00020\u000eH\u0096@\u00a2\u0006\u0002\u0010)J\u001e\u0010:\u001a\u00020\u00182\u0006\u0010!\u001a\u00020\u001e2\u0006\u00109\u001a\u00020\u000eH\u0096@\u00a2\u0006\u0002\u0010)J\u0016\u0010;\u001a\u00020\u00182\u0006\u0010<\u001a\u00020\fH\u0096@\u00a2\u0006\u0002\u0010=J\u0016\u0010>\u001a\u00020\u00182\u0006\u0010\u0019\u001a\u00020\u001aH\u0096@\u00a2\u0006\u0002\u0010\u001bJ\"\u0010?\u001a\u00020\f*\u00020@2\u0006\u0010A\u001a\u00020\u001e2\f\u0010B\u001a\b\u0012\u0004\u0012\u00020\u001a0\u000bH\u0002R\u001a\u0010\t\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\f0\u000b0\nX\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0006\u001a\u00020\u0007X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0002\u001a\u00020\u0003X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u0014\u0010\r\u001a\u00020\u000e8BX\u0082\u0004\u00a2\u0006\u0006\u001a\u0004\b\u000f\u0010\u0010R\u000e\u0010\u0004\u001a\u00020\u0005X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u0014\u0010\u0011\u001a\u00020\u000e8BX\u0082\u0004\u00a2\u0006\u0006\u001a\u0004\b\u0012\u0010\u0010R\u000e\u0010\u0013\u001a\u00020\u0014X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0015\u001a\u00020\u0016X\u0082\u0004\u00a2\u0006\u0002\n\u0000\u00a8\u0006C"}, d2 = {"Lcom/ncy/notechaty/data/repository/FileChatRepository;", "Lcom/ncy/notechaty/data/repository/ChatRepository;", "context", "Landroid/content/Context;", "profileRepository", "Lcom/ncy/notechaty/data/repository/ProfileRepository;", "chatLockState", "Lcom/ncy/notechaty/security/ChatLockState;", "(Landroid/content/Context;Lcom/ncy/notechaty/data/repository/ProfileRepository;Lcom/ncy/notechaty/security/ChatLockState;)V", "_chats", "Lkotlinx/coroutines/flow/MutableStateFlow;", "", "Lcom/ncy/notechaty/data/model/Chat;", "profileDir", "Ljava/io/File;", "getProfileDir", "()Ljava/io/File;", "rootDir", "getRootDir", "scope", "Lkotlinx/coroutines/CoroutineScope;", "serializer", "Lcom/ncy/notechaty/data/serialization/ChatSerializer;", "addMessage", "", "message", "Lcom/ncy/notechaty/data/model/Message;", "(Lcom/ncy/notechaty/data/model/Message;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "createChat", "name", "", "(Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "deleteChat", "chatId", "deleteMessage", "messageId", "(Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "exportAllChats", "outputFile", "(Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "exportChat", "(Ljava/lang/String;Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "exportEveryProfile", "getBaseDir", "getChat", "getChatDir", "getImagesDir", "getMessages", "getVoiceDir", "importChat", "zipFile", "observeChats", "Lkotlinx/coroutines/flow/Flow;", "refreshChats", "(Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "scanForNewChats", "setChatAvatar", "sourceFile", "setChatBackground", "updateChat", "chat", "(Lcom/ncy/notechaty/data/model/Chat;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "updateMessage", "toChat", "Lcom/ncy/notechaty/data/model/ChatData;", "id", "messages", "app_debug"})
+@kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000\u0088\u0001\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\u0010 \n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0005\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u000e\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u000b\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0018\n\u0002\u0018\u0002\n\u0002\b\u000e\b\u0007\u0018\u00002\u00020\u0001B1\b\u0007\u0012\b\b\u0001\u0010\u0002\u001a\u00020\u0003\u0012\u0006\u0010\u0004\u001a\u00020\u0005\u0012\u0006\u0010\u0006\u001a\u00020\u0007\u0012\u0006\u0010\b\u001a\u00020\t\u0012\u0006\u0010\n\u001a\u00020\u000b\u00a2\u0006\u0002\u0010\fJ\u0016\u0010\u001d\u001a\u00020\u001e2\u0006\u0010\u001f\u001a\u00020 H\u0096@\u00a2\u0006\u0002\u0010!J\u001a\u0010\"\u001a\u0004\u0018\u00010#2\u0006\u0010$\u001a\u00020%2\u0006\u0010&\u001a\u00020\'H\u0002J\u0016\u0010(\u001a\u00020)2\u0006\u0010*\u001a\u00020+H\u0096@\u00a2\u0006\u0002\u0010,J\u0010\u0010-\u001a\u00020)2\u0006\u0010*\u001a\u00020+H\u0002J\u0016\u0010.\u001a\u00020\u00102\u0006\u0010/\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00100J\u0016\u00101\u001a\u00020\u001e2\u0006\u0010$\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00100J\u001e\u00102\u001a\u00020\u001e2\u0006\u0010$\u001a\u00020%2\u0006\u00103\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00104J\u0016\u00105\u001a\u00020\u001e2\u0006\u00106\u001a\u00020\u0014H\u0096@\u00a2\u0006\u0002\u00107J\u001e\u00108\u001a\u00020\u001e2\u0006\u0010$\u001a\u00020%2\u0006\u00106\u001a\u00020\u0014H\u0096@\u00a2\u0006\u0002\u00109J\u0016\u0010:\u001a\u00020\u001e2\u0006\u00106\u001a\u00020\u0014H\u0096@\u00a2\u0006\u0002\u00107J\b\u0010;\u001a\u00020\u0014H\u0016J\u0018\u0010<\u001a\u0004\u0018\u00010\u00102\u0006\u0010$\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00100J\u0016\u0010=\u001a\u00020\u00142\u0006\u0010$\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00100J\u0016\u0010>\u001a\u00020\u00142\u0006\u0010$\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00100J\u001c\u0010?\u001a\b\u0012\u0004\u0012\u00020 0\u000f2\u0006\u0010$\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00100J\u0016\u0010@\u001a\u00020\u00142\u0006\u0010$\u001a\u00020%H\u0096@\u00a2\u0006\u0002\u00100J\u0016\u0010A\u001a\u00020\u001e2\u0006\u0010B\u001a\u00020\u0014H\u0096@\u00a2\u0006\u0002\u00107J\u0014\u0010C\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\u00100\u000f0DH\u0016J\u000e\u0010E\u001a\u00020\u001eH\u0086@\u00a2\u0006\u0002\u0010FJ\u000e\u0010G\u001a\u00020\u001eH\u0096@\u00a2\u0006\u0002\u0010FJ\u001e\u0010H\u001a\u00020\u001e2\u0006\u0010$\u001a\u00020%2\u0006\u0010I\u001a\u00020\u0014H\u0096@\u00a2\u0006\u0002\u00109J\u001e\u0010J\u001a\u00020\u001e2\u0006\u0010$\u001a\u00020%2\u0006\u0010I\u001a\u00020\u0014H\u0096@\u00a2\u0006\u0002\u00109J\u0016\u0010K\u001a\u00020\u001e2\u0006\u0010L\u001a\u00020\u0010H\u0096@\u00a2\u0006\u0002\u0010MJ\u0016\u0010N\u001a\u00020\u001e2\u0006\u0010\u001f\u001a\u00020 H\u0096@\u00a2\u0006\u0002\u0010!J\"\u0010O\u001a\u00020\u0010*\u00020#2\u0006\u0010P\u001a\u00020%2\f\u0010Q\u001a\b\u0012\u0004\u0012\u00020 0\u000fH\u0002R\u001a\u0010\r\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\u00100\u000f0\u000eX\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0006\u001a\u00020\u0007X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0002\u001a\u00020\u0003X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\b\u001a\u00020\tX\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\n\u001a\u00020\u000bX\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0011\u001a\u00020\u0012X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u0014\u0010\u0013\u001a\u00020\u00148BX\u0082\u0004\u00a2\u0006\u0006\u001a\u0004\b\u0015\u0010\u0016R\u000e\u0010\u0004\u001a\u00020\u0005X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u0014\u0010\u0017\u001a\u00020\u00148BX\u0082\u0004\u00a2\u0006\u0006\u001a\u0004\b\u0018\u0010\u0016R\u000e\u0010\u0019\u001a\u00020\u001aX\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u001b\u001a\u00020\u001cX\u0082\u0004\u00a2\u0006\u0002\n\u0000\u00a8\u0006R"}, d2 = {"Lcom/ncy/notechaty/data/repository/FileChatRepository;", "Lcom/ncy/notechaty/data/repository/ChatRepository;", "context", "Landroid/content/Context;", "profileRepository", "Lcom/ncy/notechaty/data/repository/ProfileRepository;", "chatLockState", "Lcom/ncy/notechaty/security/ChatLockState;", "deviceIdentity", "Lcom/ncy/notechaty/data/sync/DeviceIdentity;", "eventBus", "Lcom/ncy/notechaty/data/sync/ChatEventBus;", "(Landroid/content/Context;Lcom/ncy/notechaty/data/repository/ProfileRepository;Lcom/ncy/notechaty/security/ChatLockState;Lcom/ncy/notechaty/data/sync/DeviceIdentity;Lcom/ncy/notechaty/data/sync/ChatEventBus;)V", "_chats", "Lkotlinx/coroutines/flow/MutableStateFlow;", "", "Lcom/ncy/notechaty/data/model/Chat;", "eventCodec", "Lcom/ncy/notechaty/data/sync/event/ChatEventCodec;", "profileDir", "Ljava/io/File;", "getProfileDir", "()Ljava/io/File;", "rootDir", "getRootDir", "scope", "Lkotlinx/coroutines/CoroutineScope;", "serializer", "Lcom/ncy/notechaty/data/serialization/ChatSerializer;", "addMessage", "", "message", "Lcom/ncy/notechaty/data/model/Message;", "(Lcom/ncy/notechaty/data/model/Message;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "appendAndMaterialize", "Lcom/ncy/notechaty/data/model/ChatData;", "chatId", "", "op", "Lcom/ncy/notechaty/data/sync/event/ChatEventOp;", "applyExternalEvent", "", "event", "Lcom/ncy/notechaty/data/sync/event/ChatEvent;", "(Lcom/ncy/notechaty/data/sync/event/ChatEvent;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "applyExternalEventLocked", "createChat", "name", "(Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "deleteChat", "deleteMessage", "messageId", "(Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "exportAllChats", "outputFile", "(Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "exportChat", "(Ljava/lang/String;Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "exportEveryProfile", "getBaseDir", "getChat", "getChatDir", "getImagesDir", "getMessages", "getVoiceDir", "importChat", "zipFile", "observeChats", "Lkotlinx/coroutines/flow/Flow;", "refreshChats", "(Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "scanForNewChats", "setChatAvatar", "sourceFile", "setChatBackground", "updateChat", "chat", "(Lcom/ncy/notechaty/data/model/Chat;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "updateMessage", "toChat", "id", "messages", "app_debug"})
 public final class FileChatRepository implements com.ncy.notechaty.data.repository.ChatRepository {
     @org.jetbrains.annotations.NotNull()
     private final android.content.Context context = null;
@@ -27,7 +36,13 @@ public final class FileChatRepository implements com.ncy.notechaty.data.reposito
     @org.jetbrains.annotations.NotNull()
     private final com.ncy.notechaty.security.ChatLockState chatLockState = null;
     @org.jetbrains.annotations.NotNull()
+    private final com.ncy.notechaty.data.sync.DeviceIdentity deviceIdentity = null;
+    @org.jetbrains.annotations.NotNull()
+    private final com.ncy.notechaty.data.sync.ChatEventBus eventBus = null;
+    @org.jetbrains.annotations.NotNull()
     private final com.ncy.notechaty.data.serialization.ChatSerializer serializer = null;
+    @org.jetbrains.annotations.NotNull()
+    private final com.ncy.notechaty.data.sync.event.ChatEventCodec eventCodec = null;
     @org.jetbrains.annotations.NotNull()
     private final kotlinx.coroutines.flow.MutableStateFlow<java.util.List<com.ncy.notechaty.data.model.Chat>> _chats = null;
     @org.jetbrains.annotations.NotNull()
@@ -38,7 +53,9 @@ public final class FileChatRepository implements com.ncy.notechaty.data.reposito
     @org.jetbrains.annotations.NotNull()
     android.content.Context context, @org.jetbrains.annotations.NotNull()
     com.ncy.notechaty.data.repository.ProfileRepository profileRepository, @org.jetbrains.annotations.NotNull()
-    com.ncy.notechaty.security.ChatLockState chatLockState) {
+    com.ncy.notechaty.security.ChatLockState chatLockState, @org.jetbrains.annotations.NotNull()
+    com.ncy.notechaty.data.sync.DeviceIdentity deviceIdentity, @org.jetbrains.annotations.NotNull()
+    com.ncy.notechaty.data.sync.ChatEventBus eventBus) {
         super();
     }
     
@@ -212,6 +229,37 @@ public final class FileChatRepository implements com.ncy.notechaty.data.reposito
     @org.jetbrains.annotations.Nullable()
     public final java.lang.Object refreshChats(@org.jetbrains.annotations.NotNull()
     kotlin.coroutines.Continuation<? super kotlin.Unit> $completion) {
+        return null;
+    }
+    
+    /**
+     * Apply an event authored by a remote peer. Idempotent — re-applying the same `eventId`
+     * is a no-op. Does *not* call HLC.tick (the event already carries its own HLC); future
+     * local writes that read the chat's prior events will naturally absorb the remote
+     * physicalMs via [HlcTimestamp.tick]'s `max` rule.
+     *
+     * Returns true if the event was newly applied (caller should ack); false if duplicate.
+     */
+    @java.lang.Override()
+    @org.jetbrains.annotations.Nullable()
+    public java.lang.Object applyExternalEvent(@org.jetbrains.annotations.NotNull()
+    com.ncy.notechaty.data.sync.event.ChatEvent event, @org.jetbrains.annotations.NotNull()
+    kotlin.coroutines.Continuation<? super java.lang.Boolean> $completion) {
+        return null;
+    }
+    
+    @kotlin.jvm.Synchronized()
+    private final synchronized boolean applyExternalEventLocked(com.ncy.notechaty.data.sync.event.ChatEvent event) {
+        return false;
+    }
+    
+    /**
+     * Append a new event to the chat's log and re-materialize chat.json from the full log.
+     * The event log is the source of truth; chat.json is a derived view. Synchronized so
+     * concurrent mutations don't generate colliding HLCs (same physicalMs+logical+nodeId).
+     */
+    @kotlin.jvm.Synchronized()
+    private final synchronized com.ncy.notechaty.data.model.ChatData appendAndMaterialize(java.lang.String chatId, com.ncy.notechaty.data.sync.event.ChatEventOp op) {
         return null;
     }
     

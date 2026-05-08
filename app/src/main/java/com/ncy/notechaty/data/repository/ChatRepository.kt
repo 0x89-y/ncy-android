@@ -2,6 +2,7 @@ package com.ncy.notechaty.data.repository
 
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.sync.event.ChatEvent
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 
@@ -28,6 +29,26 @@ interface ChatRepository {
     suspend fun exportEveryProfile(outputFile: File)
     suspend fun importChat(zipFile: File)
     suspend fun scanForNewChats()
+
+    /**
+     * Apply an event authored by a remote peer (sync inbound). Idempotent: events whose
+     * `eventId` already exists in the local log are dropped. Returns true if the event was
+     * newly applied (and thus needs an ack), false if it was a duplicate.
+     */
+    suspend fun applyExternalEvent(event: ChatEvent): Boolean
+
+    /**
+     * Locate a content-addressed media blob by its SHA-256 hash. `mediaType` is `"voice"`
+     * or `"image"`. Returns null if no matching file exists in any chat under the active
+     * profile.
+     */
+    suspend fun mediaFileForHash(hash: String, mediaType: String): File?
+
+    /**
+     * Persist a freshly-downloaded media blob into the given chat. The file is named
+     * `<hash>.<ext>` under the appropriate subdirectory (`voice/` or `images/`).
+     */
+    suspend fun saveMediaBlob(chatId: String, hash: String, mediaType: String, bytes: ByteArray)
 
     fun getBaseDir(): File
 }

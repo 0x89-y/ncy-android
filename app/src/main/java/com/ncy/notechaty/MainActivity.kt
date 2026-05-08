@@ -21,6 +21,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.rememberNavController
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
@@ -40,6 +41,19 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var chatLockState: ChatLockState
+
+    @Inject
+    lateinit var syncManager: SyncManager
+
+    override fun onStart() {
+        super.onStart()
+        syncManager.start()
+    }
+
+    override fun onStop() {
+        syncManager.stop()
+        super.onStop()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()

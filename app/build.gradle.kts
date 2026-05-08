@@ -80,6 +80,10 @@ dependencies {
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // Sync (Phase 1: WebSocket client + QR scanning)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     // Image loading
     implementation("io.coil-kt:coil-compose:2.5.0")
 

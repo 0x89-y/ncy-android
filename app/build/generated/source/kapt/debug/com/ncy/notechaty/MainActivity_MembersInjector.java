@@ -1,6 +1,7 @@
 package com.ncy.notechaty;
 
 import com.ncy.notechaty.data.repository.SettingsRepository;
+import com.ncy.notechaty.data.sync.SyncManager;
 import com.ncy.notechaty.security.ChatLockState;
 import com.ncy.notechaty.security.PinManager;
 import dagger.MembersInjector;
@@ -29,17 +30,22 @@ public final class MainActivity_MembersInjector implements MembersInjector<MainA
 
   private final Provider<ChatLockState> chatLockStateProvider;
 
+  private final Provider<SyncManager> syncManagerProvider;
+
   public MainActivity_MembersInjector(Provider<SettingsRepository> settingsRepositoryProvider,
-      Provider<PinManager> pinManagerProvider, Provider<ChatLockState> chatLockStateProvider) {
+      Provider<PinManager> pinManagerProvider, Provider<ChatLockState> chatLockStateProvider,
+      Provider<SyncManager> syncManagerProvider) {
     this.settingsRepositoryProvider = settingsRepositoryProvider;
     this.pinManagerProvider = pinManagerProvider;
     this.chatLockStateProvider = chatLockStateProvider;
+    this.syncManagerProvider = syncManagerProvider;
   }
 
   public static MembersInjector<MainActivity> create(
       Provider<SettingsRepository> settingsRepositoryProvider,
-      Provider<PinManager> pinManagerProvider, Provider<ChatLockState> chatLockStateProvider) {
-    return new MainActivity_MembersInjector(settingsRepositoryProvider, pinManagerProvider, chatLockStateProvider);
+      Provider<PinManager> pinManagerProvider, Provider<ChatLockState> chatLockStateProvider,
+      Provider<SyncManager> syncManagerProvider) {
+    return new MainActivity_MembersInjector(settingsRepositoryProvider, pinManagerProvider, chatLockStateProvider, syncManagerProvider);
   }
 
   @Override
@@ -47,6 +53,7 @@ public final class MainActivity_MembersInjector implements MembersInjector<MainA
     injectSettingsRepository(instance, settingsRepositoryProvider.get());
     injectPinManager(instance, pinManagerProvider.get());
     injectChatLockState(instance, chatLockStateProvider.get());
+    injectSyncManager(instance, syncManagerProvider.get());
   }
 
   @InjectedFieldSignature("com.ncy.notechaty.MainActivity.settingsRepository")
@@ -63,5 +70,10 @@ public final class MainActivity_MembersInjector implements MembersInjector<MainA
   @InjectedFieldSignature("com.ncy.notechaty.MainActivity.chatLockState")
   public static void injectChatLockState(MainActivity instance, ChatLockState chatLockState) {
     instance.chatLockState = chatLockState;
+  }
+
+  @InjectedFieldSignature("com.ncy.notechaty.MainActivity.syncManager")
+  public static void injectSyncManager(MainActivity instance, SyncManager syncManager) {
+    instance.syncManager = syncManager;
   }
 }

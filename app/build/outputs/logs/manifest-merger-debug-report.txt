@@ -1,6 +1,6 @@
 -- Merging decision tree log ---
 provider#androidx.startup.InitializationProvider
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:49:9-58:20
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:52:9-61:20
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:29:9-37:20
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:29:9-37:20
 MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\e77b09bf5f36b6b8f962e6a8ae7c428b\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
@@ -12,30 +12,30 @@ MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Syfae\.g
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\8a133afd4e33edb7c026e721782e2940\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\8a133afd4e33edb7c026e721782e2940\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
 	tools:node
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:53:13-31
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:56:13-31
 	android:authorities
 		INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:51:13-68
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:54:13-68
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:52:13-37
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:55:13-37
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:50:13-67
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:53:13-67
 provider#androidx.core.content.FileProvider
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:60:9-68:20
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:63:9-71:20
 	android:grantUriPermissions
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:64:13-47
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:67:13-47
 	android:authorities
 		INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:62:13-64
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:65:13-64
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:63:13-37
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:66:13-37
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:61:13-62
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:64:13-62
 manifest
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-70:12
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-70:12
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-70:12
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-70:12
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
 MERGED from [androidx.hilt:hilt-work:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\be567f9705573c1f216d330d5660e549\transformed\hilt-work-1.1.0\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.hilt:hilt-navigation-compose:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\a3fe093fd4e43ad73170e1d5cdb7d21f\transformed\hilt-navigation-compose-1.1.0\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.hilt:hilt-navigation:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\ddd3de7b065465e62717b82ea3129b14\transformed\hilt-navigation-1.1.0\AndroidManifest.xml:2:1-7:12
@@ -120,6 +120,7 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Syfae\.gradle\cach
 MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\832c9ac70ceb9f1eed945a869f8694df\transformed\tracing-1.0.0\AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.exifinterface:exifinterface:1.3.6] C:\Users\Syfae\.gradle\caches\8.13\transforms\7b392ef613fdc6b1b0a4082fae8fe286\transformed\exifinterface-1.3.6\AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\b64ab61ca8200e16dad6df2ef67854d8\transformed\cursoradapter-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:17:1-56:12
 MERGED from [com.google.dagger:dagger-lint-aar:2.50] C:\Users\Syfae\.gradle\caches\8.13\transforms\87e440bc87c26c722ae7be492b117fe0\transformed\dagger-lint-aar-2.50\AndroidManifest.xml:16:1-19:12
 	package
 		INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
@@ -131,49 +132,61 @@ MERGED from [com.google.dagger:dagger-lint-aar:2.50] C:\Users\Syfae\.gradle\cach
 		INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
 	xmlns:android
 		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:11-69
+uses-permission#android.permission.INTERNET
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:5:5-67
+	android:name
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:5:22-64
+uses-permission#android.permission.ACCESS_NETWORK_STATE
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:6:5-79
+MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:24:5-79
+MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:24:5-79
+	android:name
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:6:22-76
 uses-permission#android.permission.RECORD_AUDIO
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:5:5-71
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:7:5-71
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:5:22-68
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:7:22-68
 uses-permission#android.permission.READ_MEDIA_IMAGES
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:6:5-76
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:8:5-76
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:6:22-73
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:8:22-73
 uses-permission#android.permission.READ_MEDIA_AUDIO
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:7:5-75
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:9:5-75
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:7:22-72
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:9:22-72
 uses-permission#android.permission.CAMERA
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:8:5-65
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:10:5-65
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:22:5-65
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:22:5-65
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:8:22-62
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:10:22-62
 uses-permission#android.permission.POST_NOTIFICATIONS
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:9:5-77
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:11:5-77
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:9:22-74
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:11:22-74
 uses-permission#android.permission.SCHEDULE_EXACT_ALARM
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:10:5-79
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:12:5-79
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:10:22-76
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:12:22-76
 uses-permission#android.permission.USE_EXACT_ALARM
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:11:5-74
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:13:5-74
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:11:22-71
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:13:22-71
 uses-permission#android.permission.RECEIVE_BOOT_COMPLETED
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:12:5-81
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:14:5-81
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:25:5-81
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:25:5-81
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:12:22-78
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:14:22-78
 uses-permission#android.permission.USE_BIOMETRIC
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:13:5-72
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:15:5-72
 MERGED from [androidx.biometric:biometric:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\88deb9c1a3dc4eb808836ac8fce49bf1\transformed\biometric-1.1.0\AndroidManifest.xml:24:5-72
 MERGED from [androidx.biometric:biometric:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\88deb9c1a3dc4eb808836ac8fce49bf1\transformed\biometric-1.1.0\AndroidManifest.xml:24:5-72
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:13:22-69
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:15:22-69
 application
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:15:5-69:19
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:15:5-69:19
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:17:5-72:19
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:17:5-72:19
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:28:5-143:19
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:28:5-143:19
 MERGED from [androidx.compose.ui:ui-tooling-android:1.6.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\f8d57c855d8229cf568ee3eeb8b9e4de\transformed\ui-tooling-release\AndroidManifest.xml:22:5-26:19
@@ -194,79 +207,83 @@ MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Syfae\.g
 MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\ceeb9555294c3c081bbe113dad320c0d\transformed\profileinstaller-1.3.1\AndroidManifest.xml:23:5-53:19
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\8a133afd4e33edb7c026e721782e2940\transformed\startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\8a133afd4e33edb7c026e721782e2940\transformed\startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:46:5-54:19
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:46:5-54:19
 	android:extractNativeLibs
 		INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\8e8220360283dce86e619ed22e44d664\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:21:9-35
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:23:9-35
 	android:label
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:19:9-41
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:21:9-41
 	android:roundIcon
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:20:9-54
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:22:9-54
 	tools:targetApi
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:23:9-29
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:26:9-29
 	android:icon
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:18:9-43
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:20:9-43
 	android:allowBackup
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:17:9-35
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:19:9-35
 	android:theme
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:22:9-47
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:24:9-47
+	android:usesCleartextTraffic
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:25:9-44
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:16:9-31
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:18:9-31
 activity#com.ncy.notechaty.MainActivity
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:25:9-34:20
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:28:9-37:20
 	android:windowSoftInputMode
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:28:13-55
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:31:13-55
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:27:13-36
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:30:13-36
 	android:theme
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:29:13-58
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:32:13-58
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:26:13-41
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:29:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:30:13-33:29
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:33:13-36:29
 action#android.intent.action.MAIN
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:31:17-69
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:34:17-69
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:31:25-66
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:34:25-66
 category#android.intent.category.LAUNCHER
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:32:17-77
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:35:17-77
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:32:27-74
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:35:27-74
 receiver#com.ncy.notechaty.notifications.ReminderReceiver
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:36:9-38:40
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:39:9-41:40
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:38:13-37
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:41:13-37
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:37:13-59
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:40:13-59
 receiver#com.ncy.notechaty.notifications.BootReceiver
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:40:9-46:20
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:43:9-49:20
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:42:13-36
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:45:13-36
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:41:13-55
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:44:13-55
 intent-filter#action:name:android.intent.action.BOOT_COMPLETED
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:43:13-45:29
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:46:13-48:29
 action#android.intent.action.BOOT_COMPLETED
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:44:17-79
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:47:17-79
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:44:25-76
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:47:25-76
 meta-data#androidx.work.WorkManagerInitializer
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:54:13-57:39
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:57:13-60:39
 REJECTED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:34:13-36:52
 	tools:node
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:57:17-36
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:60:17-36
 	android:value
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:56:17-49
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:59:17-49
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:55:17-68
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:58:17-68
 meta-data#android.support.FILE_PROVIDER_PATHS
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:65:13-67:54
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:68:13-70:54
 	android:resource
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:67:17-51
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:70:17-51
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:66:17-67
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:69:17-67
 uses-sdk
 INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
@@ -439,6 +456,8 @@ MERGED from [androidx.exifinterface:exifinterface:1.3.6] C:\Users\Syfae\.gradle\
 MERGED from [androidx.exifinterface:exifinterface:1.3.6] C:\Users\Syfae\.gradle\caches\8.13\transforms\7b392ef613fdc6b1b0a4082fae8fe286\transformed\exifinterface-1.3.6\AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\b64ab61ca8200e16dad6df2ef67854d8\transformed\cursoradapter-1.0.0\AndroidManifest.xml:20:5-44
 MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\b64ab61ca8200e16dad6df2ef67854d8\transformed\cursoradapter-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:20:5-44
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:20:5-44
 MERGED from [com.google.dagger:dagger-lint-aar:2.50] C:\Users\Syfae\.gradle\caches\8.13\transforms\87e440bc87c26c722ae7be492b117fe0\transformed\dagger-lint-aar-2.50\AndroidManifest.xml:18:3-42
 MERGED from [com.google.dagger:dagger-lint-aar:2.50] C:\Users\Syfae\.gradle\caches\8.13\transforms\87e440bc87c26c722ae7be492b117fe0\transformed\dagger-lint-aar-2.50\AndroidManifest.xml:18:3-42
 	android:targetSdkVersion
@@ -453,10 +472,6 @@ uses-permission#android.permission.WAKE_LOCK
 ADDED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:23:5-68
 	android:name
 		ADDED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:23:22-65
-uses-permission#android.permission.ACCESS_NETWORK_STATE
-ADDED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:24:5-79
-	android:name
-		ADDED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:24:22-76
 uses-permission#android.permission.FOREGROUND_SERVICE
 ADDED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:26:5-77
 	android:name
@@ -755,3 +770,53 @@ action#androidx.profileinstaller.action.BENCHMARK_OPERATION
 ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\ceeb9555294c3c081bbe113dad320c0d\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
 	android:name
 		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\ceeb9555294c3c081bbe113dad320c0d\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+uses-feature#android.hardware.camera
+ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:25:5-27:36
+	android:required
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:27:9-33
+	android:name
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:26:9-47
+uses-feature#android.hardware.camera.front
+ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:28:5-30:36
+	android:required
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:30:9-33
+	android:name
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:29:9-53
+uses-feature#android.hardware.camera.autofocus
+ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:33:5-35:36
+	android:required
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:35:9-33
+	android:name
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:34:9-57
+uses-feature#android.hardware.camera.flash
+ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:36:5-38:36
+	android:required
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:38:9-33
+	android:name
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:37:9-53
+uses-feature#android.hardware.screen.landscape
+ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:39:5-41:36
+	android:required
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:41:9-33
+	android:name
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:40:9-57
+uses-feature#android.hardware.wifi
+ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:42:5-44:36
+	android:required
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:44:9-33
+	android:name
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:43:9-45
+activity#com.journeyapps.barcodescanner.CaptureActivity
+ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:47:9-53:63
+	android:screenOrientation
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:50:13-56
+	android:clearTaskOnLaunch
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:49:13-45
+	android:stateNotNeeded
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:51:13-42
+	android:windowSoftInputMode
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:53:13-60
+	android:theme
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:52:13-54
+	android:name
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:48:13-74

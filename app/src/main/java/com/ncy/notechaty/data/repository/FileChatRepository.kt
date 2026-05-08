@@ -3,6 +3,15 @@ package com.ncy.notechaty.data.repository
 import android.content.Context
 import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.serialization.ChatSerializer
+import com.ncy.notechaty.data.sync.ChatEventBus
+import com.ncy.notechaty.data.sync.DeviceIdentity
+import com.ncy.notechaty.data.sync.event.ChatEvent
+import com.ncy.notechaty.data.sync.event.ChatEventCodec
+import com.ncy.notechaty.data.sync.event.ChatEventOp
+import com.ncy.notechaty.data.sync.event.EventLog
+import com.ncy.notechaty.data.sync.event.EventLogMigrator
+import com.ncy.notechaty.data.sync.event.HlcTimestamp
+import com.ncy.notechaty.data.sync.event.MaterializedView
 import com.ncy.notechaty.security.ChatLockState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -28,10 +37,13 @@ import javax.inject.Singleton
 class FileChatRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val profileRepository: ProfileRepository,
-    private val chatLockState: ChatLockState
+    private val chatLockState: ChatLockState,
+    private val deviceIdentity: DeviceIdentity,
+    private val eventBus: ChatEventBus
 ) : ChatRepository {
 
     private val serializer = ChatSerializer()
+    private val eventCodec = ChatEventCodec()
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -80,17 +92,14 @@ class FileChatRepository @Inject constructor(
         File(chatDir, "images").mkdirs()
         File(chatDir, "voice").mkdirs()
 
-        val chatData = ChatData(
-            version = 2,
-            chat = ChatMetadata(
-                id = id,
-                name = name,
-                createdAt = System.currentTimeMillis()
-            )
+        val metadata = ChatMetadata(
+            id = id,
+            name = name,
+            createdAt = System.currentTimeMillis()
         )
-        serializer.writeToFile(File(chatDir, "chat.json"), chatData)
+        appendAndMaterialize(id, ChatEventOp.ChatMetadataChanged(metadata))
 
-        val chat = Chat(id = id, name = name, createdAt = chatData.chat.createdAt)
+        val chat = Chat(id = id, name = name, createdAt = metadata.createdAt)
         refreshChats()
         chat
     }
@@ -100,26 +109,27 @@ class FileChatRepository @Inject constructor(
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
 
-        val data = serializer.readFromFile(chatFile)
-        val updatedData = data.copy(
-            chat = data.chat.copy(
-                name = chat.name,
-                avatarFile = chat.avatarFile,
-                backgroundFile = chat.backgroundFile,
-                isPinned = chat.isPinned,
-                bubbleColor = chat.bubbleColor,
-                bubbleGradient = chat.bubbleGradient,
-                isArchived = chat.isArchived,
-                tags = chat.tags,
-                isProtected = chat.isProtected,
-                hideName = chat.hideName
-            )
+        val existing = serializer.readFromFile(chatFile)
+        val updated = ChatMetadata(
+            id = chat.id,
+            name = chat.name,
+            avatarFile = chat.avatarFile,
+            backgroundFile = chat.backgroundFile,
+            createdAt = existing.chat.createdAt,
+            isPinned = chat.isPinned,
+            bubbleColor = chat.bubbleColor,
+            bubbleGradient = chat.bubbleGradient,
+            isArchived = chat.isArchived,
+            tags = chat.tags,
+            isProtected = chat.isProtected,
+            hideName = chat.hideName
         )
-        serializer.writeToFile(chatFile, updatedData)
+        appendAndMaterialize(chat.id, ChatEventOp.ChatMetadataChanged(updated))
         refreshChats()
     }
 
     override suspend fun deleteChat(chatId: String): Unit = withContext(Dispatchers.IO) {
+        // Phase 0: physical delete. Phase 2 will move to a graveyard so peers can learn the tombstone.
         val chatDir = File(profileDir, "chat_$chatId")
         chatDir.deleteRecursively()
         refreshChats()
@@ -133,36 +143,22 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun addMessage(message: Message): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_${message.chatId}")
-        val chatFile = File(chatDir, "chat.json")
-        if (!chatFile.exists()) return@withContext
-
-        val data = serializer.readFromFile(chatFile)
-        val updatedData = data.copy(messages = data.messages + message)
-        serializer.writeToFile(chatFile, updatedData)
+        if (!chatDir.exists()) return@withContext
+        appendAndMaterialize(message.chatId, ChatEventOp.MessageCreated(message))
         refreshChats()
     }
 
     override suspend fun updateMessage(message: Message): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_${message.chatId}")
-        val chatFile = File(chatDir, "chat.json")
-        if (!chatFile.exists()) return@withContext
-
-        val data = serializer.readFromFile(chatFile)
-        val updatedMessages = data.messages.map {
-            if (it.id == message.id) message else it
-        }
-        serializer.writeToFile(chatFile, data.copy(messages = updatedMessages))
+        if (!chatDir.exists()) return@withContext
+        appendAndMaterialize(message.chatId, ChatEventOp.MessageEdited(message))
         refreshChats()
     }
 
     override suspend fun deleteMessage(chatId: String, messageId: String): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_$chatId")
-        val chatFile = File(chatDir, "chat.json")
-        if (!chatFile.exists()) return@withContext
-
-        val data = serializer.readFromFile(chatFile)
-        val updatedMessages = data.messages.filter { it.id != messageId }
-        serializer.writeToFile(chatFile, data.copy(messages = updatedMessages))
+        if (!chatDir.exists()) return@withContext
+        appendAndMaterialize(chatId, ChatEventOp.MessageTombstoned(messageId))
         refreshChats()
     }
 
@@ -172,8 +168,12 @@ class FileChatRepository @Inject constructor(
         sourceFile.copyTo(avatarFile, overwrite = true)
 
         val chatFile = File(chatDir, "chat.json")
-        val data = serializer.readFromFile(chatFile)
-        serializer.writeToFile(chatFile, data.copy(chat = data.chat.copy(avatarFile = "avatar.jpg")))
+        if (!chatFile.exists()) return@withContext
+        val existing = serializer.readFromFile(chatFile)
+        appendAndMaterialize(
+            chatId,
+            ChatEventOp.ChatMetadataChanged(existing.chat.copy(avatarFile = "avatar.jpg"))
+        )
         refreshChats()
     }
 
@@ -183,9 +183,54 @@ class FileChatRepository @Inject constructor(
         sourceFile.copyTo(bgFile, overwrite = true)
 
         val chatFile = File(chatDir, "chat.json")
-        val data = serializer.readFromFile(chatFile)
-        serializer.writeToFile(chatFile, data.copy(chat = data.chat.copy(backgroundFile = "background.jpg")))
+        if (!chatFile.exists()) return@withContext
+        val existing = serializer.readFromFile(chatFile)
+        appendAndMaterialize(
+            chatId,
+            ChatEventOp.ChatMetadataChanged(existing.chat.copy(backgroundFile = "background.jpg"))
+        )
         refreshChats()
+    }
+
+    override suspend fun mediaFileForHash(
+        hash: String,
+        mediaType: String
+    ): File? = withContext(Dispatchers.IO) {
+        val (subdir, ext) = mediaPathBits(mediaType) ?: return@withContext null
+        val needle = "$hash.$ext"
+        profileDir.listFiles()
+            ?.asSequence()
+            ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+            ?.mapNotNull { chatDir ->
+                val candidate = File(File(chatDir, subdir), needle)
+                if (candidate.isFile) candidate else null
+            }
+            ?.firstOrNull()
+    }
+
+    override suspend fun saveMediaBlob(
+        chatId: String,
+        hash: String,
+        mediaType: String,
+        bytes: ByteArray
+    ): Unit = withContext(Dispatchers.IO) {
+        val (subdir, ext) = mediaPathBits(mediaType) ?: return@withContext
+        val dir = File(File(profileDir, "chat_$chatId"), subdir).apply { mkdirs() }
+        val target = File(dir, "$hash.$ext")
+        if (target.isFile && target.length() == bytes.size.toLong()) return@withContext
+        val tmp = File(dir, ".incoming_${UUID.randomUUID()}.$ext")
+        tmp.writeBytes(bytes)
+        if (target.exists()) tmp.delete()
+        else if (!tmp.renameTo(target)) {
+            tmp.copyTo(target, overwrite = false)
+            tmp.delete()
+        }
+    }
+
+    private fun mediaPathBits(mediaType: String): Pair<String, String>? = when (mediaType) {
+        "voice" -> "voice" to "m4a"
+        "image" -> "images" to "jpg"
+        else -> null
     }
 
     override suspend fun getChatDir(chatId: String): File = File(profileDir, "chat_$chatId")
@@ -287,6 +332,11 @@ class FileChatRepository @Inject constructor(
                     messages = data.messages.map { it.copy(chatId = newId) }
                 )
                 serializer.writeToFile(File(targetDir, "chat.json"), updatedData)
+
+                // Drop any events.ndjson that came in the zip — it references the old UUID.
+                // The migrator will synthesize a fresh log keyed to the new UUID.
+                File(targetDir, "events.ndjson").delete()
+                EventLogMigrator.migrateChatIfNeeded(targetDir, deviceIdentity.deviceId)
             }
         } finally {
             if (tempDir.exists()) tempDir.deleteRecursively()
@@ -315,6 +365,80 @@ class FileChatRepository @Inject constructor(
             ?: emptyList()
 
         _chats.value = chats
+    }
+
+    /**
+     * Apply an event authored by a remote peer. Idempotent — re-applying the same `eventId`
+     * is a no-op. Does *not* call HLC.tick (the event already carries its own HLC); future
+     * local writes that read the chat's prior events will naturally absorb the remote
+     * physicalMs via [HlcTimestamp.tick]'s `max` rule.
+     *
+     * Returns true if the event was newly applied (caller should ack); false if duplicate.
+     */
+    override suspend fun applyExternalEvent(event: ChatEvent): Boolean = withContext(Dispatchers.IO) {
+        applyExternalEventLocked(event)
+    }
+
+    @Synchronized
+    private fun applyExternalEventLocked(event: ChatEvent): Boolean {
+        val chatDir = File(profileDir, "chat_${event.chatId}")
+        chatDir.mkdirs()
+        val chatFile = File(chatDir, "chat.json")
+        val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
+
+        val priorEvents = eventLog.readAll()
+        if (priorEvents.any { it.eventId == event.eventId }) {
+            // Idempotency — already applied. Still considered a "received" event; the caller
+            // should ack so the peer can advance its lastSentHlc and not resend forever.
+            return true
+        }
+
+        eventLog.append(event)
+        val materialized = MaterializedView.fold(priorEvents + event)
+        if (materialized != null) {
+            serializer.writeToFile(chatFile, materialized)
+        } else {
+            chatFile.delete()
+        }
+        eventBus.publish(event)
+        scope.launch { refreshChats() }
+        return true
+    }
+
+    /**
+     * Append a new event to the chat's log and re-materialize chat.json from the full log.
+     * The event log is the source of truth; chat.json is a derived view. Synchronized so
+     * concurrent mutations don't generate colliding HLCs (same physicalMs+logical+nodeId).
+     */
+    @Synchronized
+    private fun appendAndMaterialize(chatId: String, op: ChatEventOp): ChatData? {
+        val chatDir = File(profileDir, "chat_$chatId")
+        chatDir.mkdirs()
+        val chatFile = File(chatDir, "chat.json")
+        val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
+
+        val priorEvents = eventLog.readAll()
+        val newEvent = ChatEvent(
+            eventId = UUID.randomUUID().toString(),
+            hlc = HlcTimestamp.tick(
+                previous = priorEvents.maxByOrNull { it.hlc }?.hlc,
+                nowMs = System.currentTimeMillis(),
+                nodeId = deviceIdentity.deviceId
+            ),
+            originDevice = deviceIdentity.deviceId,
+            chatId = chatId,
+            op = op
+        )
+        eventLog.append(newEvent)
+
+        val materialized = MaterializedView.fold(priorEvents + newEvent)
+        if (materialized != null) {
+            serializer.writeToFile(chatFile, materialized)
+        } else {
+            chatFile.delete()
+        }
+        eventBus.publish(newEvent)
+        return materialized
     }
 
     private fun ChatData.toChat(id: String, messages: List<Message>): Chat {

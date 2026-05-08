@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-69:/values-pl/values-pl.xml",
+            "outputFile": "com.ncy.notechaty.app-mergeDebugResources-70:/values-pl/values-pl.xml",
             "map": [
                 {
                     "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\0ea8dddbb64a389864b75e2bba6027a7\\transformed\\material3-1.1.2\\res\\values-pl\\values-pl.xml",
@@ -35,6 +35,23 @@
                         "startOffsets": "4007,4102,7892,8091,8268,9738,9815,9908,9998,10081,10152,10222,10305,10564,10930,11012,11080",
                         "endColumns": "94,84,108,104,76,76,92,89,82,70,69,82,86,71,81,67,119",
                         "endOffsets": "4097,4182,7996,8191,8340,9810,9903,9993,10076,10147,10217,10300,10387,10631,11007,11075,11195"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Syfae\\.gradle\\caches\\8.13\\transforms\\7e596d2c950e3aa70573e1e4552751e8\\transformed\\zxing-android-embedded-4.3.0\\res\\values-pl\\values-pl.xml",
+                    "from": {
+                        "startLines": "2,3,4,5",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "55,114,161,325",
+                        "endColumns": "58,46,163,109",
+                        "endOffsets": "109,156,320,430"
+                    },
+                    "to": {
+                        "startLines": "124,125,126,127",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "12679,12738,12785,12949",
+                        "endColumns": "58,46,163,109",
+                        "endOffsets": "12733,12780,12944,13054"
                     }
                 },
                 {

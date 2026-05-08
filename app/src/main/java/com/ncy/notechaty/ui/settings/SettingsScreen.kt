@@ -48,12 +48,14 @@ import com.ncy.notechaty.util.FileUtils
 import kotlinx.coroutines.launch
 import java.io.File
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Sync
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onOpenLicenses: () -> Unit,
+    onOpenSync: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -174,6 +176,15 @@ fun SettingsScreen(
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             exportAllLauncher.launch("ncy_all_chats.zip")
+                        }
+                    )
+                    SettingsRow(
+                        icon = Icons.Default.Sync,
+                        title = "Sync devices",
+                        subtitle = "Push chats to a paired desktop on the same LAN",
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            onOpenSync()
                         }
                     )
                 }

@@ -1,30 +1,30 @@
 [
     {
-        "merged": "com.ncy.notechaty.app-debug-71:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.ncy.notechaty.app-main-73:/drawable/ic_launcher_background.xml"
+        "merged": "com.ncy.notechaty.app-debug-72:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.ncy.notechaty.app-main-74:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-71:/xml_file_paths.xml.flat",
-        "source": "com.ncy.notechaty.app-main-73:/xml/file_paths.xml"
+        "merged": "com.ncy.notechaty.app-debug-72:/mipmap-hdpi_ic_launcher_round.xml.flat",
+        "source": "com.ncy.notechaty.app-main-74:/mipmap-hdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-hdpi_ic_launcher.xml.flat",
-        "source": "com.ncy.notechaty.app-main-73:/mipmap-hdpi/ic_launcher.xml"
+        "merged": "com.ncy.notechaty.app-debug-72:/xml_file_paths.xml.flat",
+        "source": "com.ncy.notechaty.app-main-74:/xml/file_paths.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "com.ncy.notechaty.app-main-73:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.ncy.notechaty.app-debug-72:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.ncy.notechaty.app-main-74:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-hdpi_ic_launcher_round.xml.flat",
-        "source": "com.ncy.notechaty.app-main-73:/mipmap-hdpi/ic_launcher_round.xml"
+        "merged": "com.ncy.notechaty.app-debug-72:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.ncy.notechaty.app-main-74:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-71:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.ncy.notechaty.app-main-73:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.ncy.notechaty.app-debug-72:/mipmap-hdpi_ic_launcher.xml.flat",
+        "source": "com.ncy.notechaty.app-main-74:/mipmap-hdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.ncy.notechaty.app-debug-71:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "com.ncy.notechaty.app-main-73:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "com.ncy.notechaty.app-debug-72:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.ncy.notechaty.app-main-74:/drawable/ic_launcher_background.xml"
     }
 ]

@@ -10,6 +10,7 @@ import com.ncy.notechaty.ui.profiles.ProfilesViewModel_HiltModules;
 import com.ncy.notechaty.ui.search.SearchViewModel_HiltModules;
 import com.ncy.notechaty.ui.settings.SettingsViewModel_HiltModules;
 import com.ncy.notechaty.ui.starred.StarredMessagesViewModel_HiltModules;
+import com.ncy.notechaty.ui.sync.SyncViewModel_HiltModules;
 import dagger.Binds;
 import dagger.Component;
 import dagger.Module;
@@ -173,7 +174,8 @@ public final class NcyApp_HiltComponents {
           ProfilesViewModel_HiltModules.KeyModule.class,
           SearchViewModel_HiltModules.KeyModule.class,
           SettingsViewModel_HiltModules.KeyModule.class,
-          StarredMessagesViewModel_HiltModules.KeyModule.class
+          StarredMessagesViewModel_HiltModules.KeyModule.class,
+          SyncViewModel_HiltModules.KeyModule.class
       }
   )
   @ActivityRetainedScoped
@@ -216,7 +218,8 @@ public final class NcyApp_HiltComponents {
           ProfilesViewModel_HiltModules.BindsModule.class,
           SearchViewModel_HiltModules.BindsModule.class,
           SettingsViewModel_HiltModules.BindsModule.class,
-          StarredMessagesViewModel_HiltModules.BindsModule.class
+          StarredMessagesViewModel_HiltModules.BindsModule.class,
+          SyncViewModel_HiltModules.BindsModule.class
       }
   )
   @ViewModelScoped

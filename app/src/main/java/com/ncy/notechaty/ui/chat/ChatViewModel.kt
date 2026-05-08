@@ -73,6 +73,14 @@ class ChatViewModel @Inject constructor(
                 .filter { it.chatId == chatId }
                 .collect { loadChat() }
         }
+        // Phase 2b: also reload when a media blob for this chat finishes downloading.
+        // The materialized message list is unchanged, but bubbles need to re-evaluate
+        // file existence so placeholders flip to actual audio/image renderers.
+        viewModelScope.launch {
+            eventBus.mediaArrived
+                .filter { it == chatId }
+                .collect { loadChat() }
+        }
     }
 
     fun loadChat() {

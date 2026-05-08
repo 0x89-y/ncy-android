@@ -7,6 +7,7 @@ import com.ncy.notechaty.backup.BackupScheduler;
 import com.ncy.notechaty.data.repository.ProfileRepository;
 import com.ncy.notechaty.data.repository.SettingsRepository;
 import com.ncy.notechaty.data.sync.DeviceIdentity;
+import com.ncy.notechaty.data.sync.event.EventLogCompactor;
 import com.ncy.notechaty.data.sync.event.EventLogMigrator;
 import com.ncy.notechaty.migration.ProfileMigration;
 import dagger.hilt.android.HiltAndroidApp;

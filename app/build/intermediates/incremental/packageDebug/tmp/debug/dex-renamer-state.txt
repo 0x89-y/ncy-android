@@ -1,4 +1,4 @@
-#Fri May 08 04:42:26 CEST 2026
+#Fri May 08 21:28:32 CEST 2026
 base.0=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 base.1=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
 base.10=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\4\\classes.dex
@@ -9,6 +9,7 @@ base.14=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDex
 base.15=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\9\\classes.dex
 base.16=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes2.dex
 base.17=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes3.dex
+base.18=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\2\\classes.dex
 base.2=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\10\\classes.dex
 base.3=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\11\\classes.dex
 base.4=E\:\\Github\\Ncy\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\12\\classes.dex
@@ -27,6 +28,7 @@ path.14=8/classes.dex
 path.15=9/classes.dex
 path.16=classes2.dex
 path.17=classes3.dex
+path.18=2/classes.dex
 path.2=10/classes.dex
 path.3=11/classes.dex
 path.4=12/classes.dex
@@ -45,6 +47,7 @@ renamed.14=classes15.dex
 renamed.15=classes16.dex
 renamed.16=classes17.dex
 renamed.17=classes18.dex
+renamed.18=classes19.dex
 renamed.2=classes3.dex
 renamed.3=classes4.dex
 renamed.4=classes5.dex

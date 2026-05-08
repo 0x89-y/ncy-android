@@ -1,4 +1,4 @@
-# Ncy Sync Protocol — v1 (Phases 1 and 2a)
+# Ncy Sync Protocol — v1 (Phases 1, 2a, and 2b)
 
 This document specifies the wire protocol and behavioral semantics for syncing chat
 data between the Ncy Android app and a desktop (or any other) client. It is the
@@ -12,8 +12,11 @@ is described here.
 > - Phase 2a: same wire protocol, both sides may send `Event` and reply with `Ack`.
 >   `Hello.sinceHlc` semantics are sharpened (see §6.2). Adds explicit loop-prevention
 >   rules (§10.6).
-> - Off-LAN relay, media-blob transfer (phase 2b), TLS (phase 3), and protected-chat
->   encryption (phase 3) are still deferred.
+> - Phase 2b: content-addressed media blob transfer over the same socket (see §10.8
+>   and the `Blob*` frames in §6.7–6.9). Voice and image only; avatars/backgrounds/
+>   inline rich-text images are deferred to a 2b polish step.
+> - Off-LAN relay, TLS (phase 3), and protected-chat encryption (phase 3) are still
+>   deferred.
 
 ## 1. Architecture
 
@@ -196,6 +199,53 @@ ignored, never destructive.
 `code` is a short snake_case string; `message` is human-readable. Suggested codes:
 `bad_auth`, `bad_hello`, `bad_event`, `version_mismatch`, `internal`. The party
 sending an `Error` **should** close the connection immediately afterward.
+
+### 6.7 `BlobRequest` (either side)
+
+```json
+{ "type": "BlobRequest", "hash": "<sha256-hex>", "mediaType": "voice" | "image" }
+```
+
+Either side asks the other for the bytes of a content-addressed blob whose hash
+appeared in a previously-applied event. `mediaType` is a hint for the responder's
+file-extension convention (`voice` → `.m4a`, `image` → `.jpg`). Recipients **must**
+respond with one or more `BlobChunk` frames totaling exactly the blob's bytes, or
+a single `BlobMissing` if they don't have it.
+
+### 6.8 `BlobChunk` (either side, in response to a `BlobRequest`)
+
+```json
+{
+  "type": "BlobChunk",
+  "hash": "<sha256-hex>",
+  "mediaType": "voice" | "image",
+  "offset": 0,
+  "totalSize": 12345,
+  "data": "<base64>",
+  "isLast": false
+}
+```
+
+- `offset` is the byte offset of *this* chunk in the assembled blob; chunks **must**
+  be sent in strictly increasing order with no gaps.
+- `totalSize` is the assembled blob's full byte length and is the same in every
+  chunk for the same hash.
+- `data` is base64 (RFC 4648 §4) of this chunk's raw bytes.
+- `isLast` is `true` exactly once per request, on the final chunk.
+
+The reference implementations chunk at 64 KiB pre-base64. Receivers **must** verify
+that `SHA-256(assembled bytes)` matches `hash` before persisting; on mismatch the
+fetch is dropped and the requester may retry by sending a fresh `BlobRequest`.
+
+### 6.9 `BlobMissing` (either side, in response to a `BlobRequest`)
+
+```json
+{ "type": "BlobMissing", "hash": "<sha256-hex>" }
+```
+
+Sender doesn't have the blob (e.g. the underlying file was deleted, or the chat was
+tombstoned). Receiver should drop its pending fetch and fall back to a placeholder
+in the UI.
 
 ## 7. ChatEvent
 
@@ -534,6 +584,78 @@ The combination is sufficient for two parties. For a future multi-peer mesh
 (phase 3+), the same rules give correct gossip: events from peer A reach peers
 B, C, … exactly once, never returning to A.
 
+### 10.7 Watermark persistence on the server (phase 2a+)
+
+Once both sides can author events, *both* sides need to persist an outbound
+watermark per peer so reconnects don't replay everything from scratch.
+
+| Side    | Field name (reference impl)                | Meaning                                                        |
+|---------|--------------------------------------------|----------------------------------------------------------------|
+| Phone   | `SyncPeer.lastSentHlc{Ms,Logical,Node}`    | "Highest HLC the desktop has acked from me." Drives catchup.   |
+| Phone   | `SyncPeer.lastReceivedHlc{Ms,Logical,Node}`| "Highest HLC I've applied from the desktop." Sent as `Hello.sinceHlc`. |
+| Desktop | `Pairing.lastSentToPhoneHlc`               | "Highest HLC the phone has acked from me." Drives catchup.     |
+| Desktop | (none persisted)                           | The phone announces its inbound watermark via `Hello.sinceHlc`; the server doesn't need to remember it. |
+
+A server **must** advance `lastSentToPhoneHlc` only on `Ack` (never on send) and
+**must not** regress it. On (re)connect it streams everything past
+`max(Hello.sinceHlc, lastSentToPhoneHlc)` so a phone that wiped local state still
+gets a fresh full replay if it sends `sinceHlc: null`.
+
+The asymmetry — phone tracks two watermarks, server tracks one — is because the
+phone is always the WebSocket *client* in phase 2. If a future deployment lets a
+device act as both client and server, it will need both watermarks per peer.
+
+### 10.8 Media blob transfer (phase 2b)
+
+Events carry only *references* to media on disk — never the bytes. Phase 2b moves
+the bytes lazily, on demand, after an event has been applied.
+
+**File-naming convention.** New media authored on a phase-2b device is stored under
+its SHA-256 hash:
+
+| Field on `Message`         | On-disk path on author          | Wire reference          |
+|----------------------------|---------------------------------|-------------------------|
+| `voiceFile`                | `<chat dir>/voice/<hash>.m4a`   | `"voice/<hash>.m4a"`    |
+| `imageFiles[i]`            | `<chat dir>/images/<hash>.jpg`  | `"images/<hash>.jpg"`   |
+| `RichTextSpan.inlineImage` | `<chat dir>/images/<hash>.jpg`  | `"images/<hash>.jpg"`   |
+
+The `<hash>` is lowercase hex, 64 chars. A receiver extracts the hash by stripping
+the leading directory and the trailing extension, then validating the regex
+`^[0-9a-f]{64}$`. Anything that doesn't match is treated as a *legacy* random-named
+reference — the receiver **must not** issue a `BlobRequest` for it, since no peer
+will have the bytes under a content-addressed name.
+
+**Fetch flow** (receiver-driven):
+
+1. Receiver applies an inbound `Event` (see §10.4).
+2. Receiver scans the event's payload for media references whose filenames match
+   the content-addressed pattern.
+3. For each `(hash, mediaType)` pair the receiver doesn't already have on disk,
+   it sends a `BlobRequest` and tracks a pending-fetch entry.
+4. Sender (the device that authored the media) looks up its local file by hash,
+   streams `BlobChunk` frames in order until `isLast: true`, OR sends a single
+   `BlobMissing` if the file is gone.
+5. Receiver concatenates chunks, verifies the assembled SHA-256 against the
+   expected `hash`, and persists. On mismatch or out-of-order chunks, the fetch
+   is dropped silently — the requester is free to retry on the next reconnect.
+
+**Idempotency and dedup.** Blob storage on each device is content-addressed, so
+two events referencing the same hash share storage and a re-applied event triggers
+no new fetch. A receiver that already has the blob on disk **must not** request it
+again.
+
+**Concurrency.** The reference implementations send chunks serially per blob and
+multiple blobs serially per connection — the WebSocket is full-duplex but ordering
+across concurrent chunked transfers is the responder's prerogative. Receivers
+**must** tolerate any interleaving of `Event` / `Ack` / `BlobChunk` frames as long
+as chunks for the same hash arrive in offset-monotonic order.
+
+**Out of scope for phase 2b first cut:** chat avatars, backgrounds, and inline
+rich-text images. Their references and on-disk layout do not yet use the
+content-addressed naming convention; they remain placeholder-rendered on the
+receiver. The protocol above is forward-compatible — once the author also
+content-addresses those files, no wire change is needed.
+
 ## 11. Protected chats
 
 Phase 1 does **not** sync chats whose `ChatMetadata.isProtected == true`. The
@@ -581,50 +703,69 @@ Production-quality additions:
 
 ## 14. Worked example
 
-Phone has one chat with one message. First sync:
+A reconnect after a phase-2a session has been live for a while. Phone has chat-1
+with two text messages it authored; desktop has authored a `MessageEdited` (a star
+toggle) and a `MessageTombstoned` (a delete) since the phone last connected. Phone
+also has a voice message whose blob the desktop has never fetched.
 
 ```
-T0  Phone connects
-T1  S → C   {"type":"Challenge","nonce":"6t/3o6y8B7e9..."}
-T2  C → S   {"type":"Hello","deviceId":"phone-uuid","auth":"base64(hmac)","sinceHlc":null}
-T3  S → C   {"type":"Welcome","deviceId":"laptop-uuid","name":"My Laptop"}
+T0   Phone opens TCP/WS to ws://laptop:8765/sync
+T1   S → C   {"type":"Challenge","nonce":"6t/3o6y8B7e9..."}
+T2   C → S   {"type":"Hello",
+              "deviceId":"phone-uuid","auth":"<base64(hmac)>",
+              "sinceHlc":{"physicalMs":1714000050000,"logical":0,"nodeId":"laptop-uuid"}}
+T3   S → C   {"type":"Welcome","deviceId":"laptop-uuid","name":"My Laptop"}
 
-    (catchup snapshot: 1 ChatMetadataChanged + 1 MessageCreated, in HLC order)
+   ----- catchup phase, both directions -----
+   Phone sends events with HLC > its lastSentHlc (none new in this run).
+   Desktop sends events with HLC > max(Hello.sinceHlc, lastSentToPhoneHlc).
 
-T4  C → S   {"type":"Event","event":{
-              "v":1,"type":"ChatMetadataChanged","eventId":"e1",
-              "hlc":{"physicalMs":1714000000000,"logical":0,"nodeId":"phone-uuid"},
-              "originDevice":"phone-uuid","chatId":"chat-1",
-              "payload":{"id":"chat-1","name":"My notes","createdAt":1714000000000,
-                         "isPinned":false,"bubbleGradient":false,"isArchived":false,
-                         "tags":[],"isProtected":false,"hideName":false}
-            }}
-T5  S → C   {"type":"Ack","upToHlc":{"physicalMs":1714000000000,"logical":0,"nodeId":"phone-uuid"}}
+T4   S → C   {"type":"Event","event":{
+                "v":1,"type":"MessageEdited","eventId":"e3",
+                "hlc":{"physicalMs":1714000060000,"logical":0,"nodeId":"laptop-uuid"},
+                "originDevice":"laptop-uuid","chatId":"chat-1",
+                "payload":{"id":"msg-1", ..., "isStarred":true, "editedAt":1714000060000}
+             }}
+T5   C → S   {"type":"Ack","upToHlc":{"physicalMs":1714000060000,"logical":0,"nodeId":"laptop-uuid"}}
 
-T6  C → S   {"type":"Event","event":{
-              "v":1,"type":"MessageCreated","eventId":"e2",
-              "hlc":{"physicalMs":1714000050000,"logical":0,"nodeId":"phone-uuid"},
-              "originDevice":"phone-uuid","chatId":"chat-1",
-              "payload":{"id":"msg-1","chatId":"chat-1",
-                         "content":[{"type":"PARAGRAPH","spans":[{"text":"hello world"}]}],
-                         "createdAt":1714000050000,"type":"TEXT","isStarred":false,
-                         "imageFiles":[],"tags":[],"checklistItems":[]}
-            }}
-T7  S → C   {"type":"Ack","upToHlc":{"physicalMs":1714000050000,"logical":0,"nodeId":"phone-uuid"}}
+T6   S → C   {"type":"Event","event":{
+                "v":1,"type":"MessageTombstoned","eventId":"e4",
+                "hlc":{"physicalMs":1714000070000,"logical":0,"nodeId":"laptop-uuid"},
+                "originDevice":"laptop-uuid","chatId":"chat-1",
+                "payload":{"messageId":"msg-2"}
+             }}
+T7   C → S   {"type":"Ack","upToHlc":{"physicalMs":1714000070000,"logical":0,"nodeId":"laptop-uuid"}}
 
-    (live forwarding: user types another message)
+   ----- live phase: phone sends a new voice message -----
 
-T8  C → S   {"type":"Event","event":{...MessageCreated for msg-2...}}
-T9  S → C   {"type":"Ack","upToHlc":{...msg-2's hlc...}}
+T8   C → S   {"type":"Event","event":{
+                "v":1,"type":"MessageCreated","eventId":"e5",
+                "hlc":{"physicalMs":1714000080000,"logical":0,"nodeId":"phone-uuid"},
+                "originDevice":"phone-uuid","chatId":"chat-1",
+                "payload":{"id":"msg-3","chatId":"chat-1",
+                           "voiceFile":"voice/<sha256>.m4a","voiceDurationMs":3500,
+                           "createdAt":1714000080000,"type":"VOICE",
+                           "content":[],"imageFiles":[],"tags":[],"checklistItems":[]}
+             }}
+T9   S → C   {"type":"Ack","upToHlc":{"physicalMs":1714000080000,"logical":0,"nodeId":"phone-uuid"}}
 
-    (phone goes background)
+   ----- phase 2b: desktop doesn't have this voice blob yet, asks for it -----
 
-T10 Phone closes WebSocket with code 1000
+T10  S → C   {"type":"BlobRequest","hash":"<sha256>","mediaType":"voice"}
+T11  C → S   {"type":"BlobChunk","hash":"<sha256>","mediaType":"voice",
+              "offset":0,"totalSize":117344,"data":"<base64-65536-bytes>","isLast":false}
+T12  C → S   {"type":"BlobChunk","hash":"<sha256>","mediaType":"voice",
+              "offset":65536,"totalSize":117344,"data":"<base64-51808-bytes>","isLast":true}
+        (desktop verifies SHA-256 of assembled bytes == hash, persists to blobs/<hash>.m4a)
+
+   ----- phone goes background -----
+
+T13  Phone closes WebSocket with code 1000
 ```
 
-On reconnect tomorrow, the phone sends `Hello` with `sinceHlc` = the HLC of the
-most recently acked event. The server responds with `Welcome`; only newer events
-flow.
+On the next connect, the phone's `Hello.sinceHlc` becomes the HLC at T7 (`e4` was
+the highest acked-from-desktop event), and the desktop's `lastSentToPhoneHlc` for
+this pairing is the HLC at T9. Each side sends only what's truly new.
 
 ## 15. Versioning
 

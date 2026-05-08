@@ -64,7 +64,7 @@ public final class SyncClient {
         }
     }
     
-    @kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000&\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0002\b\u0007\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\b6\u0018\u00002\u00020\u0001:\u0006\u0003\u0004\u0005\u0006\u0007\bB\u0007\b\u0004\u00a2\u0006\u0002\u0010\u0002\u0082\u0001\u0006\t\n\u000b\f\r\u000e\u00a8\u0006\u000f"}, d2 = {"Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event;", "", "()V", "Acked", "Authenticated", "Connecting", "Disconnected", "EventReceived", "Failed", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Acked;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Authenticated;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Connecting;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Disconnected;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$EventReceived;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Failed;", "app_debug"})
+    @kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u00002\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0002\b\n\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\b6\u0018\u00002\u00020\u0001:\t\u0003\u0004\u0005\u0006\u0007\b\t\n\u000bB\u0007\b\u0004\u00a2\u0006\u0002\u0010\u0002\u0082\u0001\t\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u00a8\u0006\u0015"}, d2 = {"Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event;", "", "()V", "Acked", "Authenticated", "BlobChunkReceived", "BlobMissingReceived", "BlobRequested", "Connecting", "Disconnected", "EventReceived", "Failed", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Acked;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Authenticated;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$BlobChunkReceived;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$BlobMissingReceived;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$BlobRequested;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Connecting;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Disconnected;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$EventReceived;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$Failed;", "app_debug"})
     public static abstract class Event {
         
         private Event() {
@@ -136,6 +136,204 @@ public final class SyncClient {
             @org.jetbrains.annotations.NotNull()
             public final com.ncy.notechaty.data.sync.transport.SyncClient.Event.Authenticated copy(@org.jetbrains.annotations.NotNull()
             java.lang.String peerName) {
+                return null;
+            }
+            
+            @java.lang.Override()
+            public boolean equals(@org.jetbrains.annotations.Nullable()
+            java.lang.Object other) {
+                return false;
+            }
+            
+            @java.lang.Override()
+            public int hashCode() {
+                return 0;
+            }
+            
+            @java.lang.Override()
+            @org.jetbrains.annotations.NotNull()
+            public java.lang.String toString() {
+                return null;
+            }
+        }
+        
+        @kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000*\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u000e\n\u0002\b\u0002\n\u0002\u0010\b\n\u0002\b\u0003\n\u0002\u0010\u000b\n\u0002\b\u0012\n\u0002\u0010\u0000\n\u0002\b\u0003\b\u0086\b\u0018\u00002\u00020\u0001B5\u0012\u0006\u0010\u0002\u001a\u00020\u0003\u0012\u0006\u0010\u0004\u001a\u00020\u0003\u0012\u0006\u0010\u0005\u001a\u00020\u0006\u0012\u0006\u0010\u0007\u001a\u00020\u0006\u0012\u0006\u0010\b\u001a\u00020\u0003\u0012\u0006\u0010\t\u001a\u00020\n\u00a2\u0006\u0002\u0010\u000bJ\t\u0010\u0014\u001a\u00020\u0003H\u00c6\u0003J\t\u0010\u0015\u001a\u00020\u0003H\u00c6\u0003J\t\u0010\u0016\u001a\u00020\u0006H\u00c6\u0003J\t\u0010\u0017\u001a\u00020\u0006H\u00c6\u0003J\t\u0010\u0018\u001a\u00020\u0003H\u00c6\u0003J\t\u0010\u0019\u001a\u00020\nH\u00c6\u0003JE\u0010\u001a\u001a\u00020\u00002\b\b\u0002\u0010\u0002\u001a\u00020\u00032\b\b\u0002\u0010\u0004\u001a\u00020\u00032\b\b\u0002\u0010\u0005\u001a\u00020\u00062\b\b\u0002\u0010\u0007\u001a\u00020\u00062\b\b\u0002\u0010\b\u001a\u00020\u00032\b\b\u0002\u0010\t\u001a\u00020\nH\u00c6\u0001J\u0013\u0010\u001b\u001a\u00020\n2\b\u0010\u001c\u001a\u0004\u0018\u00010\u001dH\u00d6\u0003J\t\u0010\u001e\u001a\u00020\u0006H\u00d6\u0001J\t\u0010\u001f\u001a\u00020\u0003H\u00d6\u0001R\u0011\u0010\b\u001a\u00020\u0003\u00a2\u0006\b\n\u0000\u001a\u0004\b\f\u0010\rR\u0011\u0010\u0002\u001a\u00020\u0003\u00a2\u0006\b\n\u0000\u001a\u0004\b\u000e\u0010\rR\u0011\u0010\t\u001a\u00020\n\u00a2\u0006\b\n\u0000\u001a\u0004\b\t\u0010\u000fR\u0011\u0010\u0004\u001a\u00020\u0003\u00a2\u0006\b\n\u0000\u001a\u0004\b\u0010\u0010\rR\u0011\u0010\u0005\u001a\u00020\u0006\u00a2\u0006\b\n\u0000\u001a\u0004\b\u0011\u0010\u0012R\u0011\u0010\u0007\u001a\u00020\u0006\u00a2\u0006\b\n\u0000\u001a\u0004\b\u0013\u0010\u0012\u00a8\u0006 "}, d2 = {"Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$BlobChunkReceived;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event;", "hash", "", "mediaType", "offset", "", "totalSize", "data", "isLast", "", "(Ljava/lang/String;Ljava/lang/String;IILjava/lang/String;Z)V", "getData", "()Ljava/lang/String;", "getHash", "()Z", "getMediaType", "getOffset", "()I", "getTotalSize", "component1", "component2", "component3", "component4", "component5", "component6", "copy", "equals", "other", "", "hashCode", "toString", "app_debug"})
+        public static final class BlobChunkReceived extends com.ncy.notechaty.data.sync.transport.SyncClient.Event {
+            @org.jetbrains.annotations.NotNull()
+            private final java.lang.String hash = null;
+            @org.jetbrains.annotations.NotNull()
+            private final java.lang.String mediaType = null;
+            private final int offset = 0;
+            private final int totalSize = 0;
+            @org.jetbrains.annotations.NotNull()
+            private final java.lang.String data = null;
+            private final boolean isLast = false;
+            
+            public BlobChunkReceived(@org.jetbrains.annotations.NotNull()
+            java.lang.String hash, @org.jetbrains.annotations.NotNull()
+            java.lang.String mediaType, int offset, int totalSize, @org.jetbrains.annotations.NotNull()
+            java.lang.String data, boolean isLast) {
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String getHash() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String getMediaType() {
+                return null;
+            }
+            
+            public final int getOffset() {
+                return 0;
+            }
+            
+            public final int getTotalSize() {
+                return 0;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String getData() {
+                return null;
+            }
+            
+            public final boolean isLast() {
+                return false;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String component1() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String component2() {
+                return null;
+            }
+            
+            public final int component3() {
+                return 0;
+            }
+            
+            public final int component4() {
+                return 0;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String component5() {
+                return null;
+            }
+            
+            public final boolean component6() {
+                return false;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final com.ncy.notechaty.data.sync.transport.SyncClient.Event.BlobChunkReceived copy(@org.jetbrains.annotations.NotNull()
+            java.lang.String hash, @org.jetbrains.annotations.NotNull()
+            java.lang.String mediaType, int offset, int totalSize, @org.jetbrains.annotations.NotNull()
+            java.lang.String data, boolean isLast) {
+                return null;
+            }
+            
+            @java.lang.Override()
+            public boolean equals(@org.jetbrains.annotations.Nullable()
+            java.lang.Object other) {
+                return false;
+            }
+            
+            @java.lang.Override()
+            public int hashCode() {
+                return 0;
+            }
+            
+            @java.lang.Override()
+            @org.jetbrains.annotations.NotNull()
+            public java.lang.String toString() {
+                return null;
+            }
+        }
+        
+        @kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000&\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u000e\n\u0002\b\u0006\n\u0002\u0010\u000b\n\u0000\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\b\n\u0002\b\u0002\b\u0086\b\u0018\u00002\u00020\u0001B\r\u0012\u0006\u0010\u0002\u001a\u00020\u0003\u00a2\u0006\u0002\u0010\u0004J\t\u0010\u0007\u001a\u00020\u0003H\u00c6\u0003J\u0013\u0010\b\u001a\u00020\u00002\b\b\u0002\u0010\u0002\u001a\u00020\u0003H\u00c6\u0001J\u0013\u0010\t\u001a\u00020\n2\b\u0010\u000b\u001a\u0004\u0018\u00010\fH\u00d6\u0003J\t\u0010\r\u001a\u00020\u000eH\u00d6\u0001J\t\u0010\u000f\u001a\u00020\u0003H\u00d6\u0001R\u0011\u0010\u0002\u001a\u00020\u0003\u00a2\u0006\b\n\u0000\u001a\u0004\b\u0005\u0010\u0006\u00a8\u0006\u0010"}, d2 = {"Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$BlobMissingReceived;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event;", "hash", "", "(Ljava/lang/String;)V", "getHash", "()Ljava/lang/String;", "component1", "copy", "equals", "", "other", "", "hashCode", "", "toString", "app_debug"})
+        public static final class BlobMissingReceived extends com.ncy.notechaty.data.sync.transport.SyncClient.Event {
+            @org.jetbrains.annotations.NotNull()
+            private final java.lang.String hash = null;
+            
+            public BlobMissingReceived(@org.jetbrains.annotations.NotNull()
+            java.lang.String hash) {
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String getHash() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String component1() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final com.ncy.notechaty.data.sync.transport.SyncClient.Event.BlobMissingReceived copy(@org.jetbrains.annotations.NotNull()
+            java.lang.String hash) {
+                return null;
+            }
+            
+            @java.lang.Override()
+            public boolean equals(@org.jetbrains.annotations.Nullable()
+            java.lang.Object other) {
+                return false;
+            }
+            
+            @java.lang.Override()
+            public int hashCode() {
+                return 0;
+            }
+            
+            @java.lang.Override()
+            @org.jetbrains.annotations.NotNull()
+            public java.lang.String toString() {
+                return null;
+            }
+        }
+        
+        @kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000&\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u000e\n\u0002\b\t\n\u0002\u0010\u000b\n\u0000\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\b\n\u0002\b\u0002\b\u0086\b\u0018\u00002\u00020\u0001B\u0015\u0012\u0006\u0010\u0002\u001a\u00020\u0003\u0012\u0006\u0010\u0004\u001a\u00020\u0003\u00a2\u0006\u0002\u0010\u0005J\t\u0010\t\u001a\u00020\u0003H\u00c6\u0003J\t\u0010\n\u001a\u00020\u0003H\u00c6\u0003J\u001d\u0010\u000b\u001a\u00020\u00002\b\b\u0002\u0010\u0002\u001a\u00020\u00032\b\b\u0002\u0010\u0004\u001a\u00020\u0003H\u00c6\u0001J\u0013\u0010\f\u001a\u00020\r2\b\u0010\u000e\u001a\u0004\u0018\u00010\u000fH\u00d6\u0003J\t\u0010\u0010\u001a\u00020\u0011H\u00d6\u0001J\t\u0010\u0012\u001a\u00020\u0003H\u00d6\u0001R\u0011\u0010\u0002\u001a\u00020\u0003\u00a2\u0006\b\n\u0000\u001a\u0004\b\u0006\u0010\u0007R\u0011\u0010\u0004\u001a\u00020\u0003\u00a2\u0006\b\n\u0000\u001a\u0004\b\b\u0010\u0007\u00a8\u0006\u0013"}, d2 = {"Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event$BlobRequested;", "Lcom/ncy/notechaty/data/sync/transport/SyncClient$Event;", "hash", "", "mediaType", "(Ljava/lang/String;Ljava/lang/String;)V", "getHash", "()Ljava/lang/String;", "getMediaType", "component1", "component2", "copy", "equals", "", "other", "", "hashCode", "", "toString", "app_debug"})
+        public static final class BlobRequested extends com.ncy.notechaty.data.sync.transport.SyncClient.Event {
+            @org.jetbrains.annotations.NotNull()
+            private final java.lang.String hash = null;
+            @org.jetbrains.annotations.NotNull()
+            private final java.lang.String mediaType = null;
+            
+            public BlobRequested(@org.jetbrains.annotations.NotNull()
+            java.lang.String hash, @org.jetbrains.annotations.NotNull()
+            java.lang.String mediaType) {
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String getHash() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String getMediaType() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String component1() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final java.lang.String component2() {
+                return null;
+            }
+            
+            @org.jetbrains.annotations.NotNull()
+            public final com.ncy.notechaty.data.sync.transport.SyncClient.Event.BlobRequested copy(@org.jetbrains.annotations.NotNull()
+            java.lang.String hash, @org.jetbrains.annotations.NotNull()
+            java.lang.String mediaType) {
                 return null;
             }
             
@@ -265,7 +463,7 @@ public final class SyncClient {
         }
     }
     
-    @kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000$\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\u000b\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0000\bf\u0018\u00002\u00020\u0001J\u0010\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u0005H&J\b\u0010\u0006\u001a\u00020\u0007H&J\u0010\u0010\b\u001a\u00020\u00032\u0006\u0010\t\u001a\u00020\nH&\u00a8\u0006\u000b"}, d2 = {"Lcom/ncy/notechaty/data/sync/transport/SyncClient$Session;", "", "ack", "", "upToHlc", "Lcom/ncy/notechaty/data/sync/event/HlcTimestamp;", "close", "", "send", "event", "Lcom/ncy/notechaty/data/sync/event/ChatEvent;", "app_debug"})
+    @kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u00006\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0010\u000b\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u0002\n\u0002\b\u0002\n\u0002\u0010\u000e\n\u0002\b\u0003\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0010\b\n\u0002\b\u0005\bf\u0018\u00002\u00020\u0001J\u0010\u0010\u0002\u001a\u00020\u00032\u0006\u0010\u0004\u001a\u00020\u0005H&J\b\u0010\u0006\u001a\u00020\u0007H&J\u0018\u0010\b\u001a\u00020\u00032\u0006\u0010\t\u001a\u00020\n2\u0006\u0010\u000b\u001a\u00020\nH&J\u0010\u0010\f\u001a\u00020\u00032\u0006\u0010\r\u001a\u00020\u000eH&J8\u0010\u000f\u001a\u00020\u00032\u0006\u0010\t\u001a\u00020\n2\u0006\u0010\u000b\u001a\u00020\n2\u0006\u0010\u0010\u001a\u00020\u00112\u0006\u0010\u0012\u001a\u00020\u00112\u0006\u0010\u0013\u001a\u00020\n2\u0006\u0010\u0014\u001a\u00020\u0003H&J\u0010\u0010\u0015\u001a\u00020\u00032\u0006\u0010\t\u001a\u00020\nH&\u00a8\u0006\u0016"}, d2 = {"Lcom/ncy/notechaty/data/sync/transport/SyncClient$Session;", "", "ack", "", "upToHlc", "Lcom/ncy/notechaty/data/sync/event/HlcTimestamp;", "close", "", "requestBlob", "hash", "", "mediaType", "send", "event", "Lcom/ncy/notechaty/data/sync/event/ChatEvent;", "sendBlobChunk", "offset", "", "totalSize", "data", "isLast", "sendBlobMissing", "app_debug"})
     public static abstract interface Session {
         
         public abstract boolean send(@org.jetbrains.annotations.NotNull()
@@ -273,6 +471,18 @@ public final class SyncClient {
         
         public abstract boolean ack(@org.jetbrains.annotations.NotNull()
         com.ncy.notechaty.data.sync.event.HlcTimestamp upToHlc);
+        
+        public abstract boolean requestBlob(@org.jetbrains.annotations.NotNull()
+        java.lang.String hash, @org.jetbrains.annotations.NotNull()
+        java.lang.String mediaType);
+        
+        public abstract boolean sendBlobChunk(@org.jetbrains.annotations.NotNull()
+        java.lang.String hash, @org.jetbrains.annotations.NotNull()
+        java.lang.String mediaType, int offset, int totalSize, @org.jetbrains.annotations.NotNull()
+        java.lang.String data, boolean isLast);
+        
+        public abstract boolean sendBlobMissing(@org.jetbrains.annotations.NotNull()
+        java.lang.String hash);
         
         public abstract void close();
     }

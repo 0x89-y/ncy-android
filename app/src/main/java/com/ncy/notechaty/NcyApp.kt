@@ -7,6 +7,7 @@ import com.ncy.notechaty.backup.BackupScheduler
 import com.ncy.notechaty.data.repository.ProfileRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.DeviceIdentity
+import com.ncy.notechaty.data.sync.event.EventLogCompactor
 import com.ncy.notechaty.data.sync.event.EventLogMigrator
 import com.ncy.notechaty.migration.ProfileMigration
 import dagger.hilt.android.HiltAndroidApp
@@ -30,6 +31,8 @@ class NcyApp : Application(), Configuration.Provider {
         // Migration must run before any ViewModel/repository observer reads chats.
         ProfileMigration.runIfNeeded(this, profileRepository)
         EventLogMigrator.runIfNeeded(this, deviceIdentity.deviceId)
+        // Trim oversized event logs once per launch — silent no-op for small chats.
+        EventLogCompactor.runIfNeeded(this)
 
         val settings = settingsRepository.settings.value
         if (settings.autoBackupEnabled) {

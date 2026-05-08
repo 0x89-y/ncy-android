@@ -20,6 +20,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.ncy.notechaty.data.sync.SyncManager
+import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import java.text.DateFormat
 import java.util.Date
@@ -32,6 +33,7 @@ fun SyncScreen(
 ) {
     val peers by viewModel.peers.collectAsState()
     val states by viewModel.states.collectAsState()
+    val discovered by viewModel.discovered.collectAsState()
     var pairingText by remember { mutableStateOf("") }
     var pairingError by remember { mutableStateOf<String?>(null) }
     var pairingSuccess by remember { mutableStateOf<String?>(null) }
@@ -90,6 +92,9 @@ fun SyncScreen(
                             pairingError = null
                             pairingSuccess = null
                             val options = ScanOptions().apply {
+                                // Restrict to QR — also switches the viewfinder from a
+                                // wide 1D-barcode rectangle to the square portrait one.
+                                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                                 setPrompt("Point at the desktop QR")
                                 setOrientationLocked(false)
                                 setBeepEnabled(false)
@@ -143,6 +148,21 @@ fun SyncScreen(
                     ) {
                         Text("Pair from JSON")
                     }
+                }
+            }
+
+            // Devices broadcasting `_ncy-sync._tcp` on the LAN. Informational — pairing
+            // still needs the QR/JSON since discovery doesn't carry the shared secret.
+            val unpairedDiscovered = remember(discovered, peers) {
+                discovered.filter { d -> peers.none { it.id == d.deviceId } }
+            }
+            if (unpairedDiscovered.isNotEmpty()) {
+                Text(
+                    "Found on this network",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                unpairedDiscovered.forEach { d ->
+                    DiscoveredCard(d)
                 }
             }
 
@@ -208,6 +228,30 @@ private fun PeerCard(
                     Text("Remove")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DiscoveredCard(peer: DiscoveredPeer) {
+    Card {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(peer.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "${peer.host}:${peer.port}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "Reachable on this network. Scan its QR or paste its JSON above to pair.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

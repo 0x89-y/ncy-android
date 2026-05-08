@@ -20,6 +20,7 @@ import com.ncy.notechaty.data.repository.SettingsRepository;
 import com.ncy.notechaty.data.sync.ChatEventBus;
 import com.ncy.notechaty.data.sync.DeviceIdentity;
 import com.ncy.notechaty.data.sync.SyncManager;
+import com.ncy.notechaty.data.sync.discovery.MdnsDiscovery;
 import com.ncy.notechaty.data.sync.event.SyncSnapshot;
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore;
 import com.ncy.notechaty.data.sync.transport.SyncClient;
@@ -529,7 +530,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
           return (T) new StarredMessagesViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
           case 7: // com.ncy.notechaty.ui.sync.SyncViewModel 
-          return (T) new SyncViewModel(singletonCImpl.syncPeerStoreProvider.get(), singletonCImpl.syncManagerProvider.get());
+          return (T) new SyncViewModel(singletonCImpl.syncPeerStoreProvider.get(), singletonCImpl.syncManagerProvider.get(), singletonCImpl.mdnsDiscoveryProvider.get());
 
           default: throw new AssertionError(id);
         }
@@ -637,6 +638,8 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     private Provider<ProfileLockState> profileLockStateProvider;
 
+    private Provider<MdnsDiscovery> mdnsDiscoveryProvider;
+
     private SingletonCImpl(ApplicationContextModule applicationContextModuleParam) {
       this.applicationContextModule = applicationContextModuleParam;
       initialize(applicationContextModuleParam);
@@ -667,6 +670,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
       this.syncSnapshotProvider = DoubleCheck.provider(new SwitchingProvider<SyncSnapshot>(singletonCImpl, 11));
       this.syncManagerProvider = DoubleCheck.provider(new SwitchingProvider<SyncManager>(singletonCImpl, 8));
       this.profileLockStateProvider = DoubleCheck.provider(new SwitchingProvider<ProfileLockState>(singletonCImpl, 12));
+      this.mdnsDiscoveryProvider = DoubleCheck.provider(new SwitchingProvider<MdnsDiscovery>(singletonCImpl, 13));
     }
 
     @Override
@@ -754,6 +758,9 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
           case 12: // com.ncy.notechaty.security.ProfileLockState 
           return (T) new ProfileLockState();
+
+          case 13: // com.ncy.notechaty.data.sync.discovery.MdnsDiscovery 
+          return (T) new MdnsDiscovery(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
           default: throw new AssertionError(id);
         }

@@ -1,9 +1,9 @@
 package com.ncy.notechaty.data.sync
 
 import android.util.Log
-import com.ncy.notechaty.data.model.ChatEventOp
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.sync.event.ChatEvent
+import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.media.MediaHash
@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,7 +79,8 @@ class SyncManager @Inject constructor(
         _states.value = emptyMap()
     }
 
-    /** Manually (re)connect to a single peer, regardless of [start]/[stop] state. */
+    /** Manually (re)connect to a single peer, regardless of [start]/[stop] state.
+     *  Resets the auto-reconnect backoff so the user gets an immediate retry. */
     @Synchronized
     fun syncNow(peerId: String) {
         val peer = peerStore.byId(peerId) ?: return
@@ -104,9 +106,23 @@ class SyncManager @Inject constructor(
         _states.value = _states.value.toMutableMap().apply { put(peerId, state) }
     }
 
+    /**
+     * Per-hash receive buffer for an in-flight `BlobRequest`/`BlobChunk` exchange.
+     * Lifted out of [PeerSession] because Kotlin disallows `data class` inside an
+     * inner class — the data class lives at the manager level instead.
+     */
+    private data class PendingFetch(
+        val chatId: String,
+        val mediaType: String,
+        val buffer: ByteArrayOutputStream
+    )
+
     private inner class PeerSession(private val peer: SyncPeer) {
         private var session: SyncClient.Session? = null
         private var liveJob: Job? = null
+        private var reconnectJob: Job? = null
+        private var reconnectAttempt = 0
+        @Volatile private var canceled = false
         private var sentCount = 0
         private var receivedCount = 0
         private var peerName: String = peer.name
@@ -130,6 +146,7 @@ class SyncManager @Inject constructor(
                     }
                     is SyncClient.Event.Authenticated -> {
                         peerName = event.peerName
+                        reconnectAttempt = 0 // healthy session — reset backoff
                         updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
                         // Subscribe to live events BEFORE reading the catchup snapshot so
                         // events appended during snapshot read don't fall through the gap.
@@ -144,9 +161,28 @@ class SyncManager @Inject constructor(
                     is SyncClient.Event.EventReceived -> {
                         scope.launch { handleInbound(event.event) }
                     }
+                    is SyncClient.Event.BlobRequested -> {
+                        scope.launch { serveBlob(event.hash, event.mediaType) }
+                    }
+                    is SyncClient.Event.BlobChunkReceived -> {
+                        scope.launch {
+                            handleBlobChunkInbound(
+                                hash = event.hash,
+                                mediaType = event.mediaType,
+                                offset = event.offset,
+                                totalSize = event.totalSize,
+                                data = event.data,
+                                isLast = event.isLast
+                            )
+                        }
+                    }
+                    is SyncClient.Event.BlobMissingReceived -> {
+                        synchronized(this@PeerSession) { pendingFetches.remove(event.hash) }
+                    }
                     is SyncClient.Event.Failed -> {
                         Log.w(tag, "Peer ${peer.id} failed: ${event.reason}")
                         updateState(peer.id, PeerState.Failed(event.reason))
+                        scheduleReconnect()
                     }
                     is SyncClient.Event.Disconnected -> {
                         liveJob?.cancel()
@@ -154,10 +190,16 @@ class SyncManager @Inject constructor(
                         if (_states.value[peer.id] !is PeerState.Failed) {
                             updateState(peer.id, PeerState.Idle)
                         }
+                        scheduleReconnect()
                     }
                 }
             }
         }
+
+        // Phase 2b: per-hash receive buffers. Populated when we send a BlobRequest, drained
+        // by incoming BlobChunk frames. Caller-side state — the `peer` we requested from
+        // is implicit (this PeerSession owns it).
+        private val pendingFetches = mutableMapOf<String, PendingFetch>()
 
         private suspend fun handleInbound(event: ChatEvent) {
             // Defensive loop guard: an event that originated from this device should never
@@ -174,6 +216,97 @@ class SyncManager @Inject constructor(
             if (cur == null || event.hlc > cur) lastReceivedHlc = event.hlc
             receivedCount++
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
+
+            // Phase 2b: kick off blob fetches for any media references we don't have yet.
+            scope.launch { fetchMissingMedia(event) }
+        }
+
+        private suspend fun fetchMissingMedia(event: ChatEvent) {
+            val s = session ?: return
+            for ((hash, mediaType) in extractMediaRefs(event)) {
+                if (chatRepository.mediaFileForHash(hash, mediaType) != null) continue
+                val newlyPending = synchronized(this@PeerSession) {
+                    if (pendingFetches.containsKey(hash)) false
+                    else {
+                        pendingFetches[hash] = PendingFetch(
+                            chatId = event.chatId,
+                            mediaType = mediaType,
+                            buffer = ByteArrayOutputStream()
+                        )
+                        true
+                    }
+                }
+                if (newlyPending) s.requestBlob(hash, mediaType)
+            }
+        }
+
+        private suspend fun serveBlob(hash: String, mediaType: String) {
+            val s = session ?: return
+            val file = chatRepository.mediaFileForHash(hash, mediaType)
+            if (file == null || !file.isFile) {
+                s.sendBlobMissing(hash)
+                return
+            }
+            val bytes = file.readBytes()
+            val total = bytes.size
+            val encoder = Base64.getEncoder()
+            if (total == 0) {
+                s.sendBlobChunk(hash, mediaType, 0, 0, "", isLast = true)
+                return
+            }
+            var offset = 0
+            while (offset < total) {
+                val n = minOf(CHUNK_SIZE, total - offset)
+                val slice = bytes.copyOfRange(offset, offset + n)
+                val data = encoder.encodeToString(slice)
+                val isLast = offset + n >= total
+                if (!s.sendBlobChunk(hash, mediaType, offset, total, data, isLast)) return
+                offset += n
+            }
+        }
+
+        private suspend fun handleBlobChunkInbound(
+            hash: String,
+            mediaType: String,
+            offset: Int,
+            totalSize: Int,
+            data: String,
+            isLast: Boolean
+        ) {
+            val pending = synchronized(this@PeerSession) { pendingFetches[hash] }
+            if (pending == null) return // unsolicited / already finalized; ignore
+            val bytes = try {
+                Base64.getDecoder().decode(data)
+            } catch (e: Exception) {
+                Log.w(tag, "blob chunk: bad base64 for $hash", e)
+                synchronized(this@PeerSession) { pendingFetches.remove(hash) }
+                return
+            }
+            // Expect strictly in-order chunks. Drop the fetch if the sender deviates so we
+            // don't end up with garbage assembled bytes.
+            if (offset != pending.buffer.size()) {
+                Log.w(tag, "out-of-order blob chunk for $hash (got $offset, expected ${pending.buffer.size()})")
+                synchronized(this@PeerSession) { pendingFetches.remove(hash) }
+                return
+            }
+            pending.buffer.write(bytes)
+            if (!isLast) return
+
+            val collected = pending.buffer.toByteArray()
+            synchronized(this@PeerSession) { pendingFetches.remove(hash) }
+            if (collected.size != totalSize) {
+                Log.w(tag, "blob $hash size mismatch: got ${collected.size} expected $totalSize")
+                return
+            }
+            val computed = MediaHash.ofBytes(collected)
+            if (computed != hash) {
+                Log.w(tag, "blob hash mismatch: expected=$hash got=$computed")
+                return
+            }
+            chatRepository.saveMediaBlob(pending.chatId, hash, pending.mediaType, collected)
+            // Tell any open ChatScreen to re-render — the materialized message hasn't
+            // changed but the file it references now exists on disk.
+            eventBus.notifyMediaArrived(pending.chatId)
         }
 
         private fun pushCatchup() {
@@ -210,9 +343,70 @@ class SyncManager @Inject constructor(
             return true
         }
 
+        /**
+         * Auto-reconnect with capped exponential backoff. Idempotent — calls during an
+         * already-pending retry are no-ops. Reset by [SyncClient.Event.Authenticated] and
+         * by `shutdown()`.
+         */
+        private fun scheduleReconnect() {
+            if (canceled) return
+            if (reconnectJob != null) return
+            val attempt = reconnectAttempt
+            reconnectAttempt = attempt + 1
+            val delayMs = (1_000L shl attempt.coerceAtMost(6)).coerceAtMost(60_000L)
+            Log.i(tag, "Reconnecting peer ${peer.id} in ${delayMs}ms (attempt ${attempt + 1})")
+            reconnectJob = scope.launch {
+                delay(delayMs)
+                reconnectJob = null
+                if (canceled) return@launch
+                synchronized(this@SyncManager) {
+                    if (!running) return@launch
+                    if (perPeer[peer.id] !== this@PeerSession) return@launch
+                }
+                // Tear down whatever's left of the prior socket and start fresh.
+                session?.close()
+                session = null
+                liveJob?.cancel()
+                liveJob = null
+                run()
+            }
+        }
+
         fun shutdown() {
+            canceled = true
+            reconnectJob?.cancel()
+            reconnectJob = null
             liveJob?.cancel()
             session?.close()
+        }
+    }
+
+    private companion object {
+        /** Outbound blob chunk size, bytes (pre-base64). 64 KiB keeps each WS frame small. */
+        const val CHUNK_SIZE = 64 * 1024
+
+        /**
+         * Pull every (hash, mediaType) reference out of an event's payload. Skips refs
+         * that don't match the post-phase-2b content-addressed naming pattern (legacy
+         * random-named media stays untransferable).
+         */
+        fun extractMediaRefs(event: ChatEvent): List<Pair<String, String>> {
+            val message = when (val op = event.op) {
+                is ChatEventOp.MessageCreated -> op.message
+                is ChatEventOp.MessageEdited -> op.message
+                else -> return emptyList()
+            }
+            val refs = mutableListOf<Pair<String, String>>()
+            MediaHash.extractHash(message.voiceFile)?.let { refs += it to "voice" }
+            for (img in message.imageFiles) {
+                MediaHash.extractHash(img)?.let { refs += it to "image" }
+            }
+            for (block in message.content) {
+                for (span in block.spans) {
+                    MediaHash.extractHash(span.inlineImage)?.let { refs += it to "image" }
+                }
+            }
+            return refs.distinct()
         }
     }
 }

@@ -36,6 +36,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Override zxing-android-embedded's default `sensorLandscape` so the QR
+             scanner follows the phone's natural orientation (portrait). -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="fullSensor"
+            android:stateNotNeeded="true"
+            android:theme="@style/zxing_CaptureTheme"
+            android:windowSoftInputMode="stateAlwaysHidden"
+            tools:replace="screenOrientation" />
+
         <receiver
             android:name=".notifications.ReminderReceiver"
             android:exported="false" />

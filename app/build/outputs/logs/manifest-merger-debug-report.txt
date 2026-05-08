@@ -1,6 +1,6 @@
 -- Merging decision tree log ---
 provider#androidx.startup.InitializationProvider
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:52:9-61:20
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:62:9-71:20
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:29:9-37:20
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:29:9-37:20
 MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\e77b09bf5f36b6b8f962e6a8ae7c428b\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
@@ -12,30 +12,30 @@ MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Syfae\.g
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\8a133afd4e33edb7c026e721782e2940\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Syfae\.gradle\caches\8.13\transforms\8a133afd4e33edb7c026e721782e2940\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
 	tools:node
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:56:13-31
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:66:13-31
 	android:authorities
 		INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:54:13-68
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:64:13-68
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:55:13-37
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:65:13-37
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:53:13-67
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:63:13-67
 provider#androidx.core.content.FileProvider
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:63:9-71:20
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:73:9-81:20
 	android:grantUriPermissions
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:67:13-47
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:77:13-47
 	android:authorities
 		INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:65:13-64
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:75:13-64
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:66:13-37
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:76:13-37
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:64:13-62
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:74:13-62
 manifest
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-73:12
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-83:12
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-83:12
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-83:12
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:2:1-83:12
 MERGED from [androidx.hilt:hilt-work:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\be567f9705573c1f216d330d5660e549\transformed\hilt-work-1.1.0\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.hilt:hilt-navigation-compose:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\a3fe093fd4e43ad73170e1d5cdb7d21f\transformed\hilt-navigation-compose-1.1.0\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.hilt:hilt-navigation:1.1.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\ddd3de7b065465e62717b82ea3129b14\transformed\hilt-navigation-1.1.0\AndroidManifest.xml:2:1-7:12
@@ -185,8 +185,8 @@ MERGED from [androidx.biometric:biometric:1.1.0] C:\Users\Syfae\.gradle\caches\8
 	android:name
 		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:15:22-69
 application
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:17:5-72:19
-INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:17:5-72:19
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:17:5-82:19
+INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:17:5-82:19
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:28:5-143:19
 MERGED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:28:5-143:19
 MERGED from [androidx.compose.ui:ui-tooling-android:1.6.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\f8d57c855d8229cf568ee3eeb8b9e4de\transformed\ui-tooling-release\AndroidManifest.xml:22:5-26:19
@@ -251,39 +251,58 @@ category#android.intent.category.LAUNCHER
 ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:35:17-77
 	android:name
 		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:35:27-74
+activity#com.journeyapps.barcodescanner.CaptureActivity
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:41:9-47:49
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:47:9-53:63
+MERGED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:47:9-53:63
+	android:clearTaskOnLaunch
+		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:49:13-45
+	android:screenOrientation
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:43:13-51
+		REJECTED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:50:13-56
+	android:stateNotNeeded
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:44:13-42
+	android:windowSoftInputMode
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:46:13-60
+	android:theme
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:45:13-54
+	tools:replace
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:47:13-46
+	android:name
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:42:13-74
 receiver#com.ncy.notechaty.notifications.ReminderReceiver
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:39:9-41:40
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:49:9-51:40
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:41:13-37
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:51:13-37
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:40:13-59
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:50:13-59
 receiver#com.ncy.notechaty.notifications.BootReceiver
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:43:9-49:20
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:53:9-59:20
 	android:exported
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:45:13-36
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:55:13-36
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:44:13-55
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:54:13-55
 intent-filter#action:name:android.intent.action.BOOT_COMPLETED
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:46:13-48:29
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:56:13-58:29
 action#android.intent.action.BOOT_COMPLETED
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:47:17-79
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:57:17-79
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:47:25-76
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:57:25-76
 meta-data#androidx.work.WorkManagerInitializer
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:57:13-60:39
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:67:13-70:39
 REJECTED from [androidx.work:work-runtime:2.9.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\0cad11cae68df7a64288e4ac48f52510\transformed\work-runtime-2.9.0\AndroidManifest.xml:34:13-36:52
 	tools:node
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:60:17-36
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:70:17-36
 	android:value
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:59:17-49
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:69:17-49
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:58:17-68
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:68:17-68
 meta-data#android.support.FILE_PROVIDER_PATHS
-ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:68:13-70:54
+ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:78:13-80:54
 	android:resource
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:70:17-51
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:80:17-51
 	android:name
-		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:69:17-67
+		ADDED from E:\Github\Ncy\app\src\main\AndroidManifest.xml:79:17-67
 uses-sdk
 INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from E:\Github\Ncy\app\src\main\AndroidManifest.xml
@@ -806,17 +825,3 @@ ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle
 		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:44:9-33
 	android:name
 		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:43:9-45
-activity#com.journeyapps.barcodescanner.CaptureActivity
-ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:47:9-53:63
-	android:screenOrientation
-		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:50:13-56
-	android:clearTaskOnLaunch
-		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:49:13-45
-	android:stateNotNeeded
-		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:51:13-42
-	android:windowSoftInputMode
-		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:53:13-60
-	android:theme
-		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:52:13-54
-	android:name
-		ADDED from [com.journeyapps:zxing-android-embedded:4.3.0] C:\Users\Syfae\.gradle\caches\8.13\transforms\7e596d2c950e3aa70573e1e4552751e8\transformed\zxing-android-embedded-4.3.0\AndroidManifest.xml:48:13-74

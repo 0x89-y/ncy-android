@@ -391,12 +391,25 @@ class SyncManager @Inject constructor(
          * random-named media stays untransferable).
          */
         fun extractMediaRefs(event: ChatEvent): List<Pair<String, String>> {
-            val message = when (val op = event.op) {
-                is ChatEventOp.MessageCreated -> op.message
-                is ChatEventOp.MessageEdited -> op.message
-                else -> return emptyList()
-            }
             val refs = mutableListOf<Pair<String, String>>()
+            when (val op = event.op) {
+                is ChatEventOp.MessageCreated -> collectFromMessage(op.message, refs)
+                is ChatEventOp.MessageEdited -> collectFromMessage(op.message, refs)
+                is ChatEventOp.ChatMetadataChanged -> {
+                    // Phase 2b slice 2: avatars (and backgrounds, even though no client
+                    // renders them yet) carry hashed refs that the receiver fetches.
+                    MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += it to "image" }
+                    MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += it to "image" }
+                }
+                else -> { /* tombstones carry no media refs */ }
+            }
+            return refs.distinct()
+        }
+
+        private fun collectFromMessage(
+            message: com.ncy.notechaty.data.model.Message,
+            refs: MutableList<Pair<String, String>>
+        ) {
             MediaHash.extractHash(message.voiceFile)?.let { refs += it to "voice" }
             for (img in message.imageFiles) {
                 MediaHash.extractHash(img)?.let { refs += it to "image" }
@@ -406,7 +419,6 @@ class SyncManager @Inject constructor(
                     MediaHash.extractHash(span.inlineImage)?.let { refs += it to "image" }
                 }
             }
-            return refs.distinct()
         }
     }
 }

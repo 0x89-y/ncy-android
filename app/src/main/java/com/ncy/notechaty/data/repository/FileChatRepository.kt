@@ -5,6 +5,7 @@ import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.serialization.ChatSerializer
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.DeviceIdentity
+import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventCodec
 import com.ncy.notechaty.data.sync.event.ChatEventOp
@@ -164,15 +165,28 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun setChatAvatar(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_$chatId")
-        val avatarFile = File(chatDir, "avatar.jpg")
-        sourceFile.copyTo(avatarFile, overwrite = true)
+        val avatarDir = File(chatDir, "avatar").apply { mkdirs() }
+        // Content-address the avatar so paired desktops can fetch it via the same blob
+        // protocol they use for voice and images. Legacy `avatar.jpg` at the chat root
+        // remains untouched on disk (so older builds still render it locally) — but
+        // ChatMetadata.avatarFile now points at the hashed copy.
+        val temp = File(avatarDir, "incoming_${UUID.randomUUID()}.jpg")
+        sourceFile.copyTo(temp, overwrite = true)
+        val hash = MediaHash.ofFile(temp)
+        val target = File(avatarDir, "$hash.jpg")
+        if (target.exists()) {
+            temp.delete()
+        } else if (!temp.renameTo(target)) {
+            temp.copyTo(target, overwrite = false)
+            temp.delete()
+        }
 
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
         val existing = serializer.readFromFile(chatFile)
         appendAndMaterialize(
             chatId,
-            ChatEventOp.ChatMetadataChanged(existing.chat.copy(avatarFile = "avatar.jpg"))
+            ChatEventOp.ChatMetadataChanged(existing.chat.copy(avatarFile = "avatar/${target.name}"))
         )
         refreshChats()
     }
@@ -196,14 +210,16 @@ class FileChatRepository @Inject constructor(
         hash: String,
         mediaType: String
     ): File? = withContext(Dispatchers.IO) {
-        val (subdir, ext) = mediaPathBits(mediaType) ?: return@withContext null
+        val subdirs = mediaSearchSubdirs(mediaType) ?: return@withContext null
+        val ext = mediaExt(mediaType) ?: return@withContext null
         val needle = "$hash.$ext"
         profileDir.listFiles()
             ?.asSequence()
             ?.filter { it.isDirectory && it.name.startsWith("chat_") }
             ?.mapNotNull { chatDir ->
-                val candidate = File(File(chatDir, subdir), needle)
-                if (candidate.isFile) candidate else null
+                subdirs.asSequence()
+                    .map { sub -> File(File(chatDir, sub), needle) }
+                    .firstOrNull { it.isFile }
             }
             ?.firstOrNull()
     }
@@ -214,7 +230,11 @@ class FileChatRepository @Inject constructor(
         mediaType: String,
         bytes: ByteArray
     ): Unit = withContext(Dispatchers.IO) {
-        val (subdir, ext) = mediaPathBits(mediaType) ?: return@withContext
+        val ext = mediaExt(mediaType) ?: return@withContext
+        // Receive-side: save into the canonical write dir (voice/ or images/). Avatars
+        // arriving from a peer also land in images/ — Avatar.svelte locally looks up by
+        // hash, not by literal path, so the on-disk location doesn't matter to renderers.
+        val subdir = mediaWriteSubdir(mediaType) ?: return@withContext
         val dir = File(File(profileDir, "chat_$chatId"), subdir).apply { mkdirs() }
         val target = File(dir, "$hash.$ext")
         if (target.isFile && target.length() == bytes.size.toLong()) return@withContext
@@ -227,9 +247,24 @@ class FileChatRepository @Inject constructor(
         }
     }
 
-    private fun mediaPathBits(mediaType: String): Pair<String, String>? = when (mediaType) {
-        "voice" -> "voice" to "m4a"
-        "image" -> "images" to "jpg"
+    private fun mediaExt(mediaType: String): String? = when (mediaType) {
+        "voice" -> "m4a"
+        "image" -> "jpg"
+        else -> null
+    }
+
+    /** Where to look when *searching* by hash. Images can live in either `images/` or
+     *  `avatar/` depending on whether they came from a message or a chat avatar. */
+    private fun mediaSearchSubdirs(mediaType: String): List<String>? = when (mediaType) {
+        "voice" -> listOf("voice")
+        "image" -> listOf("images", "avatar")
+        else -> null
+    }
+
+    /** Where to *write* a freshly-downloaded blob. Single canonical dir per media type. */
+    private fun mediaWriteSubdir(mediaType: String): String? = when (mediaType) {
+        "voice" -> "voice"
+        "image" -> "images"
         else -> null
     }
 
@@ -319,13 +354,29 @@ class FileChatRepository @Inject constructor(
                 }
             }
 
-            val chatFile = File(tempDir, "chat.json")
-            if (chatFile.exists()) {
+            // Locate every chat.json in the extracted tree. Single-chat backups
+            // place it at the root; exportAllChats nests it under chat_<id>/;
+            // exportEveryProfile under profile_<name>/chat_<id>/.
+            val chatFiles = tempDir.walkTopDown()
+                .filter { it.isFile && it.name == "chat.json" }
+                .toList()
+
+            if (chatFiles.isEmpty()) {
+                throw IllegalArgumentException("No chats found in backup")
+            }
+
+            for (chatFile in chatFiles) {
+                val srcChatDir = chatFile.parentFile ?: continue
                 val data = serializer.readFromFile(chatFile)
                 val newId = UUID.randomUUID().toString()
                 val targetDir = File(profileDir, "chat_$newId")
+                if (targetDir.exists()) targetDir.deleteRecursively()
+                targetDir.mkdirs()
 
-                tempDir.renameTo(targetDir)
+                // Copy chat contents (media/, voice/, etc.) into the new chat dir.
+                srcChatDir.listFiles()?.forEach { src ->
+                    src.copyRecursively(File(targetDir, src.name), overwrite = true)
+                }
 
                 val updatedData = data.copy(
                     chat = data.chat.copy(id = newId),

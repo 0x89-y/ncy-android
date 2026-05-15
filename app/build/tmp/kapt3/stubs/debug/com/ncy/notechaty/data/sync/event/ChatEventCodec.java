@@ -1,10 +1,12 @@
 package com.ncy.notechaty.data.sync.event;
 
+import android.util.Base64;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.ncy.notechaty.data.model.ChatMetadata;
 import com.ncy.notechaty.data.model.Message;
+import com.ncy.notechaty.data.sync.protection.ProtectionCrypto;
 
 /**
  * Encodes and decodes [ChatEvent] as one JSON object per line (NDJSON). Format is portable

@@ -78,6 +78,14 @@ object EventLogCompactor {
                     if (op.message.id in tombstones) continue
                     latestPerMessage[op.message.id] = event
                 }
+                is ChatEventOp.EncryptedMessage -> {
+                    // Phase 3: encrypted ops can't be dedup'd by message id without the
+                    // key (id is inside the ciphertext). Key them by eventId so each
+                    // encrypted event survives compaction independently — same shape as
+                    // MaterializedView's placeholder strategy. A future polish could
+                    // decrypt during compaction if a key happens to be cached.
+                    latestPerMessage["enc_${event.eventId}"] = event
+                }
             }
         }
 

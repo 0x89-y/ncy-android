@@ -1,10 +1,12 @@
 package com.ncy.notechaty.data.sync.event
 
+import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.ncy.notechaty.data.model.ChatMetadata
 import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.sync.protection.ProtectionCrypto
 
 /**
  * Encodes and decodes [ChatEvent] as one JSON object per line (NDJSON). Format is portable
@@ -37,10 +39,21 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
         val hlc = gson.fromJson(obj["hlc"], HlcTimestamp::class.java)
         val payload = obj["payload"]
         val op: ChatEventOp = when (type) {
-            TYPE_MESSAGE_CREATED ->
-                ChatEventOp.MessageCreated(gson.fromJson(payload, Message::class.java))
-            TYPE_MESSAGE_EDITED ->
-                ChatEventOp.MessageEdited(gson.fromJson(payload, Message::class.java))
+            TYPE_MESSAGE_CREATED, TYPE_MESSAGE_EDITED -> {
+                // Phase 3: detect the sealed envelope shape by the `enc` discriminator.
+                if (payload.isJsonObject && payload.asJsonObject.has("enc")) {
+                    val po = payload.asJsonObject
+                    ChatEventOp.EncryptedMessage(
+                        innerType = type,
+                        nonce = Base64.decode(po["nonce"].asString, Base64.NO_WRAP),
+                        ciphertext = Base64.decode(po["ct"].asString, Base64.NO_WRAP)
+                    )
+                } else if (type == TYPE_MESSAGE_CREATED) {
+                    ChatEventOp.MessageCreated(gson.fromJson(payload, Message::class.java))
+                } else {
+                    ChatEventOp.MessageEdited(gson.fromJson(payload, Message::class.java))
+                }
+            }
             TYPE_MESSAGE_TOMBSTONED ->
                 ChatEventOp.MessageTombstoned(payload.asJsonObject["messageId"].asString)
             TYPE_CHAT_METADATA_CHANGED ->
@@ -64,6 +77,9 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
         is ChatEventOp.MessageTombstoned -> TYPE_MESSAGE_TOMBSTONED
         is ChatEventOp.ChatMetadataChanged -> TYPE_CHAT_METADATA_CHANGED
         is ChatEventOp.ChatTombstoned -> TYPE_CHAT_TOMBSTONED
+        // Outer wire `type` mirrors the original op so phase-1/-2 peers still see a
+        // recognisable label; the payload's `enc` key marks it as encrypted.
+        is ChatEventOp.EncryptedMessage -> op.innerType
     }
 
     private fun payloadOf(op: ChatEventOp) = when (op) {
@@ -72,6 +88,12 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
         is ChatEventOp.MessageTombstoned -> JsonObject().apply { addProperty("messageId", op.messageId) }
         is ChatEventOp.ChatMetadataChanged -> gson.toJsonTree(op.metadata)
         is ChatEventOp.ChatTombstoned -> JsonObject().apply { addProperty("chatId", op.chatId) }
+        is ChatEventOp.EncryptedMessage -> JsonObject().apply {
+            addProperty("v", ProtectionCrypto.ENVELOPE_VERSION)
+            addProperty("enc", "AES-256-GCM")
+            addProperty("nonce", Base64.encodeToString(op.nonce, Base64.NO_WRAP))
+            addProperty("ct", Base64.encodeToString(op.ciphertext, Base64.NO_WRAP))
+        }
     }
 
     companion object {

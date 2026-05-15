@@ -1,8 +1,12 @@
 package com.ncy.notechaty.data.sync.event;
 
+import com.ncy.notechaty.data.model.BlockType;
 import com.ncy.notechaty.data.model.ChatData;
 import com.ncy.notechaty.data.model.ChatMetadata;
 import com.ncy.notechaty.data.model.Message;
+import com.ncy.notechaty.data.model.MessageType;
+import com.ncy.notechaty.data.model.RichTextBlock;
+import com.ncy.notechaty.data.model.RichTextSpan;
 
 /**
  * Pure fold from an event log to a [ChatData]. Processes events in HLC order so the result
@@ -14,7 +18,7 @@ import com.ncy.notechaty.data.model.Message;
  * - MessageTombstoned: removes the message and ignores all later ops on that id.
  * - ChatTombstoned: yields `null` (chat should not exist on disk).
  */
-@kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000\u001c\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010 \n\u0002\u0018\u0002\n\u0000\b\u00c6\u0002\u0018\u00002\u00020\u0001B\u0007\b\u0002\u00a2\u0006\u0002\u0010\u0002J\u0016\u0010\u0003\u001a\u0004\u0018\u00010\u00042\f\u0010\u0005\u001a\b\u0012\u0004\u0012\u00020\u00070\u0006\u00a8\u0006\b"}, d2 = {"Lcom/ncy/notechaty/data/sync/event/MaterializedView;", "", "()V", "fold", "Lcom/ncy/notechaty/data/model/ChatData;", "events", "", "Lcom/ncy/notechaty/data/sync/event/ChatEvent;", "app_debug"})
+@kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000*\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010 \n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0010\u000e\n\u0002\b\u0002\b\u00c6\u0002\u0018\u00002\u00020\u0001B\u0007\b\u0002\u00a2\u0006\u0002\u0010\u0002J\u0016\u0010\u0003\u001a\u0004\u0018\u00010\u00042\f\u0010\u0005\u001a\b\u0012\u0004\u0012\u00020\u00070\u0006J\u0018\u0010\b\u001a\u00020\t2\u0006\u0010\n\u001a\u00020\u000b2\u0006\u0010\f\u001a\u00020\u0007H\u0002\u00a8\u0006\r"}, d2 = {"Lcom/ncy/notechaty/data/sync/event/MaterializedView;", "", "()V", "fold", "Lcom/ncy/notechaty/data/model/ChatData;", "events", "", "Lcom/ncy/notechaty/data/sync/event/ChatEvent;", "lockedPlaceholder", "Lcom/ncy/notechaty/data/model/Message;", "id", "", "event", "app_debug"})
 public final class MaterializedView {
     @org.jetbrains.annotations.NotNull()
     public static final com.ncy.notechaty.data.sync.event.MaterializedView INSTANCE = null;
@@ -29,6 +33,15 @@ public final class MaterializedView {
     @org.jetbrains.annotations.Nullable()
     public final com.ncy.notechaty.data.model.ChatData fold(@org.jetbrains.annotations.NotNull()
     java.util.List<com.ncy.notechaty.data.sync.event.ChatEvent> events) {
+        return null;
+    }
+    
+    /**
+     * Synthetic message stand-in for an [ChatEventOp.EncryptedMessage]. The UI renders
+     * the `[locked]` glyph distinctively; the message's `createdAt` is the event's
+     * physical HLC so locked bubbles still sort into the right place in the timeline.
+     */
+    private final com.ncy.notechaty.data.model.Message lockedPlaceholder(java.lang.String id, com.ncy.notechaty.data.sync.event.ChatEvent event) {
         return null;
     }
 }

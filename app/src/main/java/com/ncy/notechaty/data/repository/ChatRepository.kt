@@ -38,6 +38,22 @@ interface ChatRepository {
     suspend fun applyExternalEvent(event: ChatEvent): Boolean
 
     /**
+     * Phase 3: like [getMessages] but decrypts any `EncryptedMessage` ops on the fly
+     * using the in-memory key cached by `ProtectionKeyStore`. Falls back to placeholders
+     * for events the caller doesn't have the key for. Used by the UI when a protected
+     * chat is currently unlocked.
+     */
+    suspend fun getMessagesDecrypted(chatId: String): List<Message>
+
+    /**
+     * Phase 3 migration: rewrite any plaintext `MessageCreated`/`MessageEdited` events
+     * in a protected chat as encrypted ones, in place (same eventId/HLC). Requires the
+     * chat's key to already be cached. Idempotent — already-encrypted events are left
+     * untouched. No-op if no key is cached or there's nothing plaintext to convert.
+     */
+    suspend fun migrateProtectedChat(chatId: String)
+
+    /**
      * Locate a content-addressed media blob by its SHA-256 hash. `mediaType` is `"voice"`
      * or `"image"`. Returns null if no matching file exists in any chat under the active
      * profile.

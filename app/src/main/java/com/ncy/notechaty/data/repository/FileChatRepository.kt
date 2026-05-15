@@ -3,9 +3,12 @@ package com.ncy.notechaty.data.repository
 import android.content.Context
 import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.serialization.ChatSerializer
+import com.google.gson.Gson
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.media.MediaHash
+import com.ncy.notechaty.data.sync.protection.ProtectionCrypto
+import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventCodec
 import com.ncy.notechaty.data.sync.event.ChatEventOp
@@ -40,11 +43,13 @@ class FileChatRepository @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val chatLockState: ChatLockState,
     private val deviceIdentity: DeviceIdentity,
-    private val eventBus: ChatEventBus
+    private val eventBus: ChatEventBus,
+    private val keyStore: ProtectionKeyStore
 ) : ChatRepository {
 
     private val serializer = ChatSerializer()
     private val eventCodec = ChatEventCodec()
+    private val gson = Gson()
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -111,6 +116,14 @@ class FileChatRepository @Inject constructor(
         if (!chatFile.exists()) return@withContext
 
         val existing = serializer.readFromFile(chatFile)
+        // Phase 3: when a chat first becomes protected, generate a fresh salt so the
+        // PIN can derive a stable per-chat encryption key. Carry forward any existing
+        // salt unchanged; never re-generate (that would orphan already-encrypted events).
+        val nextSalt = when {
+            chat.isProtected && existing.chat.protectionSalt == null ->
+                ProtectionCrypto.generateSalt()
+            else -> existing.chat.protectionSalt
+        }
         val updated = ChatMetadata(
             id = chat.id,
             name = chat.name,
@@ -123,16 +136,34 @@ class FileChatRepository @Inject constructor(
             isArchived = chat.isArchived,
             tags = chat.tags,
             isProtected = chat.isProtected,
-            hideName = chat.hideName
+            hideName = chat.hideName,
+            protectionSalt = nextSalt
         )
         appendAndMaterialize(chat.id, ChatEventOp.ChatMetadataChanged(updated))
         refreshChats()
     }
 
     override suspend fun deleteChat(chatId: String): Unit = withContext(Dispatchers.IO) {
-        // Phase 0: physical delete. Phase 2 will move to a graveyard so peers can learn the tombstone.
         val chatDir = File(profileDir, "chat_$chatId")
-        chatDir.deleteRecursively()
+        if (!chatDir.exists()) return@withContext
+
+        // Emit a ChatTombstoned so paired devices learn the deletion. This appends the
+        // event (HLC ticked past all prior events), drops chat.json via materialize
+        // returning null, and publishes onto the bus so SyncManager live-forwards it
+        // to connected peers.
+        appendAndMaterialize(chatId, ChatEventOp.ChatTombstoned(chatId))
+
+        // Privacy + disk: keep nothing on disk but the tombstone itself. Deleting the
+        // media subdirs + collapsing events.ndjson to just the tombstone means the
+        // chat's content is gone locally, while offline peers still pick the deletion
+        // up via the catchup snapshot (which scans events.ndjson per chat dir).
+        chatDir.listFiles()?.forEach { f ->
+            if (f.name != "events.ndjson") f.deleteRecursively()
+        }
+        val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
+        val tombstoneOnly = eventLog.readAll().filter { it.op is ChatEventOp.ChatTombstoned }
+        if (tombstoneOnly.isNotEmpty()) eventLog.replaceAll(tombstoneOnly)
+
         refreshChats()
     }
 
@@ -165,22 +196,7 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun setChatAvatar(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_$chatId")
-        val avatarDir = File(chatDir, "avatar").apply { mkdirs() }
-        // Content-address the avatar so paired desktops can fetch it via the same blob
-        // protocol they use for voice and images. Legacy `avatar.jpg` at the chat root
-        // remains untouched on disk (so older builds still render it locally) — but
-        // ChatMetadata.avatarFile now points at the hashed copy.
-        val temp = File(avatarDir, "incoming_${UUID.randomUUID()}.jpg")
-        sourceFile.copyTo(temp, overwrite = true)
-        val hash = MediaHash.ofFile(temp)
-        val target = File(avatarDir, "$hash.jpg")
-        if (target.exists()) {
-            temp.delete()
-        } else if (!temp.renameTo(target)) {
-            temp.copyTo(target, overwrite = false)
-            temp.delete()
-        }
-
+        val target = ingestChatImage(chatDir, sourceFile, "avatar")
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
         val existing = serializer.readFromFile(chatFile)
@@ -193,17 +209,35 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun setChatBackground(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_$chatId")
-        val bgFile = File(chatDir, "background.jpg")
-        sourceFile.copyTo(bgFile, overwrite = true)
-
+        val target = ingestChatImage(chatDir, sourceFile, "background")
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
         val existing = serializer.readFromFile(chatFile)
         appendAndMaterialize(
             chatId,
-            ChatEventOp.ChatMetadataChanged(existing.chat.copy(backgroundFile = "background.jpg"))
+            ChatEventOp.ChatMetadataChanged(existing.chat.copy(backgroundFile = "background/${target.name}"))
         )
         refreshChats()
+    }
+
+    /**
+     * Copy [sourceFile] into `<chatDir>/<subdir>/<sha256>.jpg`, dedup'd by hash. Used by
+     * `setChatAvatar` and `setChatBackground` so both produce content-addressed files
+     * that paired desktops can fetch via the existing blob protocol.
+     */
+    private fun ingestChatImage(chatDir: File, sourceFile: File, subdir: String): File {
+        val dir = File(chatDir, subdir).apply { mkdirs() }
+        val temp = File(dir, "incoming_${UUID.randomUUID()}.jpg")
+        sourceFile.copyTo(temp, overwrite = true)
+        val hash = MediaHash.ofFile(temp)
+        val target = File(dir, "$hash.jpg")
+        if (target.exists()) {
+            temp.delete()
+        } else if (!temp.renameTo(target)) {
+            temp.copyTo(target, overwrite = false)
+            temp.delete()
+        }
+        return target
     }
 
     override suspend fun mediaFileForHash(
@@ -253,11 +287,11 @@ class FileChatRepository @Inject constructor(
         else -> null
     }
 
-    /** Where to look when *searching* by hash. Images can live in either `images/` or
-     *  `avatar/` depending on whether they came from a message or a chat avatar. */
+    /** Where to look when *searching* by hash. Images can live under `images/` (message
+     *  attachments), `avatar/` (chat avatars), or `background/` (chat wallpapers). */
     private fun mediaSearchSubdirs(mediaType: String): List<String>? = when (mediaType) {
         "voice" -> listOf("voice")
-        "image" -> listOf("images", "avatar")
+        "image" -> listOf("images", "avatar", "background")
         else -> null
     }
 
@@ -469,6 +503,11 @@ class FileChatRepository @Inject constructor(
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
 
         val priorEvents = eventLog.readAll()
+        // Phase 3: if this chat is protected and we have a cached key, encrypt the
+        // payload before persisting. Skipped silently if the chat has no salt or no
+        // unlocked key in memory — those cases happen before the user has finished
+        // setting up protection, and the message simply persists in plaintext.
+        val effectiveOp = encryptIfProtected(chatId, op)
         val newEvent = ChatEvent(
             eventId = UUID.randomUUID().toString(),
             hlc = HlcTimestamp.tick(
@@ -478,7 +517,7 @@ class FileChatRepository @Inject constructor(
             ),
             originDevice = deviceIdentity.deviceId,
             chatId = chatId,
-            op = op
+            op = effectiveOp
         )
         eventLog.append(newEvent)
 
@@ -490,6 +529,110 @@ class FileChatRepository @Inject constructor(
         }
         eventBus.publish(newEvent)
         return materialized
+    }
+
+    private fun encryptIfProtected(chatId: String, op: ChatEventOp): ChatEventOp {
+        val (message, innerType) = when (op) {
+            is ChatEventOp.MessageCreated -> op.message to ChatEventCodec.TYPE_MESSAGE_CREATED
+            is ChatEventOp.MessageEdited -> op.message to ChatEventCodec.TYPE_MESSAGE_EDITED
+            else -> return op
+        }
+        val metaFile = File(File(profileDir, "chat_$chatId"), "chat.json")
+        if (!metaFile.exists()) return op
+        val meta = try {
+            serializer.readFromFile(metaFile).chat
+        } catch (_: Exception) {
+            return op
+        }
+        if (!meta.isProtected) return op
+        meta.protectionSalt ?: return op
+        val key = keyStore.keyFor(chatId) ?: return op
+
+        val plaintext = gson.toJson(message).toByteArray(Charsets.UTF_8)
+        val sealed = ProtectionCrypto.seal(key, plaintext)
+        return ChatEventOp.EncryptedMessage(
+            innerType = innerType,
+            nonce = sealed.nonce,
+            ciphertext = sealed.ciphertext
+        )
+    }
+
+    /**
+     * Phase 3 decrypt path: read raw events, replace any `EncryptedMessage` op we have
+     * the key for with the decrypted `MessageCreated`/`MessageEdited`, then materialize.
+     * Falls back to placeholders when no key is cached. Used by the UI when a chat is
+     * unlocked — the on-disk `chat.json` always carries placeholders (so a stolen
+     * device can't read protected content), and decryption happens transiently in
+     * memory on each call.
+     */
+    override suspend fun getMessagesDecrypted(chatId: String): List<Message> = withContext(Dispatchers.IO) {
+        val chatDir = File(profileDir, "chat_$chatId")
+        val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
+        if (!eventLog.exists()) {
+            // No event log yet — fall back to the materialized view (covers legacy
+            // chats that never went through appendAndMaterialize after phase 0).
+            val chatFile = File(chatDir, "chat.json")
+            if (!chatFile.exists()) return@withContext emptyList()
+            return@withContext serializer.readFromFile(chatFile).messages
+        }
+        val key = keyStore.keyFor(chatId)
+        val events = eventLog.readAll().map { decryptOpIfPossible(it, key) }
+        MaterializedView.fold(events)?.messages ?: emptyList()
+    }
+
+    override suspend fun migrateProtectedChat(chatId: String): Unit = withContext(Dispatchers.IO) {
+        val key = keyStore.keyFor(chatId) ?: return@withContext
+        val chatDir = File(profileDir, "chat_$chatId")
+        val chatFile = File(chatDir, "chat.json")
+        val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
+        if (!eventLog.exists()) return@withContext
+
+        val events = eventLog.readAll()
+        var changed = false
+        val migrated = events.map { ev ->
+            val (message, innerType) = when (val op = ev.op) {
+                is ChatEventOp.MessageCreated -> op.message to ChatEventCodec.TYPE_MESSAGE_CREATED
+                is ChatEventOp.MessageEdited -> op.message to ChatEventCodec.TYPE_MESSAGE_EDITED
+                // Tombstones, metadata, and already-encrypted ops stay verbatim —
+                // re-running migration is therefore idempotent.
+                else -> return@map ev
+            }
+            val plaintext = gson.toJson(message).toByteArray(Charsets.UTF_8)
+            val sealed = ProtectionCrypto.seal(key, plaintext)
+            changed = true
+            ev.copy(
+                op = ChatEventOp.EncryptedMessage(innerType, sealed.nonce, sealed.ciphertext)
+            )
+        }
+        if (!changed) return@withContext
+
+        // Same eventIds/HLCs preserved, so this only secures the *local* at-rest copy.
+        // Peers that already synced the plaintext keep it (idempotent dedup by eventId)
+        // until that chat is reset on their side — documented limitation.
+        eventLog.replaceAll(migrated)
+        val materialized = MaterializedView.fold(migrated)
+        if (materialized != null) serializer.writeToFile(chatFile, materialized)
+    }
+
+    private fun decryptOpIfPossible(event: ChatEvent, key: ByteArray?): ChatEvent {
+        val op = event.op
+        if (op !is ChatEventOp.EncryptedMessage) return event
+        if (key == null) return event
+        val plaintext = ProtectionCrypto.open(
+            key,
+            ProtectionCrypto.Sealed(op.nonce, op.ciphertext)
+        ) ?: return event
+        val message = try {
+            gson.fromJson(String(plaintext, Charsets.UTF_8), Message::class.java)
+        } catch (_: Exception) {
+            return event
+        }
+        val newOp = when (op.innerType) {
+            ChatEventCodec.TYPE_MESSAGE_CREATED -> ChatEventOp.MessageCreated(message)
+            ChatEventCodec.TYPE_MESSAGE_EDITED -> ChatEventOp.MessageEdited(message)
+            else -> return event
+        }
+        return event.copy(op = newOp)
     }
 
     private fun ChatData.toChat(id: String, messages: List<Message>): Chat {
@@ -515,7 +658,8 @@ class FileChatRepository @Inject constructor(
             isArchived = chat.isArchived,
             tags = chat.tags,
             isProtected = chat.isProtected,
-            hideName = chat.hideName
+            hideName = chat.hideName,
+            protectionSalt = chat.protectionSalt
         )
     }
 }

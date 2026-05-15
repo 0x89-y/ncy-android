@@ -1,8 +1,12 @@
 package com.ncy.notechaty.data.sync.event
 
+import com.ncy.notechaty.data.model.BlockType
 import com.ncy.notechaty.data.model.ChatData
 import com.ncy.notechaty.data.model.ChatMetadata
 import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.model.MessageType
+import com.ncy.notechaty.data.model.RichTextBlock
+import com.ncy.notechaty.data.model.RichTextSpan
 
 /**
  * Pure fold from an event log to a [ChatData]. Processes events in HLC order so the result
@@ -45,6 +49,16 @@ object MaterializedView {
                         messages[op.message.id] = op.message
                     }
                 }
+                is ChatEventOp.EncryptedMessage -> {
+                    // Phase 3: the original message id lives inside the encrypted payload,
+                    // so without a key we synthesize a placeholder keyed by eventId. The
+                    // decrypted view (FileChatRepository.getMessages with cached key)
+                    // re-materializes from raw events and replaces this with the real message.
+                    val placeholderId = "locked_${event.eventId}"
+                    if (placeholderId !in tombstonedMessages) {
+                        messages[placeholderId] = lockedPlaceholder(placeholderId, event)
+                    }
+                }
             }
         }
 
@@ -55,4 +69,20 @@ object MaterializedView {
             messages = messages.values.sortedBy { it.createdAt }
         )
     }
+
+    /** Synthetic message stand-in for an [ChatEventOp.EncryptedMessage]. The UI renders
+     *  the `[locked]` glyph distinctively; the message's `createdAt` is the event's
+     *  physical HLC so locked bubbles still sort into the right place in the timeline. */
+    private fun lockedPlaceholder(id: String, event: ChatEvent): Message = Message(
+        id = id,
+        chatId = event.chatId,
+        content = listOf(
+            RichTextBlock(
+                type = BlockType.PARAGRAPH,
+                spans = listOf(RichTextSpan(text = "🔒 Protected message"))
+            )
+        ),
+        createdAt = event.hlc.physicalMs,
+        type = MessageType.TEXT
+    )
 }

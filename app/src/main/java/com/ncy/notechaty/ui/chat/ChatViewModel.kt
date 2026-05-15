@@ -9,6 +9,7 @@ import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.media.MediaHash
+import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
 import com.ncy.notechaty.notifications.ReminderScheduler
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
@@ -41,6 +42,7 @@ class ChatViewModel @Inject constructor(
     private val chatLockState: ChatLockState,
     private val pinManager: PinManager,
     private val eventBus: ChatEventBus,
+    private val keyStore: ProtectionKeyStore,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -53,9 +55,15 @@ class ChatViewModel @Inject constructor(
 
     fun markUnlocked() {
         hasUnlockToken = true
-        val chat = _uiState.value.chat
-        if (chat != null) {
+        if (_uiState.value.chat != null) {
             _uiState.value = _uiState.value.copy(unlockRequired = false)
+        }
+        // verifyPin just cached the key. Migrate any pre-phase-3 plaintext messages to
+        // encrypted (idempotent, no-op if nothing to do), then reload so everything
+        // shows decrypted.
+        viewModelScope.launch {
+            repository.migrateProtectedChat(chatId)
+            loadChat()
         }
     }
 
@@ -85,9 +93,33 @@ class ChatViewModel @Inject constructor(
 
     fun loadChat() {
         viewModelScope.launch {
-            val chat = repository.getChat(chatId)
-            val messages = repository.getMessages(chatId)
-            val unlockRequired = chat?.isProtected == true && !hasUnlockToken
+            var chat = repository.getChat(chatId)
+            // Phase 3 migration: a chat protected before phase-3 has no salt. Backfill
+            // one (salts aren't secret) via updateChat so the PIN can derive a key.
+            // Idempotent — only fires while the salt is still null.
+            val initial = chat
+            if (initial != null && initial.isProtected && initial.protectionSalt == null) {
+                repository.updateChat(initial)
+                chat = repository.getChat(chatId)
+            }
+            // Phase 3: when the chat is protected and currently unlocked (key cached),
+            // pull plaintext messages by decrypting events in memory. The on-disk
+            // chat.json still carries `[locked]` placeholders so a stolen device can't
+            // read content without re-deriving the key.
+            val messages = if (chat?.isProtected == true && keyStore.isUnlocked(chatId)) {
+                repository.getMessagesDecrypted(chatId)
+            } else {
+                repository.getMessages(chatId)
+            }
+            // A phase-3 protected chat (has a salt) needs the PIN to derive its
+            // memory-only encryption key. The grace-period / app-unlock token can't
+            // substitute — without the key, authoring would silently store plaintext
+            // and reading would only yield placeholders. So force the PIN prompt
+            // whenever the key isn't cached, regardless of hasUnlockToken.
+            val needsKey = chat?.isProtected == true &&
+                chat?.protectionSalt != null &&
+                !keyStore.isUnlocked(chatId)
+            val unlockRequired = (chat?.isProtected == true && !hasUnlockToken) || needsKey
             _uiState.value = _uiState.value.copy(
                 chat = chat,
                 messages = messages,
@@ -96,7 +128,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun verifyPin(pin: String): Boolean = pinManager.verifyPin(pin)
+    /**
+     * Verify the user's PIN against the app-wide hash. Side-effect on success: derive
+     * and cache the per-chat AES-256 key when this chat has a phase-3 `protectionSalt`,
+     * so subsequent author/read paths can encrypt + decrypt without a second PIN prompt.
+     */
+    fun verifyPin(pin: String): Boolean {
+        if (!pinManager.verifyPin(pin)) return false
+        val salt = _uiState.value.chat?.protectionSalt
+        if (salt != null) keyStore.unlock(chatId, pin, salt)
+        return true
+    }
 
     fun sendTextMessage(blocks: List<RichTextBlock>) {
         if (blocks.isEmpty() || blocks.all { it.spans.isEmpty() || it.spans.all { s -> s.text.isEmpty() } }) return

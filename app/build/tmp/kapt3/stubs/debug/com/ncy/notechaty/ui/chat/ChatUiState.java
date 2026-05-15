@@ -8,6 +8,7 @@ import com.ncy.notechaty.data.repository.ChatRepository;
 import com.ncy.notechaty.data.repository.SettingsRepository;
 import com.ncy.notechaty.data.sync.ChatEventBus;
 import com.ncy.notechaty.data.sync.media.MediaHash;
+import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore;
 import com.ncy.notechaty.notifications.ReminderScheduler;
 import com.ncy.notechaty.security.ChatLockState;
 import com.ncy.notechaty.security.PinManager;

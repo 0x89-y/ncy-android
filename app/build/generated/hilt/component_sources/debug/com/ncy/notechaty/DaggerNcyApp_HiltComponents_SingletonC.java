@@ -23,6 +23,7 @@ import com.ncy.notechaty.data.sync.SyncManager;
 import com.ncy.notechaty.data.sync.discovery.MdnsDiscovery;
 import com.ncy.notechaty.data.sync.event.SyncSnapshot;
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore;
+import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore;
 import com.ncy.notechaty.data.sync.transport.SyncClient;
 import com.ncy.notechaty.security.ChatLockState;
 import com.ncy.notechaty.security.PinManager;
@@ -515,7 +516,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
           return (T) new ChatListViewModel(singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.profileLockStateProvider.get(), singletonCImpl.pinManagerProvider.get(), singletonCImpl.chatLockStateProvider.get());
 
           case 2: // com.ncy.notechaty.ui.chat.ChatViewModel 
-          return (T) new ChatViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get(), singletonCImpl.pinManagerProvider.get(), singletonCImpl.chatEventBusProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+          return (T) new ChatViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.fileChatRepositoryProvider.get(), singletonCImpl.settingsRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get(), singletonCImpl.pinManagerProvider.get(), singletonCImpl.chatEventBusProvider.get(), singletonCImpl.protectionKeyStoreProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
           case 3: // com.ncy.notechaty.ui.profiles.ProfilesViewModel 
           return (T) new ProfilesViewModel(singletonCImpl.profileRepositoryProvider.get());
@@ -620,6 +621,8 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     private Provider<ChatEventBus> chatEventBusProvider;
 
+    private Provider<ProtectionKeyStore> protectionKeyStoreProvider;
+
     private Provider<FileChatRepository> fileChatRepositoryProvider;
 
     private Provider<AutoBackupWorker_AssistedFactory> autoBackupWorker_AssistedFactoryProvider;
@@ -661,16 +664,17 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
       this.chatLockStateProvider = DoubleCheck.provider(new SwitchingProvider<ChatLockState>(singletonCImpl, 3));
       this.deviceIdentityProvider = DoubleCheck.provider(new SwitchingProvider<DeviceIdentity>(singletonCImpl, 4));
       this.chatEventBusProvider = DoubleCheck.provider(new SwitchingProvider<ChatEventBus>(singletonCImpl, 5));
+      this.protectionKeyStoreProvider = DoubleCheck.provider(new SwitchingProvider<ProtectionKeyStore>(singletonCImpl, 6));
       this.fileChatRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<FileChatRepository>(singletonCImpl, 1));
       this.autoBackupWorker_AssistedFactoryProvider = SingleCheck.provider(new SwitchingProvider<AutoBackupWorker_AssistedFactory>(singletonCImpl, 0));
-      this.settingsRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<SettingsRepository>(singletonCImpl, 6));
-      this.pinManagerProvider = DoubleCheck.provider(new SwitchingProvider<PinManager>(singletonCImpl, 7));
-      this.syncPeerStoreProvider = DoubleCheck.provider(new SwitchingProvider<SyncPeerStore>(singletonCImpl, 9));
-      this.syncClientProvider = DoubleCheck.provider(new SwitchingProvider<SyncClient>(singletonCImpl, 10));
-      this.syncSnapshotProvider = DoubleCheck.provider(new SwitchingProvider<SyncSnapshot>(singletonCImpl, 11));
-      this.syncManagerProvider = DoubleCheck.provider(new SwitchingProvider<SyncManager>(singletonCImpl, 8));
-      this.profileLockStateProvider = DoubleCheck.provider(new SwitchingProvider<ProfileLockState>(singletonCImpl, 12));
-      this.mdnsDiscoveryProvider = DoubleCheck.provider(new SwitchingProvider<MdnsDiscovery>(singletonCImpl, 13));
+      this.settingsRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<SettingsRepository>(singletonCImpl, 7));
+      this.pinManagerProvider = DoubleCheck.provider(new SwitchingProvider<PinManager>(singletonCImpl, 8));
+      this.syncPeerStoreProvider = DoubleCheck.provider(new SwitchingProvider<SyncPeerStore>(singletonCImpl, 10));
+      this.syncClientProvider = DoubleCheck.provider(new SwitchingProvider<SyncClient>(singletonCImpl, 11));
+      this.syncSnapshotProvider = DoubleCheck.provider(new SwitchingProvider<SyncSnapshot>(singletonCImpl, 12));
+      this.syncManagerProvider = DoubleCheck.provider(new SwitchingProvider<SyncManager>(singletonCImpl, 9));
+      this.profileLockStateProvider = DoubleCheck.provider(new SwitchingProvider<ProfileLockState>(singletonCImpl, 13));
+      this.mdnsDiscoveryProvider = DoubleCheck.provider(new SwitchingProvider<MdnsDiscovery>(singletonCImpl, 14));
     }
 
     @Override
@@ -724,7 +728,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
           };
 
           case 1: // com.ncy.notechaty.data.repository.FileChatRepository 
-          return (T) new FileChatRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get(), singletonCImpl.deviceIdentityProvider.get(), singletonCImpl.chatEventBusProvider.get());
+          return (T) new FileChatRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get(), singletonCImpl.deviceIdentityProvider.get(), singletonCImpl.chatEventBusProvider.get(), singletonCImpl.protectionKeyStoreProvider.get());
 
           case 2: // com.ncy.notechaty.data.repository.ProfileRepository 
           return (T) new ProfileRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
@@ -738,28 +742,31 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
           case 5: // com.ncy.notechaty.data.sync.ChatEventBus 
           return (T) new ChatEventBus();
 
-          case 6: // com.ncy.notechaty.data.repository.SettingsRepository 
+          case 6: // com.ncy.notechaty.data.sync.protection.ProtectionKeyStore 
+          return (T) new ProtectionKeyStore();
+
+          case 7: // com.ncy.notechaty.data.repository.SettingsRepository 
           return (T) new SettingsRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 7: // com.ncy.notechaty.security.PinManager 
+          case 8: // com.ncy.notechaty.security.PinManager 
           return (T) new PinManager(singletonCImpl.settingsRepositoryProvider.get());
 
-          case 8: // com.ncy.notechaty.data.sync.SyncManager 
+          case 9: // com.ncy.notechaty.data.sync.SyncManager 
           return (T) new SyncManager(singletonCImpl.syncPeerStoreProvider.get(), singletonCImpl.deviceIdentityProvider.get(), singletonCImpl.chatEventBusProvider.get(), singletonCImpl.syncClientProvider.get(), singletonCImpl.syncSnapshotProvider.get(), singletonCImpl.fileChatRepositoryProvider.get());
 
-          case 9: // com.ncy.notechaty.data.sync.peer.SyncPeerStore 
+          case 10: // com.ncy.notechaty.data.sync.peer.SyncPeerStore 
           return (T) new SyncPeerStore(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 10: // com.ncy.notechaty.data.sync.transport.SyncClient 
+          case 11: // com.ncy.notechaty.data.sync.transport.SyncClient 
           return (T) new SyncClient();
 
-          case 11: // com.ncy.notechaty.data.sync.event.SyncSnapshot 
+          case 12: // com.ncy.notechaty.data.sync.event.SyncSnapshot 
           return (T) new SyncSnapshot(singletonCImpl.profileRepositoryProvider.get());
 
-          case 12: // com.ncy.notechaty.security.ProfileLockState 
+          case 13: // com.ncy.notechaty.security.ProfileLockState 
           return (T) new ProfileLockState();
 
-          case 13: // com.ncy.notechaty.data.sync.discovery.MdnsDiscovery 
+          case 14: // com.ncy.notechaty.data.sync.discovery.MdnsDiscovery 
           return (T) new MdnsDiscovery(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
           default: throw new AssertionError(id);

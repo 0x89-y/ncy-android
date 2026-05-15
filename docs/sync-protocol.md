@@ -658,12 +658,131 @@ content-addresses those files, no wire change is needed.
 
 ## 11. Protected chats
 
-Phase 1 does **not** sync chats whose `ChatMetadata.isProtected == true`. The
-phone's repository emits their events to disk and the local bus, but a receiver
-should treat `isProtected` as informational — there is no encrypted-at-rest
-representation in phase 1. Phase 3 will introduce per-chat keys derived from the
-PIN; until then, desktop clients should display protected chats with a lock badge
-and may choose to hide their content.
+A chat is "protected" when `ChatMetadata.isProtected == true`. Through phases 1
+and 2 those chats existed in the protocol but their content was not encrypted —
+they synced in plaintext or, depending on the client, not at all. Phase 3
+introduces per-chat encryption so protected content can sync without a peer ever
+seeing the plaintext.
+
+### 11.1 Threat model
+
+This is **casual-attacker protection**, not enterprise-grade secrecy. The goal is:
+
+- An attacker with the encrypted event log alone cannot read protected content
+  without the user's PIN.
+- A passive observer on the LAN (someone with a packet capture, no device access)
+  also can't read it.
+
+What it does **not** defend against: an attacker with both the encrypted log and
+GPU access offline-brute-forcing a 4-digit PIN. The PBKDF2 iteration count is sized
+to make casual attempts slow, not to be GPU-hard. Argon2id would be stronger and
+remains an option for a future revision; it's deferred to avoid a JNI dep on
+Android.
+
+### 11.2 Key derivation
+
+```
+key = PBKDF2-HMAC-SHA256(
+    password = pin (UTF-8 bytes),
+    salt     = ChatMetadata.protectionSalt (base64-decoded, 16 random bytes),
+    iter     = 250000,
+    dkLen    = 32 bytes
+)
+```
+
+- The salt is generated **once**, when the user first marks a chat protected, and
+  travels in plaintext inside `ChatMetadata` (salts are not secrets — only the PIN
+  is). Both devices that share the same PIN derive the same 32-byte key.
+- Pairing-time key exchange is **not needed**. The salt arrives via
+  `ChatMetadataChanged` like any other metadata; the desktop derives the key
+  locally once the user types the PIN.
+
+### 11.3 Encrypted payload envelope
+
+When a protected chat's `MessageCreated` / `MessageEdited` event is written to
+disk or sent over the wire, the *payload* field of the event becomes the sealed
+envelope instead of the plaintext message:
+
+```json
+{
+  "v": 1,
+  "type": "MessageCreated",
+  "eventId": "...",
+  "hlc": {...},
+  "originDevice": "...",
+  "chatId": "...",
+  "payload": { "v": 1, "enc": "AES-256-GCM", "nonce": "<base64-12>", "ct": "<base64>" }
+}
+```
+
+- `nonce`: 12 random bytes per encryption, base64-encoded.
+- `ct`: AES-256-GCM ciphertext **with the 128-bit tag appended** (the standard
+  format both Kotlin's `javax.crypto.Cipher` and Rust's `aes-gcm` crate produce).
+- The associated-data field is **not** used — the surrounding `eventId`/`hlc`/
+  `chatId` are already authenticated by the higher layer's idempotency (a peer
+  who mutates them would also have to forge a matching ciphertext, which the GCM
+  tag prevents).
+
+What's encrypted vs plaintext:
+
+| Op                       | Encrypted?                                          |
+|--------------------------|-----------------------------------------------------|
+| `MessageCreated`         | Yes — payload is the sealed envelope.               |
+| `MessageEdited`          | Yes — same.                                         |
+| `MessageTombstoned`      | No — only carries a UUID, no content.               |
+| `ChatMetadataChanged`    | No — peers must see `name`, `isPinned`, `tags`, etc. to render the chat list. |
+| `ChatTombstoned`         | No — only carries the chat id.                      |
+
+This is a deliberate UX trade-off: a paired peer sees that the chat exists, knows
+its name, sees the timing of edits/deletes, but can't read message content.
+Hiding the chat name itself would prevent unlocked listing — phase 3 doesn't.
+
+### 11.4 Receiver behavior
+
+A receiver — phone or desktop — handles protected events as follows:
+
+1. **Inbound `Event`**: parse the envelope, store the event verbatim on disk
+   (still in its encrypted form), `Ack` by HLC like any other event.
+2. **Materialization**: if the chat is protected and no key is currently in
+   memory, the message body materializes as a `[locked]` placeholder. The chat
+   still appears in the chat list with its plaintext metadata.
+3. **Unlock**: when the user enters the PIN, derive the key via §11.2, cache it
+   in memory keyed by `chatId`. The materializer re-runs (or the open chat view
+   re-renders) and now decrypts each payload via AES-GCM. A tag-failure (wrong
+   PIN) leaves the message as `[locked]` and the cache is cleared.
+4. **Outbound**: when authoring into a protected chat, encrypt under the cached
+   key before appending to the event log. The plaintext message never leaves the
+   authoring device.
+
+A receiver **must not** discard events it can't decrypt — they may be readable
+later, after the user unlocks the chat, or by another peer that has the PIN
+cached.
+
+### 11.5 New `ChatMetadata` field (phase 3+)
+
+```typescript
+ChatMetadata = {
+  // ... fields from §9.2 ...
+  protectionSalt: string | null   // base64 of 16 random bytes, or null
+}
+```
+
+Generated the first time a chat is marked protected. Null for non-protected chats
+and for pre-phase-3 protected chats (which won't sync until re-marked, since
+without a salt there's no way to derive a key).
+
+### 11.6 Backwards compatibility
+
+A phase-1/phase-2 client that reads a phase-3-encrypted event will fail to parse
+the payload as `Message`. Such clients should either:
+
+- Treat the chat as unreadable (display a lock placeholder and refuse to render
+  the message), or
+- Drop the event entirely.
+
+The on-disk format change is contained to `payload` — `eventId`, `hlc`,
+`originDevice`, and `chatId` remain in their familiar shape, so ordering,
+idempotency, and the watermark protocol still work end-to-end.
 
 ## 12. Implementation checklist for a desktop client
 

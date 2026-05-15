@@ -14,5 +14,8 @@ data class Chat(
     val isArchived: Boolean = false,
     val tags: List<String> = emptyList(),
     val isProtected: Boolean = false,
-    val hideName: Boolean = false
+    val hideName: Boolean = false,
+    /** Phase 3: per-chat PBKDF2 salt for protected-chat encryption. Mirrors the
+     *  field on [ChatMetadata]; null for unprotected or pre-phase-3 chats. */
+    val protectionSalt: String? = null
 )

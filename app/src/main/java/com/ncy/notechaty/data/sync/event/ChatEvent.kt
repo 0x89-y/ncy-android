@@ -12,7 +12,16 @@ data class ChatEvent(
     val hlc: HlcTimestamp,
     val originDevice: String,
     val chatId: String,
-    val op: ChatEventOp
+    val op: ChatEventOp,
+    /**
+     * Phase: profile sync. Which phone profile this chat belongs to, and its display
+     * name, so a paired desktop can group chats by profile. Default `""` means
+     * "unknown / pre-profile-sync" — receivers bucket those under a single default
+     * profile. Stamped on author and backfilled from the on-disk profile dir at
+     * snapshot time for legacy events.
+     */
+    val profileId: String = "",
+    val profileName: String = ""
 )
 
 sealed class ChatEventOp {

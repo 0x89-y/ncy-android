@@ -28,6 +28,8 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
             add("hlc", gson.toJsonTree(event.hlc))
             addProperty("originDevice", event.originDevice)
             addProperty("chatId", event.chatId)
+            addProperty("profileId", event.profileId)
+            addProperty("profileName", event.profileName)
             add("payload", payloadOf(event.op))
         }
         return obj.toString()
@@ -67,7 +69,9 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
             hlc = hlc,
             originDevice = obj["originDevice"].asString,
             chatId = obj["chatId"].asString,
-            op = op
+            op = op,
+            profileId = obj["profileId"]?.takeIf { !it.isJsonNull }?.asString ?: "",
+            profileName = obj["profileName"]?.takeIf { !it.isJsonNull }?.asString ?: ""
         )
     }
 

@@ -508,6 +508,11 @@ class FileChatRepository @Inject constructor(
         // unlocked key in memory — those cases happen before the user has finished
         // setting up protection, and the message simply persists in plaintext.
         val effectiveOp = encryptIfProtected(chatId, op)
+        // Profile sync: stamp which profile this chat lives in so a paired desktop can
+        // group by profile. The mutated chat is always in the active profile (the
+        // repository is active-profile-scoped).
+        val activeProfileId = profileRepository.activeProfileId.value
+        val activeProfileName = profileRepository.activeProfile()?.name ?: ""
         val newEvent = ChatEvent(
             eventId = UUID.randomUUID().toString(),
             hlc = HlcTimestamp.tick(
@@ -517,7 +522,9 @@ class FileChatRepository @Inject constructor(
             ),
             originDevice = deviceIdentity.deviceId,
             chatId = chatId,
-            op = effectiveOp
+            op = effectiveOp,
+            profileId = activeProfileId,
+            profileName = activeProfileName
         )
         eventLog.append(newEvent)
 

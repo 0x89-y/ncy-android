@@ -261,6 +261,8 @@ same way for storage and transport.
   "hlc": { "physicalMs": 1714000000000, "logical": 0, "nodeId": "<phone uuid>" },
   "originDevice": "<phone uuid>",
   "chatId": "<chat uuid>",
+  "profileId": "<profile uuid>",
+  "profileName": "Work",
   "payload": { /* see §7.2 */ }
 }
 ```
@@ -273,6 +275,8 @@ same way for storage and transport.
 | `hlc`          | object  | Hybrid Logical Clock. See §8.                                   |
 | `originDevice` | string  | UUID of the device that authored the event.                     |
 | `chatId`       | string  | UUID of the chat the event belongs to.                          |
+| `profileId`    | string  | Profile sync. Phone profile this chat belongs to. **Optional**; absent/empty ⇒ the legacy "default" bucket. See §7.3. |
+| `profileName`  | string  | Profile sync. Display name for `profileId` at author time. Optional; advisory (the receiver may re-resolve). |
 | `payload`      | object  | Op-specific. Shape depends on `type`. See §7.2.                 |
 
 ### 7.1 Op types
@@ -337,6 +341,32 @@ Whole-record LWW. The fields shown in §9.2 are authoritative.
 
 Phase 1 doesn't emit this — chats are physically deleted on the phone today.
 A receiver should still handle it: yields a "no chat" materialized state.
+
+### 7.3 Profile sync
+
+The phone groups chats into **profiles** (separate spaces a user can switch
+between). The desktop mirrors all of them so the chat list can be scoped by
+profile, matching the phone.
+
+- The phone stamps `profileId`/`profileName` on **every** event it authors,
+  taken from the profile of the chat the event targets.
+- The snapshot/catch-up walk reads **all** `profile_<id>` directories, not just
+  the active one, so a paired peer receives every profile in one stream.
+- Both fields are **optional and back-compat**. Events authored before profile
+  sync (or chats that still live under the pre-migration root) carry an empty
+  `profileId`; receivers MUST treat empty/absent as a single **"default"
+  bucket**. A receiver backfilling a legacy event from the directory it
+  physically lives in is allowed but never overrides a non-empty stamp.
+- `profileName` is **advisory** — a human label captured at author time. The
+  authoritative key is `profileId`; a receiver may re-resolve the name locally
+  and SHOULD tolerate it being empty.
+- A chat's effective profile is the stamp on its **highest-HLC** event carrying
+  a non-empty `profileId`. Desktop-authored events for an existing chat inherit
+  that same profile so a round-trip to the phone groups correctly.
+- Profiles themselves are **not** a synced entity — there is no profile
+  create/rename/delete op. Profile identity travels only as these per-event
+  stamps; renaming a profile on the phone propagates lazily as new events carry
+  the updated `profileName`.
 
 ## 8. Hybrid Logical Clock (HLC)
 

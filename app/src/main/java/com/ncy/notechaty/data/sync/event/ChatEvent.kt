@@ -41,19 +41,30 @@ sealed class ChatEventOp {
     data class EncryptedMessage(
         val innerType: String,
         val nonce: ByteArray,
-        val ciphertext: ByteArray
+        val ciphertext: ByteArray,
+        /**
+         * Protected-chat catch-up: the `eventId` of a *plaintext* message event this
+         * sealed event replaces. Set when a chat is protected after it had already
+         * synced in plaintext to a peer — the peer drops the superseded plaintext
+         * from its at-rest log on receipt. Null for normally-authored encrypted
+         * messages (nothing to supersede). Travels in the cleartext envelope so a
+         * locked peer can act on it without the key.
+         */
+        val supersedes: String? = null
     ) : ChatEventOp() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is EncryptedMessage) return false
             return innerType == other.innerType &&
                 nonce.contentEquals(other.nonce) &&
-                ciphertext.contentEquals(other.ciphertext)
+                ciphertext.contentEquals(other.ciphertext) &&
+                supersedes == other.supersedes
         }
         override fun hashCode(): Int {
             var r = innerType.hashCode()
             r = 31 * r + nonce.contentHashCode()
             r = 31 * r + ciphertext.contentHashCode()
+            r = 31 * r + (supersedes?.hashCode() ?: 0)
             return r
         }
     }

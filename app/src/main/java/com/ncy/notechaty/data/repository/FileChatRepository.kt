@@ -390,7 +390,7 @@ class FileChatRepository @Inject constructor(
 
             // Locate every chat.json in the extracted tree. Single-chat backups
             // place it at the root; exportAllChats nests it under chat_<id>/;
-            // exportEveryProfile under profile_<name>/chat_<id>/.
+            // exportEveryProfile under profile_<id>/chat_<id>/.
             val chatFiles = tempDir.walkTopDown()
                 .filter { it.isFile && it.name == "chat.json" }
                 .toList()
@@ -403,31 +403,87 @@ class FileChatRepository @Inject constructor(
                 val srcChatDir = chatFile.parentFile ?: continue
                 val data = serializer.readFromFile(chatFile)
                 val newId = UUID.randomUUID().toString()
-                val targetDir = File(profileDir, "chat_$newId")
+
+                // Restore into the profile the chat came from. exportEveryProfile
+                // records a `profile_<id>/` path segment; honor it so a multi-profile
+                // backup doesn't collapse every chat into the active profile. Single-
+                // chat / exportAllChats backups carry no profile info → active profile.
+                val relParts = srcChatDir.relativeTo(tempDir).path
+                    .replace("\\", "/").split("/")
+                val profileSeg = relParts.firstOrNull { it.startsWith("profile_") }
+                val targetParent = if (profileSeg != null) {
+                    File(rootDir, profileSeg).also { it.mkdirs() }
+                } else {
+                    profileDir
+                }
+
+                val targetDir = File(targetParent, "chat_$newId")
                 if (targetDir.exists()) targetDir.deleteRecursively()
                 targetDir.mkdirs()
 
-                // Copy chat contents (media/, voice/, etc.) into the new chat dir.
+                // Copy chat contents (events.ndjson, media/, voice/, etc.) verbatim.
                 srcChatDir.listFiles()?.forEach { src ->
                     src.copyRecursively(File(targetDir, src.name), overwrite = true)
                 }
 
-                val updatedData = data.copy(
-                    chat = data.chat.copy(id = newId),
-                    messages = data.messages.map { it.copy(chatId = newId) }
-                )
-                serializer.writeToFile(File(targetDir, "chat.json"), updatedData)
-
-                // Drop any events.ndjson that came in the zip — it references the old UUID.
-                // The migrator will synthesize a fresh log keyed to the new UUID.
-                File(targetDir, "events.ndjson").delete()
-                EventLogMigrator.migrateChatIfNeeded(targetDir, deviceIdentity.deviceId)
+                val eventsFile = File(targetDir, "events.ndjson")
+                if (eventsFile.exists()) {
+                    // Preserve the event log — it's the only copy of a protected
+                    // chat's real (encrypted) content; chat.json holds just 🔒
+                    // placeholders. Rekey it to the new chat UUID so it lands in
+                    // the new dir, then re-materialize chat.json from the rekeyed
+                    // log so the two stay consistent. Encrypted ops are kept
+                    // verbatim (their inner ciphertext can't be rewritten without
+                    // the PIN key — only the event envelope is rekeyed; the chat
+                    // unlocks normally via its salt, which rides along in chat.json).
+                    val log = EventLog(eventsFile, eventCodec)
+                    val rekeyed = log.readAll().map { rekeyEvent(it, newId) }
+                    log.replaceAll(rekeyed)
+                    val rebuilt = MaterializedView.fold(rekeyed)
+                    if (rebuilt != null) {
+                        serializer.writeToFile(File(targetDir, "chat.json"), rebuilt)
+                    } else {
+                        // Tombstoned / metadata-less log → nothing to show.
+                        targetDir.deleteRecursively()
+                    }
+                } else {
+                    // Legacy backup with no event log: rewrite chat.json to the new
+                    // id and let the migrator synthesize a fresh log from it.
+                    val updatedData = data.copy(
+                        chat = data.chat.copy(id = newId),
+                        messages = data.messages.map { it.copy(chatId = newId) }
+                    )
+                    serializer.writeToFile(File(targetDir, "chat.json"), updatedData)
+                    EventLogMigrator.migrateChatIfNeeded(targetDir, deviceIdentity.deviceId)
+                }
             }
         } finally {
             if (tempDir.exists()) tempDir.deleteRecursively()
         }
         refreshChats()
     }
+
+    /**
+     * Re-point an imported event at a freshly-issued chat UUID. The event envelope
+     * and the chat id embedded in plaintext ops are rewritten; [ChatEventOp.EncryptedMessage]
+     * is left byte-for-byte intact (its sealed body can only be rewritten with the
+     * PIN-derived key, which import doesn't have — the envelope rekey is enough for
+     * the log to bind to the new chat dir and materialize).
+     */
+    private fun rekeyEvent(ev: ChatEvent, newChatId: String): ChatEvent = ev.copy(
+        chatId = newChatId,
+        op = when (val op = ev.op) {
+            is ChatEventOp.MessageCreated ->
+                ChatEventOp.MessageCreated(op.message.copy(chatId = newChatId))
+            is ChatEventOp.MessageEdited ->
+                ChatEventOp.MessageEdited(op.message.copy(chatId = newChatId))
+            is ChatEventOp.ChatMetadataChanged ->
+                ChatEventOp.ChatMetadataChanged(op.metadata.copy(id = newChatId))
+            is ChatEventOp.ChatTombstoned -> ChatEventOp.ChatTombstoned(newChatId)
+            is ChatEventOp.MessageTombstoned -> op
+            is ChatEventOp.EncryptedMessage -> op
+        }
+    )
 
     override suspend fun scanForNewChats(): Unit = withContext(Dispatchers.IO) {
         refreshChats()
@@ -595,30 +651,66 @@ class FileChatRepository @Inject constructor(
         if (!eventLog.exists()) return@withContext
 
         val events = eventLog.readAll()
-        var changed = false
-        val migrated = events.map { ev ->
+        val passthrough = ArrayList<ChatEvent>(events.size)
+        val plaintextMsgs = ArrayList<ChatEvent>()
+        for (ev in events) {
+            when (ev.op) {
+                is ChatEventOp.MessageCreated, is ChatEventOp.MessageEdited ->
+                    plaintextMsgs += ev
+                // Tombstones, metadata, and already-encrypted ops pass through —
+                // re-running migration is therefore idempotent (no plaintext left).
+                else -> passthrough += ev
+            }
+        }
+        if (plaintextMsgs.isEmpty()) return@withContext
+
+        // Re-issue each plaintext message as a *fresh* sealed event: a new eventId
+        // and an HLC ticked past everything, so it actually propagates. Peers dedupe
+        // by eventId and would otherwise never replace the plaintext they already
+        // synced; the `supersedes` pointer names the exact stale plaintext event for
+        // them to drop. The old plaintext events are not retained — the sealed ones
+        // carry the same content (same messageId, higher HLC) so the fold replaces
+        // them locally too.
+        var maxHlc: HlcTimestamp? = events.maxByOrNull { it.hlc }?.hlc
+        val reissued = ArrayList<ChatEvent>(plaintextMsgs.size)
+        for (ev in plaintextMsgs) {
             val (message, innerType) = when (val op = ev.op) {
                 is ChatEventOp.MessageCreated -> op.message to ChatEventCodec.TYPE_MESSAGE_CREATED
                 is ChatEventOp.MessageEdited -> op.message to ChatEventCodec.TYPE_MESSAGE_EDITED
-                // Tombstones, metadata, and already-encrypted ops stay verbatim —
-                // re-running migration is therefore idempotent.
-                else -> return@map ev
+                else -> continue
             }
             val plaintext = gson.toJson(message).toByteArray(Charsets.UTF_8)
             val sealed = ProtectionCrypto.seal(key, plaintext)
-            changed = true
-            ev.copy(
-                op = ChatEventOp.EncryptedMessage(innerType, sealed.nonce, sealed.ciphertext)
+            val hlc = HlcTimestamp.tick(
+                previous = maxHlc,
+                nowMs = System.currentTimeMillis(),
+                nodeId = deviceIdentity.deviceId
+            )
+            maxHlc = hlc
+            reissued += ChatEvent(
+                eventId = UUID.randomUUID().toString(),
+                hlc = hlc,
+                originDevice = deviceIdentity.deviceId,
+                chatId = chatId,
+                op = ChatEventOp.EncryptedMessage(
+                    innerType = innerType,
+                    nonce = sealed.nonce,
+                    ciphertext = sealed.ciphertext,
+                    supersedes = ev.eventId
+                ),
+                profileId = ev.profileId,
+                profileName = ev.profileName
             )
         }
-        if (!changed) return@withContext
 
-        // Same eventIds/HLCs preserved, so this only secures the *local* at-rest copy.
-        // Peers that already synced the plaintext keep it (idempotent dedup by eventId)
-        // until that chat is reset on their side — documented limitation.
+        val migrated = passthrough + reissued
         eventLog.replaceAll(migrated)
         val materialized = MaterializedView.fold(migrated)
         if (materialized != null) serializer.writeToFile(chatFile, materialized)
+
+        // Live peers get the sealed replacements immediately; reconnect catchup
+        // re-streams them too (their HLC is past every peer's watermark).
+        reissued.forEach { eventBus.publish(it) }
     }
 
     private fun decryptOpIfPossible(event: ChatEvent, key: ByteArray?): ChatEvent {

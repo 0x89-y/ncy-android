@@ -748,6 +748,12 @@ envelope instead of the plaintext message:
 - `nonce`: 12 random bytes per encryption, base64-encoded.
 - `ct`: AES-256-GCM ciphertext **with the 128-bit tag appended** (the standard
   format both Kotlin's `javax.crypto.Cipher` and Rust's `aes-gcm` crate produce).
+- `supersedes` *(optional, string)*: the `eventId` of a **plaintext** message
+  event this sealed event replaces. Present only when a chat is protected *after*
+  it already synced in plaintext to a peer — see §11.7. Absent for
+  normally-authored encrypted messages. It rides in the cleartext envelope (not
+  inside `ct`) so a peer with no key can still act on it; it is advisory and not
+  covered by the GCM tag.
 - The associated-data field is **not** used — the surrounding `eventId`/`hlc`/
   `chatId` are already authenticated by the higher layer's idempotency (a peer
   who mutates them would also have to forge a matching ciphertext, which the GCM
@@ -813,6 +819,36 @@ the payload as `Message`. Such clients should either:
 The on-disk format change is contained to `payload` — `eventId`, `hlc`,
 `originDevice`, and `chatId` remain in their familiar shape, so ordering,
 idempotency, and the watermark protocol still work end-to-end.
+
+### 11.7 Protecting an already-synced chat (catch-up)
+
+Marking a chat protected re-seals its messages **locally** in place (same
+`eventId`/`hlc`). That alone does *not* reach a peer that already synced the
+plaintext: peers dedupe by `eventId`, so the re-sealed event is dropped on
+arrival and the plaintext copy lingers in the peer's at-rest log — defeating the
+lock on that device.
+
+To close that, the protecting device additionally **re-issues** each affected
+message as a *fresh* event:
+
+1. New random `eventId`, and an `hlc` ticked past every existing event in the
+   chat (so it is genuinely new to every peer and wins LWW by `messageId`).
+2. Payload is the sealed envelope (§11.3) with `supersedes` set to the **old
+   plaintext event's `eventId`**.
+3. The old plaintext events are dropped from the issuer's own log (the fresh
+   sealed events carry the same `messageId` + content, higher `hlc`, so the
+   materializer replaces them); the fresh events are published live and re-stream
+   on catch-up like any other event.
+
+A receiver, on applying an event whose envelope carries `supersedes: E`, **must
+remove event `E` from its local at-rest log** (atomic rewrite, mirroring
+`replaceAll`). Because `supersedes` is in the cleartext envelope this works
+without the chat key — a locked peer still scrubs its plaintext. It is
+conservative by construction: plaintext is only dropped once its encrypted
+replacement has been durably stored, so no content is lost; a peer that never
+receives the re-issue (e.g. an older build) simply keeps rendering the plaintext
+as a `[locked]` placeholder per §11.4, exactly as before. Re-running the scrub is
+idempotent (the superseded id is already gone).
 
 ## 12. Implementation checklist for a desktop client
 

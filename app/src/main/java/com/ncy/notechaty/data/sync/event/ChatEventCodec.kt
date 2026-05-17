@@ -48,7 +48,9 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
                     ChatEventOp.EncryptedMessage(
                         innerType = type,
                         nonce = Base64.decode(po["nonce"].asString, Base64.NO_WRAP),
-                        ciphertext = Base64.decode(po["ct"].asString, Base64.NO_WRAP)
+                        ciphertext = Base64.decode(po["ct"].asString, Base64.NO_WRAP),
+                        supersedes = po["supersedes"]
+                            ?.takeIf { !it.isJsonNull }?.asString
                     )
                 } else if (type == TYPE_MESSAGE_CREATED) {
                     ChatEventOp.MessageCreated(gson.fromJson(payload, Message::class.java))
@@ -97,6 +99,7 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
             addProperty("enc", "AES-256-GCM")
             addProperty("nonce", Base64.encodeToString(op.nonce, Base64.NO_WRAP))
             addProperty("ct", Base64.encodeToString(op.ciphertext, Base64.NO_WRAP))
+            op.supersedes?.let { addProperty("supersedes", it) }
         }
     }
 

@@ -14,7 +14,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @javax.inject.Singleton()
-@kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000T\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\u0010\u000e\n\u0000\n\u0002\u0010 \n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0003\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0004\n\u0002\u0010\u0002\n\u0002\b\r\n\u0002\u0018\u0002\n\u0002\b\b\n\u0002\u0010\u000b\n\u0002\b\u0002\b\u0007\u0018\u0000 /2\u00020\u0001:\u0001/B\u0011\b\u0007\u0012\b\b\u0001\u0010\u0002\u001a\u00020\u0003\u00a2\u0006\u0002\u0010\u0004J\b\u0010\u0015\u001a\u0004\u0018\u00010\nJ\u000e\u0010\u0016\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u0007J\u000e\u0010\u0019\u001a\u00020\n2\u0006\u0010\u001a\u001a\u00020\u0007J\u000e\u0010\u001b\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u0007J\u0010\u0010\u001c\u001a\u00020\n2\b\b\u0002\u0010\u001a\u001a\u00020\u0007J\u0010\u0010\u001d\u001a\u0004\u0018\u00010\u00072\u0006\u0010\u001e\u001a\u00020\u0007J\u000e\u0010\u001f\u001a\u00020\u00172\u0006\u0010 \u001a\u00020\nJ\b\u0010!\u001a\u00020\u0017H\u0002J\b\u0010\"\u001a\u00020\u0017H\u0002J\u0010\u0010#\u001a\u0004\u0018\u00010\n2\u0006\u0010\u0018\u001a\u00020\u0007J\u000e\u0010$\u001a\u00020%2\u0006\u0010\u0018\u001a\u00020\u0007J\u0016\u0010&\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u0010\u001a\u001a\u00020\u0007J\u0006\u0010\'\u001a\u00020%J\u000e\u0010(\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u0007J\u0016\u0010)\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u0010*\u001a\u00020\u0007J\u0016\u0010+\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u0010,\u001a\u00020\u0007J\u0016\u0010-\u001a\u00020.2\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u0010,\u001a\u00020\u0007R\u0014\u0010\u0005\u001a\b\u0012\u0004\u0012\u00020\u00070\u0006X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u001a\u0010\b\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\n0\t0\u0006X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u0017\u0010\u000b\u001a\b\u0012\u0004\u0012\u00020\u00070\f\u00a2\u0006\b\n\u0000\u001a\u0004\b\r\u0010\u000eR\u000e\u0010\u0002\u001a\u00020\u0003X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u000f\u001a\u00020\u0010X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0011\u001a\u00020\u0012X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u001d\u0010\u0013\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\n0\t0\f\u00a2\u0006\b\n\u0000\u001a\u0004\b\u0014\u0010\u000e\u00a8\u00060"}, d2 = {"Lcom/ncy/notechaty/data/repository/ProfileRepository;", "", "context", "Landroid/content/Context;", "(Landroid/content/Context;)V", "_activeProfileId", "Lkotlinx/coroutines/flow/MutableStateFlow;", "", "_profiles", "", "Lcom/ncy/notechaty/data/model/Profile;", "activeProfileId", "Lkotlinx/coroutines/flow/StateFlow;", "getActiveProfileId", "()Lkotlinx/coroutines/flow/StateFlow;", "gson", "Lcom/google/gson/Gson;", "prefs", "Landroid/content/SharedPreferences;", "profiles", "getProfiles", "activeProfile", "clearProfilePin", "", "id", "createProfile", "name", "deleteProfile", "ensureDefault", "findProfileForChat", "chatId", "installInitial", "profile", "load", "persist", "profileById", "profileDir", "Ljava/io/File;", "renameProfile", "rootDir", "setActive", "setProfileIcon", "iconKey", "setProfilePin", "pin", "verifyProfilePin", "", "Companion", "app_debug"})
+@kotlin.Metadata(mv = {1, 9, 0}, k = 1, xi = 48, d1 = {"\u0000T\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0002\n\u0002\u0018\u0002\n\u0002\u0010\u000e\n\u0000\n\u0002\u0010 \n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0003\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0004\n\u0002\u0010\u0002\n\u0002\b\u000f\n\u0002\u0018\u0002\n\u0002\b\u000b\n\u0002\u0010\u000b\n\u0002\b\u0002\b\u0007\u0018\u0000 42\u00020\u0001:\u00014B\u0011\b\u0007\u0012\b\b\u0001\u0010\u0002\u001a\u00020\u0003\u00a2\u0006\u0002\u0010\u0004J\b\u0010\u0015\u001a\u0004\u0018\u00010\nJ\u000e\u0010\u0016\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u0007J\u000e\u0010\u0019\u001a\u00020\n2\u0006\u0010\u001a\u001a\u00020\u0007J\u000e\u0010\u001b\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u0007J\u0010\u0010\u001c\u001a\u00020\n2\b\b\u0002\u0010\u001a\u001a\u00020\u0007J\u0016\u0010\u001d\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u0010\u001e\u001a\u00020\u0007J\u0010\u0010\u001f\u001a\u0004\u0018\u00010\u00072\u0006\u0010 \u001a\u00020\u0007J\u000e\u0010!\u001a\u00020\u00172\u0006\u0010\"\u001a\u00020\nJ\b\u0010#\u001a\u00020\u0017H\u0002J\b\u0010$\u001a\u00020\u0017H\u0002J\u0010\u0010%\u001a\u0004\u0018\u00010\n2\u0006\u0010\u0018\u001a\u00020\u0007J\u000e\u0010&\u001a\u00020\'2\u0006\u0010\u0018\u001a\u00020\u0007J\u0014\u0010(\u001a\u00020\u00172\f\u0010)\u001a\b\u0012\u0004\u0012\u00020\n0\tJ\u000e\u0010*\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u0007J\u0016\u0010+\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u0010\u001a\u001a\u00020\u0007J\u0006\u0010,\u001a\u00020\'J\u000e\u0010-\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u0007J\u0016\u0010.\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u0010/\u001a\u00020\u0007J\u0016\u00100\u001a\u00020\u00172\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u00101\u001a\u00020\u0007J\u0016\u00102\u001a\u0002032\u0006\u0010\u0018\u001a\u00020\u00072\u0006\u00101\u001a\u00020\u0007R\u0014\u0010\u0005\u001a\b\u0012\u0004\u0012\u00020\u00070\u0006X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u001a\u0010\b\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\n0\t0\u0006X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u0017\u0010\u000b\u001a\b\u0012\u0004\u0012\u00020\u00070\f\u00a2\u0006\b\n\u0000\u001a\u0004\b\r\u0010\u000eR\u000e\u0010\u0002\u001a\u00020\u0003X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u000f\u001a\u00020\u0010X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u000e\u0010\u0011\u001a\u00020\u0012X\u0082\u0004\u00a2\u0006\u0002\n\u0000R\u001d\u0010\u0013\u001a\u000e\u0012\n\u0012\b\u0012\u0004\u0012\u00020\n0\t0\f\u00a2\u0006\b\n\u0000\u001a\u0004\b\u0014\u0010\u000e\u00a8\u00065"}, d2 = {"Lcom/ncy/notechaty/data/repository/ProfileRepository;", "", "context", "Landroid/content/Context;", "(Landroid/content/Context;)V", "_activeProfileId", "Lkotlinx/coroutines/flow/MutableStateFlow;", "", "_profiles", "", "Lcom/ncy/notechaty/data/model/Profile;", "activeProfileId", "Lkotlinx/coroutines/flow/StateFlow;", "getActiveProfileId", "()Lkotlinx/coroutines/flow/StateFlow;", "gson", "Lcom/google/gson/Gson;", "prefs", "Landroid/content/SharedPreferences;", "profiles", "getProfiles", "activeProfile", "clearProfilePin", "", "id", "createProfile", "name", "deleteProfile", "ensureDefault", "ensureProfileExists", "fallbackName", "findProfileForChat", "chatId", "installInitial", "profile", "load", "persist", "profileById", "profileDir", "Ljava/io/File;", "registerImported", "imported", "removeOrphanProfile", "renameProfile", "rootDir", "setActive", "setProfileIcon", "iconKey", "setProfilePin", "pin", "verifyProfilePin", "", "Companion", "app_debug"})
 public final class ProfileRepository {
     @org.jetbrains.annotations.NotNull()
     private final android.content.Context context = null;
@@ -99,6 +99,36 @@ public final class ProfileRepository {
     }
     
     public final void deleteProfile(@org.jetbrains.annotations.NotNull()
+    java.lang.String id) {
+    }
+    
+    /**
+     * Backup restore: add any profiles from a backup manifest that this device
+     * doesn't already have. Existing profiles (matched by id) are left untouched —
+     * never clobber the user's current registry. Does not change the active
+     * profile. Idempotent.
+     */
+    public final void registerImported(@org.jetbrains.annotations.NotNull()
+    java.util.List<com.ncy.notechaty.data.model.Profile> imported) {
+    }
+    
+    /**
+     * Backup restore fallback: make sure a profile with [id] exists so restored
+     * `profile_<id>/` chat directories aren't orphaned. Used for legacy backups
+     * with no manifest (so no name is known). No-op if already registered.
+     */
+    public final void ensureProfileExists(@org.jetbrains.annotations.NotNull()
+    java.lang.String id, @org.jetbrains.annotations.NotNull()
+    java.lang.String fallbackName) {
+    }
+    
+    /**
+     * Backup restore: drop a stale profile that has no chats and isn't the
+     * active one — typically the fresh-install default left behind when the
+     * user imports a manifest-rich backup. No-op if the profile is active,
+     * unknown, or non-empty.
+     */
+    public final void removeOrphanProfile(@org.jetbrains.annotations.NotNull()
     java.lang.String id) {
     }
     

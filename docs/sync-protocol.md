@@ -79,6 +79,16 @@ Phase 1 is plaintext over LAN. The phone manifest declares
 `android:usesCleartextTraffic="true"`. Desktop clients should accept any client
 hostname; identity is established via the HMAC handshake, not by network address.
 
+**Roles are symmetric.** The protocol only defines a *client* (connects out,
+signs the challenge, sends `Hello`) and a *server* (listens, issues `Challenge`,
+replies `Welcome`). Nothing is phone- or desktop-specific. The desktop
+implements **both** roles, so two desktops sync the same way a phone syncs to a
+desktop: one runs the server, the other connects as a client by pasting the
+server's pairing payload (§2). Multi-device deployments use a **hub** — one
+device is the server, the rest are clients; pairwise links are real-time
+bidirectional, and a client converges with another client's events via the
+server's catch-up stream (§7) on (re)connect rather than via server-side relay.
+
 ## 4. Handshake & message order
 
 ```

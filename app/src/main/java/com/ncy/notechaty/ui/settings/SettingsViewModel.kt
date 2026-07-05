@@ -106,7 +106,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    suspend fun exportAllChats(outputFile: File) {
-        repository.exportAllChats(outputFile)
+    /** Full backup: every chat from every profile, plus the profile registry. */
+    suspend fun exportEverything(outputFile: File) {
+        repository.exportEveryProfile(outputFile)
     }
 }

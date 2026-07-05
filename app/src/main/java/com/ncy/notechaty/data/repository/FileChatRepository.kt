@@ -36,6 +36,39 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.annotation.Keep
+import android.util.Log
+
+/**
+ * Profile registry snapshot embedded in a full backup zip as `profiles.json`.
+ * Profiles live in SharedPreferences, not on disk, so without this a restored
+ * `profile_<id>/` directory tree would be orphaned (no entry in the switcher).
+ * Carries the full [Profile] (name, icon, and PIN hash/salt) so a restore is
+ * full-fidelity. Optional: absent in pre-manifest / single-chat backups.
+ *
+ * Public + `@Keep` because Gson reflects on it; private/minified classes are
+ * unreliable to instantiate. The secondary no-arg constructor is belt-and-
+ * suspenders so Gson never has to fall back to `Unsafe`-allocation.
+ */
+@Keep
+data class BackupManifest(
+    val profiles: List<Profile> = emptyList(),
+    val activeProfileId: String = "",
+    /**
+     * The device's app-wide protection PIN, so a fresh-install restore can
+     * unlock protected chats (whose sealed content is encrypted under
+     * `PBKDF2(that PIN, ChatMetadata.protectionSalt)`). Without this, the
+     * salt+ciphertext survive but there's nothing to check the entered PIN
+     * against, so `ChatViewModel.verifyPin` refuses every PIN. Both fields
+     * are `null` on backups from devices with no app PIN set, and on legacy
+     * backups from before this field existed.
+     */
+    val appPinHash: String? = null,
+    val appPinSalt: String? = null
+) {
+    @Suppress("unused")
+    constructor() : this(emptyList(), "", null, null)
+}
 
 @Singleton
 class FileChatRepository @Inject constructor(
@@ -44,7 +77,8 @@ class FileChatRepository @Inject constructor(
     private val chatLockState: ChatLockState,
     private val deviceIdentity: DeviceIdentity,
     private val eventBus: ChatEventBus,
-    private val keyStore: ProtectionKeyStore
+    private val keyStore: ProtectionKeyStore,
+    private val settingsRepository: SettingsRepository
 ) : ChatRepository {
 
     private val serializer = ChatSerializer()
@@ -351,6 +385,23 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun exportEveryProfile(outputFile: File): Unit = withContext(Dispatchers.IO) {
         ZipOutputStream(FileOutputStream(outputFile)).use { zos ->
+            // Profile registry first, so a restore can rebuild the switcher and
+            // place chats under the right (named) profile. Also the app-wide
+            // protection PIN — protected chats' encryption is `PBKDF2(pin, salt)`
+            // and the phone verifies entered PINs against this app-wide hash,
+            // so without it a fresh-install restore can't unlock anything even
+            // though the salt+ciphertext are intact.
+            val appSettings = settingsRepository.settings.value
+            val manifest = BackupManifest(
+                profiles = profileRepository.profiles.value,
+                activeProfileId = profileRepository.activeProfileId.value,
+                appPinHash = appSettings.protectionPinHash,
+                appPinSalt = appSettings.protectionPinSalt
+            )
+            zos.putNextEntry(ZipEntry("profiles.json"))
+            zos.write(gson.toJson(manifest).toByteArray(Charsets.UTF_8))
+            zos.closeEntry()
+
             rootDir.listFiles()
                 ?.filter { it.isDirectory && it.name.startsWith("profile_") }
                 ?.forEach { pDir ->
@@ -388,6 +439,34 @@ class FileChatRepository @Inject constructor(
                 }
             }
 
+            // Profile registry from a full backup (absent in legacy / single-chat
+            // zips). Restored chats keep their original `profile_<id>` directory,
+            // so registering these makes them visible in the switcher again.
+            val manifestFile = File(tempDir, "profiles.json")
+            val manifest: BackupManifest? = if (manifestFile.exists()) {
+                val raw = try {
+                    manifestFile.readText()
+                } catch (e: Exception) {
+                    Log.w("FileChatRepo", "import: profiles.json unreadable", e)
+                    null
+                }
+                if (raw == null) null else try {
+                    val m = gson.fromJson(raw, BackupManifest::class.java)
+                    Log.i(
+                        "FileChatRepo",
+                        "import: manifest parsed — profiles=${m?.profiles?.size ?: 0}, active=${m?.activeProfileId}"
+                    )
+                    m
+                } catch (e: Exception) {
+                    Log.w("FileChatRepo", "import: profiles.json parse failed; raw len=${raw.length}", e)
+                    null
+                }
+            } else {
+                Log.i("FileChatRepo", "import: no profiles.json in backup")
+                null
+            }
+            val restoredProfileIds = HashSet<String>()
+
             // Locate every chat.json in the extracted tree. Single-chat backups
             // place it at the root; exportAllChats nests it under chat_<id>/;
             // exportEveryProfile under profile_<id>/chat_<id>/.
@@ -402,7 +481,14 @@ class FileChatRepository @Inject constructor(
             for (chatFile in chatFiles) {
                 val srcChatDir = chatFile.parentFile ?: continue
                 val data = serializer.readFromFile(chatFile)
-                val newId = UUID.randomUUID().toString()
+                // **Preserve the original chatId.** Rekeying to a fresh UUID
+                // would silently duplicate the whole chat on any peer that
+                // still holds it under the old id: `applyExternalEventLocked`
+                // dedups per-chat-directory, so a peer re-streaming events
+                // with the original chatId lands in a *different* dir on this
+                // device and every event gets appended fresh. Same-id restore
+                // keeps eventId dedup working and syncs merge cleanly.
+                val chatId = data.chat.id
 
                 // Restore into the profile the chat came from. exportEveryProfile
                 // records a `profile_<id>/` path segment; honor it so a multi-profile
@@ -412,78 +498,146 @@ class FileChatRepository @Inject constructor(
                     .replace("\\", "/").split("/")
                 val profileSeg = relParts.firstOrNull { it.startsWith("profile_") }
                 val targetParent = if (profileSeg != null) {
+                    restoredProfileIds += profileSeg.removePrefix("profile_")
                     File(rootDir, profileSeg).also { it.mkdirs() }
                 } else {
                     profileDir
                 }
 
-                val targetDir = File(targetParent, "chat_$newId")
-                if (targetDir.exists()) targetDir.deleteRecursively()
-                targetDir.mkdirs()
+                val targetDir = File(targetParent, "chat_$chatId")
+                val backupEventsFile = File(srcChatDir, "events.ndjson")
 
-                // Copy chat contents (events.ndjson, media/, voice/, etc.) verbatim.
-                srcChatDir.listFiles()?.forEach { src ->
-                    src.copyRecursively(File(targetDir, src.name), overwrite = true)
-                }
-
-                val eventsFile = File(targetDir, "events.ndjson")
-                if (eventsFile.exists()) {
-                    // Preserve the event log — it's the only copy of a protected
-                    // chat's real (encrypted) content; chat.json holds just 🔒
-                    // placeholders. Rekey it to the new chat UUID so it lands in
-                    // the new dir, then re-materialize chat.json from the rekeyed
-                    // log so the two stay consistent. Encrypted ops are kept
-                    // verbatim (their inner ciphertext can't be rewritten without
-                    // the PIN key — only the event envelope is rekeyed; the chat
-                    // unlocks normally via its salt, which rides along in chat.json).
-                    val log = EventLog(eventsFile, eventCodec)
-                    val rekeyed = log.readAll().map { rekeyEvent(it, newId) }
-                    log.replaceAll(rekeyed)
-                    val rebuilt = MaterializedView.fold(rekeyed)
+                if (!targetDir.exists()) {
+                    // Fresh restore: copy the chat dir verbatim (events + media).
+                    // eventIds and chatIds already match what any peer holds, so
+                    // subsequent syncs converge via `eventId`-based dedup.
+                    targetDir.mkdirs()
+                    srcChatDir.listFiles()?.forEach { src ->
+                        src.copyRecursively(File(targetDir, src.name), overwrite = true)
+                    }
+                    val eventsFile = File(targetDir, "events.ndjson")
+                    if (eventsFile.exists()) {
+                        val rebuilt = MaterializedView.fold(EventLog(eventsFile, eventCodec).readAll())
+                        if (rebuilt != null) {
+                            serializer.writeToFile(File(targetDir, "chat.json"), rebuilt)
+                        } else {
+                            // Tombstoned / metadata-less log → nothing to show.
+                            targetDir.deleteRecursively()
+                        }
+                    } else {
+                        // Legacy chat.json-only backup: keep the id, synthesize log.
+                        serializer.writeToFile(File(targetDir, "chat.json"), data)
+                        EventLogMigrator.migrateChatIfNeeded(targetDir, deviceIdentity.deviceId)
+                    }
+                } else if (backupEventsFile.exists()) {
+                    // Target already present on this device — MERGE by eventId
+                    // union rather than clobbering. Never destroys local edits;
+                    // safe to re-import the same zip repeatedly (idempotent).
+                    val existingLog = EventLog(File(targetDir, "events.ndjson"), eventCodec)
+                    val prior = existingLog.readAll()
+                    val seen = prior.mapTo(HashSet()) { it.eventId }
+                    val incoming = EventLog(backupEventsFile, eventCodec).readAll()
+                    val added = incoming.filter { it.eventId !in seen }
+                    if (added.isNotEmpty()) {
+                        existingLog.replaceAll(prior + added)
+                    }
+                    // Copy any media the target doesn't already have.
+                    srcChatDir.listFiles()?.forEach { src ->
+                        if (src.isDirectory) {
+                            val destDir = File(targetDir, src.name).apply { mkdirs() }
+                            src.listFiles()?.forEach { f ->
+                                val destFile = File(destDir, f.name)
+                                if (!destFile.exists()) f.copyTo(destFile, overwrite = false)
+                            }
+                        }
+                    }
+                    val rebuilt = MaterializedView.fold(existingLog.readAll())
                     if (rebuilt != null) {
                         serializer.writeToFile(File(targetDir, "chat.json"), rebuilt)
-                    } else {
-                        // Tombstoned / metadata-less log → nothing to show.
-                        targetDir.deleteRecursively()
                     }
-                } else {
-                    // Legacy backup with no event log: rewrite chat.json to the new
-                    // id and let the migrator synthesize a fresh log from it.
-                    val updatedData = data.copy(
-                        chat = data.chat.copy(id = newId),
-                        messages = data.messages.map { it.copy(chatId = newId) }
+                    Log.i(
+                        "FileChatRepo",
+                        "import: merged $chatId — added ${added.size} of ${incoming.size} events",
                     )
-                    serializer.writeToFile(File(targetDir, "chat.json"), updatedData)
-                    EventLogMigrator.migrateChatIfNeeded(targetDir, deviceIdentity.deviceId)
                 }
             }
+
+            // Rebuild the profile registry so restored chats aren't orphaned.
+            // Manifest profiles (full fidelity: name, icon, PIN) come first;
+            // any restored directory not covered by a manifest (legacy backup)
+            // gets a placeholder profile so its chats are still reachable.
+            manifest?.profiles?.let { profileRepository.registerImported(it) }
+            for (pid in restoredProfileIds) {
+                val name = manifest?.profiles?.firstOrNull { it.id == pid }?.name
+                    ?: "Profile ${pid.take(6)}"
+                profileRepository.ensureProfileExists(pid, name)
+            }
+            // Land the user back on the profile they backed up from, if it's now
+            // present (setActive ignores unknown ids and is a no-op otherwise).
+            val manifestActive = manifest?.activeProfileId?.takeIf { it.isNotEmpty() }
+            manifestActive?.let { profileRepository.setActive(it) }
+
+            // Restore the app-wide protection PIN so protected chats actually
+            // unlock after a fresh-install restore. `verifyPin` in ChatViewModel
+            // checks entered PINs against this hash before deriving the AES key
+            // from `PBKDF2(pin, chatSalt)` — without a matching hash, every PIN
+            // is rejected. Only restore when the target device has no PIN of
+            // its own; that way a fresh install picks it up, but importing onto
+            // a working device with its own PIN doesn't silently overwrite it.
+            val manifestHash = manifest?.appPinHash
+            val manifestSalt = manifest?.appPinSalt
+            if (
+                !manifestHash.isNullOrEmpty() &&
+                !manifestSalt.isNullOrEmpty() &&
+                settingsRepository.settings.value.protectionPinHash.isNullOrEmpty()
+            ) {
+                val current = settingsRepository.settings.value
+                settingsRepository.updateSettings(
+                    current.copy(
+                        protectionPinHash = manifestHash,
+                        protectionPinSalt = manifestSalt
+                    )
+                )
+                Log.i("FileChatRepo", "import: restored app-wide protection PIN from manifest")
+            }
+
+            // Sweep a fresh-install default profile left behind by the restore:
+            // when the manifest carries profiles, any pre-existing profile not in
+            // it that has no chats is just a confusing duplicate (the empty
+            // "Personal" the app created on first launch). Only runs for
+            // manifest-rich backups, so legacy single-chat imports stay untouched.
+            if ((manifest?.profiles?.size ?: 0) > 0) {
+                val manifestIds = manifest!!.profiles.mapTo(HashSet()) { it.id }
+                val activeId = profileRepository.activeProfileId.value
+                val orphans = profileRepository.profiles.value.filter { p ->
+                    p.id !in manifestIds && p.id != activeId && !profileDirHasChats(p.id)
+                }
+                for (o in orphans) {
+                    Log.i("FileChatRepo", "import: dropping empty pre-existing profile ${o.id} (${o.name})")
+                    profileRepository.removeOrphanProfile(o.id)
+                }
+            }
+
+            Log.i(
+                "FileChatRepo",
+                "import: done — chats=${chatFiles.size}, profileDirs=${restoredProfileIds.size}," +
+                    " manifestProfiles=${manifest?.profiles?.size ?: 0}," +
+                    " activeAfter=${profileRepository.activeProfileId.value}," +
+                    " profilesAfter=${profileRepository.profiles.value.size}"
+            )
         } finally {
             if (tempDir.exists()) tempDir.deleteRecursively()
         }
         refreshChats()
     }
 
-    /**
-     * Re-point an imported event at a freshly-issued chat UUID. The event envelope
-     * and the chat id embedded in plaintext ops are rewritten; [ChatEventOp.EncryptedMessage]
-     * is left byte-for-byte intact (its sealed body can only be rewritten with the
-     * PIN-derived key, which import doesn't have — the envelope rekey is enough for
-     * the log to bind to the new chat dir and materialize).
-     */
-    private fun rekeyEvent(ev: ChatEvent, newChatId: String): ChatEvent = ev.copy(
-        chatId = newChatId,
-        op = when (val op = ev.op) {
-            is ChatEventOp.MessageCreated ->
-                ChatEventOp.MessageCreated(op.message.copy(chatId = newChatId))
-            is ChatEventOp.MessageEdited ->
-                ChatEventOp.MessageEdited(op.message.copy(chatId = newChatId))
-            is ChatEventOp.ChatMetadataChanged ->
-                ChatEventOp.ChatMetadataChanged(op.metadata.copy(id = newChatId))
-            is ChatEventOp.ChatTombstoned -> ChatEventOp.ChatTombstoned(newChatId)
-            is ChatEventOp.MessageTombstoned -> op
-            is ChatEventOp.EncryptedMessage -> op
-        }
-    )
+    /** Does this profile's directory contain any `chat_*` subdir? */
+    private fun profileDirHasChats(profileId: String): Boolean {
+        val dir = File(rootDir, "profile_$profileId")
+        if (!dir.exists()) return false
+        return dir.listFiles()?.any { it.isDirectory && it.name.startsWith("chat_") } ?: false
+    }
+
 
     override suspend fun scanForNewChats(): Unit = withContext(Dispatchers.IO) {
         refreshChats()

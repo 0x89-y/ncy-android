@@ -123,6 +123,48 @@ class ProfileRepository @Inject constructor(
         persist()
     }
 
+    /**
+     * Backup restore: add any profiles from a backup manifest that this device
+     * doesn't already have. Existing profiles (matched by id) are left untouched —
+     * never clobber the user's current registry. Does not change the active
+     * profile. Idempotent.
+     */
+    fun registerImported(imported: List<Profile>) {
+        if (imported.isEmpty()) return
+        val haveIds = _profiles.value.mapTo(HashSet()) { it.id }
+        val toAdd = imported.filter { it.id !in haveIds }
+        if (toAdd.isEmpty()) return
+        _profiles.value = _profiles.value + toAdd
+        persist()
+    }
+
+    /**
+     * Backup restore fallback: make sure a profile with [id] exists so restored
+     * `profile_<id>/` chat directories aren't orphaned. Used for legacy backups
+     * with no manifest (so no name is known). No-op if already registered.
+     */
+    fun ensureProfileExists(id: String, fallbackName: String) {
+        if (id.isBlank()) return
+        if (_profiles.value.any { it.id == id }) return
+        _profiles.value = _profiles.value + Profile(id = id, name = fallbackName)
+        persist()
+    }
+
+    /**
+     * Backup restore: drop a stale profile that has no chats and isn't the
+     * active one — typically the fresh-install default left behind when the
+     * user imports a manifest-rich backup. No-op if the profile is active,
+     * unknown, or non-empty.
+     */
+    fun removeOrphanProfile(id: String) {
+        if (id.isBlank()) return
+        if (_activeProfileId.value == id) return
+        if (_profiles.value.none { it.id == id }) return
+        _profiles.value = _profiles.value.filter { it.id != id }
+        profileDir(id).deleteRecursively()
+        persist()
+    }
+
     fun setActive(id: String) {
         if (_profiles.value.none { it.id == id }) return
         if (_activeProfileId.value == id) return

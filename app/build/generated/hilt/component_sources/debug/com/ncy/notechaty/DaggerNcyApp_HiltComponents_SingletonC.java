@@ -623,11 +623,11 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
 
     private Provider<ProtectionKeyStore> protectionKeyStoreProvider;
 
+    private Provider<SettingsRepository> settingsRepositoryProvider;
+
     private Provider<FileChatRepository> fileChatRepositoryProvider;
 
     private Provider<AutoBackupWorker_AssistedFactory> autoBackupWorker_AssistedFactoryProvider;
-
-    private Provider<SettingsRepository> settingsRepositoryProvider;
 
     private Provider<PinManager> pinManagerProvider;
 
@@ -665,9 +665,9 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
       this.deviceIdentityProvider = DoubleCheck.provider(new SwitchingProvider<DeviceIdentity>(singletonCImpl, 4));
       this.chatEventBusProvider = DoubleCheck.provider(new SwitchingProvider<ChatEventBus>(singletonCImpl, 5));
       this.protectionKeyStoreProvider = DoubleCheck.provider(new SwitchingProvider<ProtectionKeyStore>(singletonCImpl, 6));
+      this.settingsRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<SettingsRepository>(singletonCImpl, 7));
       this.fileChatRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<FileChatRepository>(singletonCImpl, 1));
       this.autoBackupWorker_AssistedFactoryProvider = SingleCheck.provider(new SwitchingProvider<AutoBackupWorker_AssistedFactory>(singletonCImpl, 0));
-      this.settingsRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<SettingsRepository>(singletonCImpl, 7));
       this.pinManagerProvider = DoubleCheck.provider(new SwitchingProvider<PinManager>(singletonCImpl, 8));
       this.syncPeerStoreProvider = DoubleCheck.provider(new SwitchingProvider<SyncPeerStore>(singletonCImpl, 10));
       this.syncClientProvider = DoubleCheck.provider(new SwitchingProvider<SyncClient>(singletonCImpl, 11));
@@ -728,7 +728,7 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
           };
 
           case 1: // com.ncy.notechaty.data.repository.FileChatRepository 
-          return (T) new FileChatRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get(), singletonCImpl.deviceIdentityProvider.get(), singletonCImpl.chatEventBusProvider.get(), singletonCImpl.protectionKeyStoreProvider.get());
+          return (T) new FileChatRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.chatLockStateProvider.get(), singletonCImpl.deviceIdentityProvider.get(), singletonCImpl.chatEventBusProvider.get(), singletonCImpl.protectionKeyStoreProvider.get(), singletonCImpl.settingsRepositoryProvider.get());
 
           case 2: // com.ncy.notechaty.data.repository.ProfileRepository 
           return (T) new ProfileRepository(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));

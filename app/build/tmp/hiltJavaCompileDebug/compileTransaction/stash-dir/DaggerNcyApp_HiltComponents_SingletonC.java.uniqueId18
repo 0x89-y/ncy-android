@@ -678,8 +678,8 @@ public final class DaggerNcyApp_HiltComponents_SingletonC {
     }
 
     @Override
-    public void injectNcyApp(NcyApp ncyApp) {
-      injectNcyApp2(ncyApp);
+    public void injectNcyApp(NcyApp arg0) {
+      injectNcyApp2(arg0);
     }
 
     @Override

@@ -71,15 +71,15 @@ fun SettingsScreen(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
         uri?.let {
-            val tempFile = File(context.cacheDir, "ncy_all_chats.zip")
+            val tempFile = File(context.cacheDir, "ncy_backup.zip")
             scope.launch {
                 try {
-                    viewModel.exportAllChats(tempFile)
+                    viewModel.exportEverything(tempFile)
                     context.contentResolver.openOutputStream(it)?.use { os ->
                         tempFile.inputStream().use { input -> input.copyTo(os) }
                     }
                     tempFile.delete()
-                    Toast.makeText(context, "All chats exported", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Backup created (all profiles)", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     tempFile.delete()
                     Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -171,11 +171,11 @@ fun SettingsScreen(
                     )
                     SettingsRow(
                         icon = Icons.Default.FileDownload,
-                        title = "Export all chats",
-                        subtitle = "Save all chats as a single .zip file",
+                        title = "Back up everything",
+                        subtitle = "All chats from every profile + the profile list, as one .zip",
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            exportAllLauncher.launch("ncy_all_chats.zip")
+                            exportAllLauncher.launch("ncy_backup.zip")
                         }
                     )
                     SettingsRow(

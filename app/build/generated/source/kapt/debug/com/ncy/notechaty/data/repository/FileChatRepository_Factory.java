@@ -38,35 +38,40 @@ public final class FileChatRepository_Factory implements Factory<FileChatReposit
 
   private final Provider<ProtectionKeyStore> keyStoreProvider;
 
+  private final Provider<SettingsRepository> settingsRepositoryProvider;
+
   public FileChatRepository_Factory(Provider<Context> contextProvider,
       Provider<ProfileRepository> profileRepositoryProvider,
       Provider<ChatLockState> chatLockStateProvider,
       Provider<DeviceIdentity> deviceIdentityProvider, Provider<ChatEventBus> eventBusProvider,
-      Provider<ProtectionKeyStore> keyStoreProvider) {
+      Provider<ProtectionKeyStore> keyStoreProvider,
+      Provider<SettingsRepository> settingsRepositoryProvider) {
     this.contextProvider = contextProvider;
     this.profileRepositoryProvider = profileRepositoryProvider;
     this.chatLockStateProvider = chatLockStateProvider;
     this.deviceIdentityProvider = deviceIdentityProvider;
     this.eventBusProvider = eventBusProvider;
     this.keyStoreProvider = keyStoreProvider;
+    this.settingsRepositoryProvider = settingsRepositoryProvider;
   }
 
   @Override
   public FileChatRepository get() {
-    return newInstance(contextProvider.get(), profileRepositoryProvider.get(), chatLockStateProvider.get(), deviceIdentityProvider.get(), eventBusProvider.get(), keyStoreProvider.get());
+    return newInstance(contextProvider.get(), profileRepositoryProvider.get(), chatLockStateProvider.get(), deviceIdentityProvider.get(), eventBusProvider.get(), keyStoreProvider.get(), settingsRepositoryProvider.get());
   }
 
   public static FileChatRepository_Factory create(Provider<Context> contextProvider,
       Provider<ProfileRepository> profileRepositoryProvider,
       Provider<ChatLockState> chatLockStateProvider,
       Provider<DeviceIdentity> deviceIdentityProvider, Provider<ChatEventBus> eventBusProvider,
-      Provider<ProtectionKeyStore> keyStoreProvider) {
-    return new FileChatRepository_Factory(contextProvider, profileRepositoryProvider, chatLockStateProvider, deviceIdentityProvider, eventBusProvider, keyStoreProvider);
+      Provider<ProtectionKeyStore> keyStoreProvider,
+      Provider<SettingsRepository> settingsRepositoryProvider) {
+    return new FileChatRepository_Factory(contextProvider, profileRepositoryProvider, chatLockStateProvider, deviceIdentityProvider, eventBusProvider, keyStoreProvider, settingsRepositoryProvider);
   }
 
   public static FileChatRepository newInstance(Context context, ProfileRepository profileRepository,
       ChatLockState chatLockState, DeviceIdentity deviceIdentity, ChatEventBus eventBus,
-      ProtectionKeyStore keyStore) {
-    return new FileChatRepository(context, profileRepository, chatLockState, deviceIdentity, eventBus, keyStore);
+      ProtectionKeyStore keyStore, SettingsRepository settingsRepository) {
+    return new FileChatRepository(context, profileRepository, chatLockState, deviceIdentity, eventBus, keyStore, settingsRepository);
   }
 }

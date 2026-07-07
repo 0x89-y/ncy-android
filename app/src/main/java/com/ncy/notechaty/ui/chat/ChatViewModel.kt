@@ -300,6 +300,20 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun toggleReaction(message: Message, emoji: String) {
+        val trimmed = emoji.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val next = if (message.reactions.contains(trimmed)) {
+                message.reactions - trimmed
+            } else {
+                message.reactions + trimmed
+            }
+            repository.updateMessage(message.copy(reactions = next))
+            loadChat()
+        }
+    }
+
     fun setReminder(message: Message, triggerAtMillis: Long) {
         viewModelScope.launch {
             val chat = _uiState.value.chat

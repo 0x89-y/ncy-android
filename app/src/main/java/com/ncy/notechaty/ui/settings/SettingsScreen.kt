@@ -628,34 +628,34 @@ private fun PinSetupDialog(
         text = {
             Column {
                 Text(
-                    "Choose a numeric PIN of at least 4 digits.",
+                    "Choose a PIN of at least 4 characters.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = pin,
-                    onValueChange = { pin = it.filter { c -> c.isDigit() }.take(12) },
+                    onValueChange = { pin = it.take(64) },
                     label = { Text("New PIN") },
                     singleLine = true,
                     isError = tooShort,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword
+                        keyboardType = KeyboardType.Password
                     ),
-                    supportingText = if (tooShort) { { Text("Minimum 4 digits") } } else null,
+                    supportingText = if (tooShort) { { Text("Minimum 4 characters") } } else null,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = confirm,
-                    onValueChange = { confirm = it.filter { c -> c.isDigit() }.take(12) },
+                    onValueChange = { confirm = it.take(64) },
                     label = { Text("Confirm PIN") },
                     singleLine = true,
                     isError = mismatch,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword
+                        keyboardType = KeyboardType.Password
                     ),
                     supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
                     modifier = Modifier.fillMaxWidth()

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monochrome notification small icon. Android tints all non-transparent
+     pixels white in the status bar, so this must be a single-color silhouette.
+     Shape: a rounded chat bubble with a small tail, matching Ncy's identity
+     as a "note-to-self chat" app. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,4h16a2,2 0,0 1,2 2v10a2,2 0,0 1,-2 2h-6.586l-3.121,3.121A1,1 0,0 1,9 20.414V18h-5a2,2 0,0 1,-2 -2V6a2,2 0,0 1,2 -2z" />
+</vector>

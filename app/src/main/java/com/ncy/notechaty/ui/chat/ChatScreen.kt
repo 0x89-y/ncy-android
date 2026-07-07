@@ -386,6 +386,9 @@ fun ChatScreen(
                                 onDelete = { showDeleteConfirm = message.id },
                                 onToggleStar = { viewModel.toggleStar(message) },
                                 onSetReminder = { reminderMessage = message },
+                                onToggleReaction = { emoji ->
+                                    viewModel.toggleReaction(message, emoji)
+                                },
                                 onToggleChecklistItem = { itemId ->
                                     viewModel.toggleChecklistItem(message, itemId)
                                 },

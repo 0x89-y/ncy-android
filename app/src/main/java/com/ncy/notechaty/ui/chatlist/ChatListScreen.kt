@@ -651,7 +651,7 @@ private fun ChatUnlockDialog(
                 OutlinedTextField(
                     value = pin,
                     onValueChange = {
-                        pin = it.filter { c -> c.isDigit() }
+                        pin = it.take(64)
                         error = false
                     },
                     label = { Text("PIN") },
@@ -659,7 +659,7 @@ private fun ChatUnlockDialog(
                     isError = error,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword
+                        keyboardType = KeyboardType.Password
                     ),
                     supportingText = if (error) {
                         { Text("Wrong PIN") }
@@ -746,7 +746,7 @@ private fun ProfileUnlockDialog(
                 OutlinedTextField(
                     value = pin,
                     onValueChange = {
-                        pin = it.filter { c -> c.isDigit() }
+                        pin = it.take(64)
                         error = false
                     },
                     label = { Text("PIN") },
@@ -754,7 +754,7 @@ private fun ProfileUnlockDialog(
                     isError = error,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword
+                        keyboardType = KeyboardType.Password
                     ),
                     supportingText = if (error) { { Text("Wrong PIN") } } else null,
                     modifier = Modifier.fillMaxWidth()

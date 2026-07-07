@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
@@ -20,6 +22,8 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
@@ -62,6 +66,7 @@ fun MessageBubble(
     onDelete: () -> Unit,
     onToggleStar: () -> Unit = {},
     onSetReminder: () -> Unit = {},
+    onToggleReaction: (String) -> Unit = {},
     onToggleChecklistItem: (String) -> Unit = {},
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
@@ -147,6 +152,19 @@ fun MessageBubble(
                                 durationMs = message.voiceDurationMs ?: 0
                             )
                         }
+                        // Transcript rides on the Message and is populated by
+                        // whichever paired device ran whisper on the audio
+                        // (currently desktop-only). Rendered inline under the
+                        // audio player in muted italic text.
+                        message.transcript?.takeIf { it.isNotBlank() }?.let { t ->
+                            Text(
+                                text = t,
+                                fontSize = 13.sp,
+                                fontStyle = FontStyle.Italic,
+                                color = subtleColor,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                     MessageType.IMAGE -> RichTextContent(message.content, chatDir, contentColor)
                     MessageType.CHECKLIST -> {
@@ -161,6 +179,16 @@ fun MessageBubble(
                     }
                 }
 
+                if (message.reactions.isNotEmpty()) {
+                    ReactionChipRow(
+                        reactions = message.reactions,
+                        contentColor = contentColor,
+                        onToggleReaction = { emoji ->
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            onToggleReaction(emoji)
+                        }
+                    )
+                }
                 Row(
                     modifier = Modifier.align(Alignment.End),
                     verticalAlignment = Alignment.CenterVertically,
@@ -207,6 +235,15 @@ fun MessageBubble(
                     title = { Text(menuTitle) },
                     text = {
                         Column {
+                            ReactionPickerStrip(
+                                current = message.reactions,
+                                onPick = { emoji ->
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    showMenu = false
+                                    onToggleReaction(emoji)
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
                             if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
                                 TextButton(
                                     onClick = {
@@ -582,6 +619,115 @@ private fun buildAnnotatedSpan(spans: List<RichTextSpan>, defaultColor: Color = 
                 withStyle(baseStyle) {
                     append(text.substring(lastEnd))
                 }
+            }
+        }
+    }
+}
+
+// Curated quick reactions (shown first) + an extended set behind a "more" toggle.
+private val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "🎉", "✅", "🔥")
+private val EXTRA_REACTIONS = listOf(
+    "🙏", "👀", "🤔", "😮", "😢", "😡",
+    "💯", "⭐", "🚀", "💡", "👏", "🤝",
+    "😍", "🥳", "🤯", "😅", "🙌", "✨"
+)
+
+@Composable
+private fun ReactionPickerStrip(
+    current: List<String>,
+    onPick: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            QUICK_REACTIONS.forEach { emoji ->
+                ReactionPickerButton(
+                    emoji = emoji,
+                    active = current.contains(emoji),
+                    onClick = { onPick(emoji) }
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    if (expanded) Icons.Default.KeyboardArrowUp
+                    else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Fewer reactions" else "More reactions"
+                )
+            }
+        }
+        if (expanded) {
+            // Two-row grid of extras; 9 per row keeps it comfortable on a phone dialog.
+            EXTRA_REACTIONS.chunked(9).forEach { row ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { emoji ->
+                        ReactionPickerButton(
+                            emoji = emoji,
+                            active = current.contains(emoji),
+                            onClick = { onPick(emoji) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReactionPickerButton(
+    emoji: String,
+    active: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        modifier = Modifier
+            .padding(2.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Text(
+            text = emoji,
+            fontSize = 20.sp,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun ReactionChipRow(
+    reactions: List<String>,
+    contentColor: Color,
+    onToggleReaction: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp)
+            .horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        reactions.forEach { emoji ->
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = contentColor.copy(alpha = 0.12f),
+                modifier = Modifier.clickable { onToggleReaction(emoji) }
+            ) {
+                Text(
+                    text = emoji,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
             }
         }
     }

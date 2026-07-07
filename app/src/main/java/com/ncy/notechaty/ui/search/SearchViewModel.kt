@@ -58,9 +58,13 @@ class SearchViewModel @Inject constructor(
             chats.filter { !it.isProtected }.forEach { chat ->
                 val messages = repository.getMessages(chat.id)
                 messages
-                    .filter { it.type == MessageType.TEXT }
+                    .filter { it.type == MessageType.TEXT || !it.transcript.isNullOrBlank() }
                     .filter { msg ->
-                        msg.plainTextPreview().contains(query, ignoreCase = true)
+                        // Match against text preview OR the voice transcript so
+                        // spoken-word content in voice messages is findable
+                        // once whisper has run over them.
+                        msg.plainTextPreview().contains(query, ignoreCase = true) ||
+                            (msg.transcript?.contains(query, ignoreCase = true) == true)
                     }
                     .forEach { msg ->
                         searchResults.add(SearchResult(msg, chat.name, chat.id))

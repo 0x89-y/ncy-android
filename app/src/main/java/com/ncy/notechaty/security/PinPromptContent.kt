@@ -86,14 +86,14 @@ fun PinPromptContent(
         OutlinedTextField(
             value = pin,
             onValueChange = {
-                pin = it.filter { c -> c.isDigit() }
+                pin = it.take(64)
                 error = false
             },
             label = { Text("PIN") },
             singleLine = true,
             isError = error,
             visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             supportingText = if (error) { { Text("Wrong PIN") } } else null,
             modifier = Modifier.fillMaxWidth()
         )

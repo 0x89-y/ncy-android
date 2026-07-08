@@ -72,7 +72,13 @@ class MainActivity : FragmentActivity() {
                 val navBarColor = MaterialTheme.colorScheme.surface
                 val isLight = statusBarColor.luminance() > 0.5f
                 LaunchedEffect(statusBarColor, navBarColor, isLight) {
+                    // `window.statusBarColor` / `navigationBarColor` are Java-side
+                    // deprecated in favour of edge-to-edge; this project
+                    // deliberately paints solid theme-colored bars, so we keep
+                    // the direct setters and silence the warning.
+                    @Suppress("DEPRECATION")
                     window.statusBarColor = statusBarColor.toArgb()
+                    @Suppress("DEPRECATION")
                     window.navigationBarColor = navBarColor.toArgb()
                     WindowInsetsControllerCompat(window, window.decorView).apply {
                         isAppearanceLightStatusBars = isLight

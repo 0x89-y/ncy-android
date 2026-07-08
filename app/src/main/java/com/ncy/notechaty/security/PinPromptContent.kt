@@ -51,9 +51,12 @@ fun PinPromptContent(
     var error by remember { mutableStateOf(false) }
 
     LaunchedEffect(canUseBio) {
-        if (canUseBio && activity != null) {
+        // `canUseBio` already includes `activity != null` at construction — the
+        // Kotlin compiler now tracks that flow and complains about a redundant
+        // null check. `!!` is safe here for the same reason.
+        if (canUseBio) {
             BiometricHelper.authenticate(
-                activity = activity,
+                activity = activity!!,
                 title = biometricTitle,
                 subtitle = biometricSubtitle,
                 onSuccess = onUnlocked
@@ -112,12 +115,12 @@ fun PinPromptContent(
         ) {
             Text("Unlock")
         }
-        if (canUseBio && activity != null) {
+        if (canUseBio) {
             Spacer(modifier = Modifier.height(8.dp))
             TextButton(
                 onClick = {
                     BiometricHelper.authenticate(
-                        activity = activity,
+                        activity = activity!!,
                         title = biometricTitle,
                         subtitle = biometricSubtitle,
                         onSuccess = onUnlocked

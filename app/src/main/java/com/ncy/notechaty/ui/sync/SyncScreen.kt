@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -34,9 +35,28 @@ fun SyncScreen(
     val peers by viewModel.peers.collectAsState()
     val states by viewModel.states.collectAsState()
     val discovered by viewModel.discovered.collectAsState()
+    val pairingBusy by viewModel.pairingBusy.collectAsState()
+    val pairingMessage by viewModel.pairingMessage.collectAsState()
+    val pairingSafetyCode by viewModel.pairingSafetyCode.collectAsState()
     var pairingText by remember { mutableStateOf("") }
     var pairingError by remember { mutableStateOf<String?>(null) }
     var pairingSuccess by remember { mutableStateOf<String?>(null) }
+
+    // Surface discovery-initiated pair results (success / rejection / timeout)
+    // via the same success/error slots the QR path already uses.
+    LaunchedEffect(pairingMessage) {
+        val msg = pairingMessage
+        if (!msg.isNullOrBlank()) {
+            if (msg.startsWith("Paired")) {
+                pairingSuccess = msg
+                pairingError = null
+            } else {
+                pairingError = msg
+                pairingSuccess = null
+            }
+            viewModel.clearPairingMessage()
+        }
+    }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         val contents = result.contents
@@ -162,7 +182,15 @@ fun SyncScreen(
                     style = MaterialTheme.typography.titleSmall
                 )
                 unpairedDiscovered.forEach { d ->
-                    DiscoveredCard(d)
+                    val busyForThis = pairingBusy == d.name
+                    DiscoveredCard(
+                        peer = d,
+                        isBusy = busyForThis,
+                        anyBusy = pairingBusy != null,
+                        safetyCode = if (busyForThis) pairingSafetyCode else null,
+                        onPair = { viewModel.pairViaDiscovery(d) },
+                        onCancel = { viewModel.cancelPairing() },
+                    )
                 }
             }
 
@@ -184,6 +212,7 @@ fun SyncScreen(
                 }
             }
         }
+
     }
 }
 
@@ -233,13 +262,20 @@ private fun PeerCard(
 }
 
 @Composable
-private fun DiscoveredCard(peer: DiscoveredPeer) {
+private fun DiscoveredCard(
+    peer: DiscoveredPeer,
+    isBusy: Boolean,
+    anyBusy: Boolean,
+    safetyCode: String?,
+    onPair: () -> Unit,
+    onCancel: () -> Unit,
+) {
     Card {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(peer.name, style = MaterialTheme.typography.titleMedium)
             Text(
@@ -248,10 +284,56 @@ private fun DiscoveredCard(peer: DiscoveredPeer) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "Reachable on this network. Scan its QR or paste its JSON above to pair.",
+                if (isBusy) "Waiting for the desktop to confirm…"
+                else "Tap Pair to ask the desktop to add this phone. Confirm on the desktop when the prompt appears.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // Safety code arrives as soon as the desktop replies to the
+            // PairRequest (before the desktop user has confirmed) so the
+            // phone user can visually compare it against the code shown on
+            // the desktop's modal in real time.
+            if (isBusy && !safetyCode.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Safety code — check it matches the desktop's modal:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val formatted = if (safetyCode.length == 6) {
+                    "${safetyCode.substring(0, 3)} ${safetyCode.substring(3)}"
+                } else safetyCode
+                Text(
+                    formatted,
+                    style = MaterialTheme.typography.headlineMedium,
+                    letterSpacing = 6.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                } else {
+                    Button(onClick = onPair, enabled = !anyBusy) {
+                        Text("Pair")
+                    }
+                }
+            }
         }
     }
 }

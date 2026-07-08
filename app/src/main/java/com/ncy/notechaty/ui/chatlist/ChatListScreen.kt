@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -117,7 +118,7 @@ fun ChatListScreen(
                     }
                     Box {
                         IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                         }
                         DropdownMenu(
                             expanded = showSortMenu,
@@ -626,9 +627,11 @@ private fun ChatUnlockDialog(
     val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
 
     LaunchedEffect(canUseBio) {
-        if (canUseBio && activity != null) {
+        // canUseBio already includes `activity != null` — Kotlin's flow
+        // analysis flags the second check as redundant. `!!` is safe.
+        if (canUseBio) {
             BiometricHelper.authenticate(
-                activity = activity,
+                activity = activity!!,
                 title = "Unlock chat",
                 subtitle = "Verify to open this protected chat",
                 onSuccess = onUnlocked
@@ -666,12 +669,12 @@ private fun ChatUnlockDialog(
                     } else null,
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (canUseBio && activity != null) {
+                if (canUseBio) {
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(
                         onClick = {
                             BiometricHelper.authenticate(
-                                activity = activity,
+                                activity = activity!!,
                                 title = "Unlock chat",
                                 subtitle = "Verify to open this protected chat",
                                 onSuccess = onUnlocked
@@ -721,9 +724,11 @@ private fun ProfileUnlockDialog(
     val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
 
     LaunchedEffect(canUseBio) {
-        if (canUseBio && activity != null) {
+        // canUseBio already includes `activity != null` — Kotlin's flow
+        // analysis flags the second check as redundant. `!!` is safe.
+        if (canUseBio) {
             BiometricHelper.authenticate(
-                activity = activity,
+                activity = activity!!,
                 title = "Switch to ${profile.name}",
                 subtitle = "Verify to open this profile",
                 onSuccess = onUnlocked
@@ -759,12 +764,12 @@ private fun ProfileUnlockDialog(
                     supportingText = if (error) { { Text("Wrong PIN") } } else null,
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (canUseBio && activity != null) {
+                if (canUseBio) {
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(
                         onClick = {
                             BiometricHelper.authenticate(
-                                activity = activity,
+                                activity = activity!!,
                                 title = "Switch to ${profile.name}",
                                 subtitle = "Verify to open this profile",
                                 onSuccess = onUnlocked

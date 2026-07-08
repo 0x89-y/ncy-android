@@ -44,7 +44,7 @@ import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.MessageType
 import com.ncy.notechaty.ui.richtext.RichTextInput

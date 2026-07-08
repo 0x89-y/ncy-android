@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Unarchive
@@ -451,7 +452,7 @@ fun ChatConfigScreen(
                         .padding(16.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Label, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null)
                         Spacer(modifier = Modifier.width(16.dp))
                         Text("Tags", style = MaterialTheme.typography.bodyLarge)
                     }

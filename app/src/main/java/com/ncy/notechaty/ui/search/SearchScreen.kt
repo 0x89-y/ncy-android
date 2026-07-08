@@ -185,5 +185,5 @@ private fun SearchResultItem(
             )
         }
     )
-    Divider(modifier = Modifier.padding(start = 16.dp))
+    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
 }

@@ -12,7 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -110,7 +110,7 @@ fun ProfileSwitcherDropdown(
                     }
                 )
             }
-            Divider()
+            HorizontalDivider()
             DropdownMenuItem(
                 text = { Text("Add profile") },
                 leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },

@@ -149,5 +149,5 @@ private fun StarredMessageItem(
             }
         }
     )
-    Divider(modifier = Modifier.padding(start = 16.dp))
+    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
 }

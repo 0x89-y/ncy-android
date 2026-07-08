@@ -8,12 +8,15 @@ plugins {
 
 android {
     namespace = "com.ncy.notechaty"
-    compileSdk = 34
+    // Bumped to 35 alongside the compose-bom 2025.02.00 pass (2026-07-08) —
+    // androidx.core 1.15.0+ requires compileSdk 35, and Play requires
+    // targetSdk 35 for new submissions since late 2025.
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.ncy.notechaty"
         minSdk = 31
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 4
         versionName = "0.4.0"
 
@@ -38,6 +41,12 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        // Opt into the Kotlin 2.3+ default: `@Foo` on a constructor param that
+        // is also a `val`/`var` applies to both the parameter AND the field.
+        // Silences the "will also be applied to field" preview warnings on
+        // @Inject/@ApplicationContext constructors across the codebase — Hilt
+        // treats them identically. See https://youtrack.jetbrains.com/issue/KT-73255.
+        freeCompilerArgs += "-Xannotation-default-target=param-property"
     }
     buildFeatures {
         compose = true
@@ -50,14 +59,16 @@ android {
 }
 
 dependencies {
-    // Core
-    implementation("androidx.core:core-ktx:1.12.0")
+    // Core — bumped 2026-07-08 alongside compose-bom so runtime/animation/material3
+    // versions all move in lockstep and the version-skew crashes (see
+    // feedback_android_patterns.md re CircularProgressIndicator) stop happening.
+    implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
 
     // Compose
-    implementation(platform("androidx.compose:compose-bom:2024.01.00"))
+    implementation(platform("androidx.compose:compose-bom:2025.02.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -65,17 +76,19 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.navigation:navigation-compose:2.8.5")
 
-    // ViewModel
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    // ViewModel + lifecycle-compose (the latter provides the modern
+    // `LocalLifecycleOwner` — the old one in compose.ui.platform is deprecated).
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
     // Hilt — annotation processing goes through KSP (see the `ksp` plugin above)
     // because kapt's Java-stub pipeline is fragile on Kotlin 2.2 (produces
     // stubs with unreadable `@Metadata(kind = null)` that Dagger can't parse).
     implementation("com.google.dagger:hilt-android:2.57.1")
     ksp("com.google.dagger:hilt-android-compiler:2.57.1")
-    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
@@ -100,7 +113,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.01.00"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.02.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

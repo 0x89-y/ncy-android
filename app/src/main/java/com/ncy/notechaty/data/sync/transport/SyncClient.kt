@@ -88,12 +88,12 @@ class SyncClient @Inject constructor() {
         lateinit var webSocket: WebSocket
 
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onMessage(ws: WebSocket, text: String) {
+            override fun onMessage(webSocket: WebSocket, text: String) {
                 val msg = try {
                     codec.decode(text)
                 } catch (e: Exception) {
                     onEvent(Event.Failed("Malformed wire frame: ${e.message}"))
-                    ws.close(CLOSE_PROTOCOL_ERROR, "decode failed")
+                    webSocket.close(CLOSE_PROTOCOL_ERROR, "decode failed")
                     return
                 }
                 when (msg) {
@@ -101,10 +101,10 @@ class SyncClient @Inject constructor() {
                         val signed = sign(peer.secret, msg.nonce)
                         if (signed == null) {
                             onEvent(Event.Failed("Could not sign challenge"))
-                            ws.close(CLOSE_PROTOCOL_ERROR, "auth failed")
+                            webSocket.close(CLOSE_PROTOCOL_ERROR, "auth failed")
                             return
                         }
-                        ws.send(codec.encode(
+                        webSocket.send(codec.encode(
                             SyncWireMessage.Hello(
                                 deviceId = localDeviceId,
                                 auth = signed,
@@ -132,7 +132,7 @@ class SyncClient @Inject constructor() {
                     is SyncWireMessage.BlobMissing -> onEvent(Event.BlobMissingReceived(msg.hash))
                     is SyncWireMessage.Error -> {
                         onEvent(Event.Failed("${msg.code}: ${msg.message}"))
-                        ws.close(CLOSE_PROTOCOL_ERROR, msg.code)
+                        webSocket.close(CLOSE_PROTOCOL_ERROR, msg.code)
                     }
                     is SyncWireMessage.Hello -> {
                         // Server doesn't send Hello — that's the client's frame. Ignore.
@@ -140,14 +140,14 @@ class SyncClient @Inject constructor() {
                 }
             }
 
-            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 if (closed) return
                 closed = true
                 onEvent(Event.Failed(t.message ?: t.javaClass.simpleName))
                 onEvent(Event.Disconnected)
             }
 
-            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 if (closed) return
                 closed = true
                 onEvent(Event.Disconnected)

@@ -518,9 +518,8 @@ private fun ChecklistContent(
             )
         }
         if (total > 0) {
-            @Suppress("DEPRECATION")
             LinearProgressIndicator(
-                progress = doneCount.toFloat() / total,
+                progress = { doneCount.toFloat() / total },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp)

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Fingerprint
@@ -42,12 +43,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
+import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
 import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsPanel
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsRow
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
+import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.util.FileUtils
 import kotlinx.coroutines.launch
@@ -67,6 +70,7 @@ fun SettingsScreen(
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showChangelog by remember { mutableStateOf(false) }
     var showPinSetup by remember { mutableStateOf(false) }
     var showRemovePinConfirm by remember { mutableStateOf(false) }
     val settings by viewModel.settings.collectAsState()
@@ -373,6 +377,13 @@ fun SettingsScreen(
                 )
                 NcyRowDivider()
                 NcySettingsRow(
+                    icon = Icons.Default.NewReleases,
+                    title = "What's new",
+                    subtitle = "Recent changes and version history",
+                    onClick = { showChangelog = true }
+                )
+                NcyRowDivider()
+                NcySettingsRow(
                     icon = Icons.Default.Info,
                     title = "Open source licenses",
                     subtitle = "Third-party libraries used in this app",
@@ -382,56 +393,58 @@ fun SettingsScreen(
         }
     }
 
+    if (showChangelog) {
+        ChangelogSheet(onDismiss = { showChangelog = false })
+    }
+
     if (showAboutDialog) {
         val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        NcyAlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { showAboutDialog = false },
-            title = { Text("Ncy v$version") },
-            text = {
-                Column {
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(NcyAvatarShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "N",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Ncy", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        text = "A note-to-self chat app",
+                        "v$version · A note-to-self chat app",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Made by 0x89-y",
-                        style = MaterialTheme.typography.titleSmall
+                        "Made by 0x89-y",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/0x89-y"))
-                                )
-                            }
-                            .padding(vertical = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "GitHub",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text("Close")
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                NcySheetActionRow(Icons.Default.Person, "View on GitHub") {
+                    showAboutDialog = false
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/0x89-y"))
+                    )
                 }
             }
-        )
+        }
     }
 
     if (showPinSetup) {
@@ -531,6 +544,51 @@ private fun PinSetupDialog(
                 shape = NcyButtonShape,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Save") }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChangelogSheet(onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text("What's new", style = MaterialTheme.typography.titleLarge)
+            CHANGELOG.forEach { entry ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("v${entry.version}", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            entry.date,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    entry.changes.forEach { change ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("•", color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                change,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

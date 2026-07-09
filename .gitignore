@@ -80,5 +80,5 @@ Thumbs.db
 # Kotlin
 .kotlin/
 
-# Local design notes (not tracked)
+# Design system lives in its own repo (cy-design) — ignore any stray local copy
 DESIGN.md

@@ -25,9 +25,8 @@ import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
+import com.ncy.notechaty.ui.desktoptheme.NcyDesktopTheme
 import com.ncy.notechaty.ui.navigation.NcyNavGraph
-import com.ncy.notechaty.ui.theme.NoteChatyTheme
-import com.ncy.notechaty.ui.desktoptheme.NcyDesktopTheme // desktop re-skin (deletable)
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -61,7 +60,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val settings by settingsRepository.settings.collectAsState()
-            NcyDesktopTheme( // was NoteChatyTheme(...) — revert this + delete ui/desktoptheme to remove
+            NcyDesktopTheme(
                 themeMode = settings.themeMode,
                 accentColor = settings.accentColor
             ) {

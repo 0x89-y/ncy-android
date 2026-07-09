@@ -2,25 +2,15 @@ package com.ncy.notechaty.ui.desktoptheme
 
 /*
  * ============================================================================
- *  Ncy "Desktop" theme  —  self-contained, safe to delete.
+ *  Ncy app theme  —  the "Acy-family" visual identity shared with the desktop.
  * ============================================================================
- *  This whole package is an OPTIONAL re-skin that matches the Ncy desktop app's
- *  "Acy-family" visual identity (see ncy-desktop/src/app.css): zinc neutrals,
- *  violet accent, small radii, no elevation, hairline dividers.
+ *  Applied app-wide via NcyDesktopTheme (see MainActivity). Matches the Ncy
+ *  desktop app (ncy-desktop/src/app.css): zinc neutrals, violet accent, small
+ *  radii, no elevation, hairline dividers. Colour tokens below are copied
+ *  verbatim from app.css so the two clients read as the same product.
  *
- *  HOW TO ENABLE
- *    In MainActivity.kt, swap the import + call site:
- *        import com.ncy.notechaty.ui.theme.NoteChatyTheme          // old
- *        import com.ncy.notechaty.ui.desktoptheme.NcyDesktopTheme  // new
- *    ...and change   NoteChatyTheme( ... )   to   NcyDesktopTheme( ... ).
- *    The signature is identical, so nothing else needs to change.
- *
- *  HOW TO REMOVE
- *    Revert that one import + call in MainActivity, then delete this folder.
- *    Nothing else in the app references this package.
- *
- *  Colour tokens below are copied verbatim from ncy-desktop/src/app.css so the
- *  two clients read as the same product.
+ *  This package (DesktopTheme/Background/Avatar/Components) is the single home
+ *  for the app's design system — shared shapes, colours, and layout primitives.
  * ============================================================================
  */
 
@@ -194,9 +184,8 @@ private val DesktopTypography = Typography().run {
 }
 
 /**
- * Desktop-styled theme. Drop-in replacement for [com.ncy.notechaty.ui.theme.NoteChatyTheme]
- * with an identical signature. Note: [AccentColor.DYNAMIC] deliberately maps to the
- * desktop's default violet (Material You would break the shared identity).
+ * The app's theme. Note: [AccentColor.DYNAMIC] deliberately maps to the desktop's
+ * default violet (Material You would break the shared identity).
  */
 @Composable
 fun NcyDesktopTheme(

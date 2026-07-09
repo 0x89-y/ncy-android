@@ -1,6 +1,8 @@
 package com.ncy.notechaty.security
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,11 +29,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
+import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 
 @Composable
 fun PinPromptContent(
@@ -67,16 +73,26 @@ fun PinPromptContent(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .ncyDottedGrid()
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            Icons.Default.Lock,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
+        // Accent avatar-style lock badge, matching the app's round icons.
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(NcyAvatarShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = null,
+                modifier = Modifier.size(34.dp),
+                tint = MaterialTheme.colorScheme.onPrimary
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         Text(title, style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(4.dp))
@@ -111,6 +127,7 @@ fun PinPromptContent(
                 }
             },
             enabled = pin.isNotEmpty(),
+            shape = NcyButtonShape,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Unlock")

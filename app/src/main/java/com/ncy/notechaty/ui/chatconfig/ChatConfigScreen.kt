@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +33,16 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
+import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
+import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
+import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsPanel
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsRow
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
+import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -112,6 +121,7 @@ fun ChatConfigScreen(
     val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 modifier = if (appSettings.topBarGradient) {
@@ -129,8 +139,9 @@ fun ChatConfigScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (appSettings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -139,10 +150,11 @@ fun ChatConfigScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .ncyDottedGrid()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Avatar section
             Box(contentAlignment = Alignment.BottomEnd) {
@@ -153,20 +165,20 @@ fun ChatConfigScreen(
                         contentDescription = "Chat avatar",
                         modifier = Modifier
                             .size(120.dp)
-                            .clip(CircleShape),
+                            .clip(NcyAvatarShape),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Surface(
                         modifier = Modifier.size(120.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer
+                        shape = NcyAvatarShape,
+                        color = ncyAvatarColor(chat?.name ?: "?")
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = (chat?.name ?: "?").take(1).uppercase(),
                                 style = MaterialTheme.typography.displayMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = Color.White
                             )
                         }
                     }
@@ -207,81 +219,54 @@ fun ChatConfigScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                TextButton(onClick = { editingName = true }) {
+                TextButton(
+                    onClick = { editingName = true },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
                     Text(
                         text = chat?.name ?: "Chat",
                         style = MaterialTheme.typography.headlineSmall
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Icon(Icons.Default.Edit, contentDescription = "Edit name", modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Edit name",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            val accentCardColors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            )
-
-            // Background image
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { bgPicker.launch("image/*") },
-                colors = accentCardColors
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Wallpaper, contentDescription = null)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Background Image", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            if (chat?.backgroundFile != null) "Tap to change" else "Tap to set",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (chat?.backgroundFile != null) {
-                        val bgFile = File(chatDir, chat!!.backgroundFile!!)
-                        if (bgFile.exists()) {
+            // Appearance — background image, bubble color, bubble gradient
+            NcySettingsSection("Appearance") {
+                NcySettingsRow(
+                    icon = Icons.Default.Wallpaper,
+                    title = "Background image",
+                    subtitle = if (chat?.backgroundFile != null) "Tap to change" else "Tap to set",
+                    onClick = { bgPicker.launch("image/*") },
+                    trailing = {
+                        val bg = chat?.backgroundFile?.let { File(chatDir, it) }
+                        if (bg != null && bg.exists()) {
                             AsyncImage(
-                                model = bgFile,
+                                model = bg,
                                 contentDescription = null,
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(40.dp)
                                     .clip(RoundedCornerShape(8.dp)),
                                 contentScale = ContentScale.Crop
                             )
                         }
                     }
-                }
-            }
-
-            // Appearance card (bubble color + gradient)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = accentCardColors
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        "Appearance",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Bubble color
+                )
+                NcyRowDivider()
+                NcySettingsPanel {
                     Text("Bubble color", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
-                    val defaultContainerColor = MaterialTheme.colorScheme.primaryContainer
+                    val defaultBubbleColor = MaterialTheme.colorScheme.primary
                     val allPresets = listOf(
-                        null to defaultContainerColor,
+                        null to defaultBubbleColor,
                         "#DCF8C6" to Color(0xFFDCF8C6),
                         "#BBDEFB" to Color(0xFFBBDEFB),
                         "#F8BBD0" to Color(0xFFF8BBD0),
@@ -320,148 +305,51 @@ fun ChatConfigScreen(
                                     Text(
                                         "A",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        color = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Bubble gradient toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Gradient,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Bubble gradient", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                "Subtle gradient effect on message bubbles",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = chat?.bubbleGradient == true,
-                            onCheckedChange = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.setBubbleGradient(it)
-                            }
-                        )
-                    }
                 }
             }
 
             // Protection
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = accentCardColors
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        "Protection",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
+            NcySettingsSection("Protection") {
+                val hasPin = viewModel.hasAppPin()
+                NcySettingsToggleRow(
+                    icon = Icons.Default.Lock,
+                    title = "Protect this chat",
+                    subtitle = if (hasPin) "Require PIN/biometric to open"
+                        else "Set an app PIN in Settings first",
+                    checked = chat?.isProtected == true,
+                    enabled = hasPin,
+                    onCheckedChange = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.setProtected(it)
+                    }
+                )
+                if (chat?.isProtected == true) {
+                    NcyRowDivider()
+                    NcySettingsToggleRow(
+                        icon = Icons.Default.VisibilityOff,
+                        title = "Hide name on chat list",
+                        subtitle = "Show gibberish instead of the real name",
+                        checked = chat?.hideName == true,
+                        onCheckedChange = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            viewModel.setHideName(it)
+                        }
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    val hasPin = viewModel.hasAppPin()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Protect this chat", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                if (hasPin) "Require PIN/biometric to open"
-                                else "Set an app PIN in Settings first",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = chat?.isProtected == true,
-                            enabled = hasPin,
-                            onCheckedChange = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.setProtected(it)
-                            }
-                        )
-                    }
-
-                    if (chat?.isProtected == true) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.VisibilityOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Hide name on chat list", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    "Show gibberish instead of the real name",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = chat?.hideName == true,
-                                onCheckedChange = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    viewModel.setHideName(it)
-                                }
-                            )
-                        }
-                    }
                 }
             }
 
             // Tags
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = accentCardColors
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null)
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text("Tags", style = MaterialTheme.typography.bodyLarge)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
+            NcySettingsSection("Tags") {
+                NcySettingsPanel {
                     var newTag by remember { mutableStateOf("") }
                     val currentTags = chat?.tags ?: emptyList()
 
-                    // Existing tags as chips
                     if (currentTags.isNotEmpty()) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -489,7 +377,6 @@ fun ChatConfigScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    // Add tag input
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = newTag,
@@ -516,30 +403,13 @@ fun ChatConfigScreen(
             }
 
             // Export
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    exportLauncher.launch("${chat?.name ?: "chat"}.zip")
-                },
-                colors = accentCardColors
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text("Export Chat", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "Save as .zip file",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            NcySettingsSection("Export") {
+                NcySettingsRow(
+                    icon = Icons.Default.Share,
+                    title = "Export chat",
+                    subtitle = "Save as .zip file",
+                    onClick = { exportLauncher.launch("${chat?.name ?: "chat"}.zip") }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -550,11 +420,13 @@ fun ChatConfigScreen(
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     viewModel.toggleArchive(onBack)
                 },
+                shape = NcyButtonShape,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
                     if (chat?.isArchived == true) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
-                    contentDescription = null
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(if (chat?.isArchived == true) "Unarchive Chat" else "Archive Chat")
@@ -566,13 +438,14 @@ fun ChatConfigScreen(
                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                     showDeleteConfirm = true
                 },
+                shape = NcyButtonShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.Delete, contentDescription = null)
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Delete Chat")
             }
@@ -580,7 +453,7 @@ fun ChatConfigScreen(
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
+        NcyAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Delete Chat") },
             text = { Text("Delete \"${chat?.name}\" and all its messages? This cannot be undone.") },

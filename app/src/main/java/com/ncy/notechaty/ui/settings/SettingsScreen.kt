@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.clickable
@@ -20,7 +19,6 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Gradient
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Palette
@@ -36,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
@@ -44,6 +41,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.ThemeMode
+import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
+import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
+import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsPanel
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsRow
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.util.FileUtils
 import kotlinx.coroutines.launch
 import java.io.File
@@ -112,6 +117,7 @@ fun SettingsScreen(
     val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 modifier = if (settings.topBarGradient) {
@@ -132,8 +138,9 @@ fun SettingsScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (settings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -142,102 +149,48 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .ncyDottedGrid()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Data card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                    Text(
-                        "Data",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                    )
-                    SettingsRow(
-                        icon = Icons.Default.FileUpload,
-                        title = "Import chat",
-                        subtitle = "Import from .zip file",
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            importLauncher.launch("application/zip")
-                        }
-                    )
-                    SettingsRow(
-                        icon = Icons.Default.FileDownload,
-                        title = "Back up everything",
-                        subtitle = "All chats from every profile + the profile list, as one .zip",
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            exportAllLauncher.launch("ncy_backup.zip")
-                        }
-                    )
-                    SettingsRow(
-                        icon = Icons.Default.Sync,
-                        title = "Sync devices",
-                        subtitle = "Push chats to a paired desktop on the same LAN",
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            onOpenSync()
-                        }
-                    )
-                }
-            }
-
-            // Auto-backup card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Auto-backup",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Backup,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Auto-backup", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                "Periodically backs up all chats internally",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = settings.autoBackupEnabled,
-                            onCheckedChange = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.setAutoBackupEnabled(it)
-                            }
-                        )
+            // ---- Backup ----
+            NcySettingsSection("Backup") {
+                NcySettingsRow(
+                    icon = Icons.Default.FileUpload,
+                    title = "Import chat",
+                    subtitle = "Import from .zip file",
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        importLauncher.launch("application/zip")
                     }
-                    if (settings.autoBackupEnabled) {
+                )
+                NcyRowDivider()
+                NcySettingsRow(
+                    icon = Icons.Default.FileDownload,
+                    title = "Back up everything",
+                    subtitle = "All chats from every profile + the profile list, as one .zip",
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        exportAllLauncher.launch("ncy_backup.zip")
+                    }
+                )
+                NcyRowDivider()
+                NcySettingsToggleRow(
+                    icon = Icons.Default.Backup,
+                    title = "Auto-backup",
+                    subtitle = "Periodically backs up all chats internally",
+                    checked = settings.autoBackupEnabled,
+                    onCheckedChange = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.setAutoBackupEnabled(it)
+                    }
+                )
+                if (settings.autoBackupEnabled) {
+                    NcyRowDivider()
+                    NcySettingsPanel {
+                        Text("Backup interval", style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Backup interval",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -257,149 +210,100 @@ fun SettingsScreen(
                 }
             }
 
-            // Privacy card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            // ---- Sync ----
+            NcySettingsSection("Sync") {
+                NcySettingsRow(
+                    icon = Icons.Default.Sync,
+                    title = "Sync devices",
+                    subtitle = "Push chats to a paired desktop on the same LAN",
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onOpenSync()
+                    }
                 )
-            ) {
-                Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                    Text(
-                        "Privacy",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                    )
-                    val hasPin = viewModel.hasPin()
-                    SettingsRow(
-                        icon = Icons.Default.Lock,
-                        title = if (hasPin) "Change PIN" else "Set protected chats PIN",
-                        subtitle = if (hasPin) "PIN is set" else "Required to protect any chat",
+            }
+
+            // ---- Privacy ----
+            NcySettingsSection("Privacy") {
+                val hasPin = viewModel.hasPin()
+                NcySettingsRow(
+                    icon = Icons.Default.Lock,
+                    title = if (hasPin) "Change PIN" else "Set protected chats PIN",
+                    subtitle = if (hasPin) "PIN is set" else "Required to protect any chat",
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        showPinSetup = true
+                    }
+                )
+                if (hasPin) {
+                    NcyRowDivider()
+                    NcySettingsRow(
+                        icon = Icons.Default.LockOpen,
+                        title = "Remove PIN",
+                        subtitle = "Unprotects all chats",
                         onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            showPinSetup = true
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            showRemovePinConfirm = true
                         }
                     )
-                    if (hasPin) {
-                        SettingsRow(
-                            icon = Icons.Default.LockOpen,
-                            title = "Remove PIN",
-                            subtitle = "Unprotects all chats",
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                showRemovePinConfirm = true
-                            }
+                    val biometricAvailable = BiometricHelper.canUseBiometric(context)
+                    NcyRowDivider()
+                    NcySettingsToggleRow(
+                        icon = Icons.Default.Fingerprint,
+                        title = "Use fingerprint",
+                        subtitle = if (biometricAvailable) "Unlock protected chats with biometrics"
+                            else "No biometrics enrolled on this device",
+                        checked = settings.protectionUseBiometric && biometricAvailable,
+                        enabled = biometricAvailable,
+                        onCheckedChange = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            viewModel.setUseBiometric(it)
+                        }
+                    )
+                    NcyRowDivider()
+                    NcySettingsToggleRow(
+                        icon = Icons.Default.Lock,
+                        title = "Lock app on start",
+                        subtitle = "Require PIN to open NoteChaty",
+                        checked = settings.lockOnAppStart,
+                        onCheckedChange = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            viewModel.setLockOnAppStart(it)
+                        }
+                    )
+                    NcyRowDivider()
+                    NcySettingsPanel {
+                        Text("Re-lock chats", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "How long an unlock stays valid",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        val biometricAvailable = BiometricHelper.canUseBiometric(context)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Fingerprint,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Use fingerprint", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    if (biometricAvailable) "Unlock protected chats with biometrics"
-                                    else "No biometrics enrolled on this device",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            listOf(0 to "Always", 1 to "1m", 5 to "5m", 15 to "15m").forEach { (mins, label) ->
+                                FilterChip(
+                                    selected = settings.protectionGracePeriodMinutes == mins,
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        viewModel.setProtectionGracePeriod(mins)
+                                    },
+                                    label = { Text(label) }
                                 )
-                            }
-                            Switch(
-                                checked = settings.protectionUseBiometric && biometricAvailable,
-                                enabled = biometricAvailable,
-                                onCheckedChange = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    viewModel.setUseBiometric(it)
-                                }
-                            )
-                        }
-                        // Lock on app start
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Lock app on start", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    "Require PIN to open NoteChaty",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = settings.lockOnAppStart,
-                                onCheckedChange = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    viewModel.setLockOnAppStart(it)
-                                }
-                            )
-                        }
-                        // Re-lock interval
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text("Re-lock chats", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                "How long an unlock stays valid",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                listOf(0 to "Always", 1 to "1m", 5 to "5m", 15 to "15m").forEach { (mins, label) ->
-                                    FilterChip(
-                                        selected = settings.protectionGracePeriodMinutes == mins,
-                                        onClick = {
-                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                            viewModel.setProtectionGracePeriod(mins)
-                                        },
-                                        label = { Text(label) }
-                                    )
-                                }
                             }
                         }
                     }
                 }
             }
 
-            // Appearance card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Appearance",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Theme mode
+            // ---- Appearance ----
+            NcySettingsSection("Appearance") {
+                NcySettingsPanel {
                     Text("Theme", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -415,10 +319,9 @@ fun SettingsScreen(
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Accent color
+                }
+                NcyRowDivider()
+                NcySettingsPanel {
                     Text("Accent color", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(
@@ -457,74 +360,31 @@ fun SettingsScreen(
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Top bar gradient
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Gradient,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Top bar gradient", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                "Subtle gradient effect on the header bar",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = settings.topBarGradient,
-                            onCheckedChange = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.setTopBarGradient(it)
-                            }
-                        )
-                    }
                 }
             }
 
-            // About card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            // ---- About ----
+            NcySettingsSection("About") {
+                NcySettingsRow(
+                    icon = Icons.Default.Person,
+                    title = "Ncy",
+                    subtitle = "v${context.packageManager.getPackageInfo(context.packageName, 0).versionName} \u00b7 Made by 0x89-y",
+                    onClick = { showAboutDialog = true }
                 )
-            ) {
-                Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                    Text(
-                        "About",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                    )
-                    SettingsRow(
-                        icon = Icons.Default.Person,
-                        title = "Ncy",
-                        subtitle = "v${context.packageManager.getPackageInfo(context.packageName, 0).versionName} \u00b7 Made by 0x89-y",
-                        onClick = { showAboutDialog = true }
-                    )
-                    SettingsRow(
-                        icon = Icons.Default.Info,
-                        title = "Open source licenses",
-                        subtitle = "Third-party libraries used in this app",
-                        onClick = onOpenLicenses
-                    )
-                }
+                NcyRowDivider()
+                NcySettingsRow(
+                    icon = Icons.Default.Info,
+                    title = "Open source licenses",
+                    subtitle = "Third-party libraries used in this app",
+                    onClick = onOpenLicenses
+                )
             }
         }
     }
 
     if (showAboutDialog) {
         val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        AlertDialog(
+        NcyAlertDialog(
             onDismissRequest = { showAboutDialog = false },
             title = { Text("Ncy v$version") },
             text = {
@@ -587,7 +447,7 @@ fun SettingsScreen(
     }
 
     if (showRemovePinConfirm) {
-        AlertDialog(
+        NcyAlertDialog(
             onDismissRequest = { showRemovePinConfirm = false },
             title = { Text("Remove PIN?") },
             text = { Text("Removing the PIN will unprotect every chat that's currently protected. Continue?") },
@@ -610,6 +470,7 @@ fun SettingsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PinSetupDialog(
     isChange: Boolean,
@@ -621,57 +482,57 @@ private fun PinSetupDialog(
     val mismatch = confirm.isNotEmpty() && pin != confirm
     val tooShort = pin.isNotEmpty() && pin.length < 4
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text(if (isChange) "Change PIN" else "Set PIN") },
-        text = {
-            Column {
-                Text(
-                    "Choose a PIN of at least 4 characters.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = pin,
-                    onValueChange = { pin = it.take(64) },
-                    label = { Text("New PIN") },
-                    singleLine = true,
-                    isError = tooShort,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.Password
-                    ),
-                    supportingText = if (tooShort) { { Text("Minimum 4 characters") } } else null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = confirm,
-                    onValueChange = { confirm = it.take(64) },
-                    label = { Text("Confirm PIN") },
-                    singleLine = true,
-                    isError = mismatch,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.Password
-                    ),
-                    supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(if (isChange) "Change PIN" else "Set PIN", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Choose a PIN of at least 4 characters.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = pin,
+                onValueChange = { pin = it.take(64) },
+                label = { Text("New PIN") },
+                singleLine = true,
+                isError = tooShort,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = KeyboardType.Password
+                ),
+                supportingText = if (tooShort) { { Text("Minimum 4 characters") } } else null,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = confirm,
+                onValueChange = { confirm = it.take(64) },
+                label = { Text("Confirm PIN") },
+                singleLine = true,
+                isError = mismatch,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = KeyboardType.Password
+                ),
+                supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
                 onClick = { onConfirm(pin) },
-                enabled = pin.length >= 4 && pin == confirm
+                enabled = pin.length >= 4 && pin == confirm,
+                shape = NcyButtonShape,
+                modifier = Modifier.fillMaxWidth()
             ) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 }
 
 private fun accentPreviewColor(accent: AccentColor): Color = when (accent) {
@@ -685,37 +546,3 @@ private fun accentPreviewColor(accent: AccentColor): Color = when (accent) {
     AccentColor.TEAL -> Color(0xFF00897B)
 }
 
-@Composable
-private fun SettingsRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}

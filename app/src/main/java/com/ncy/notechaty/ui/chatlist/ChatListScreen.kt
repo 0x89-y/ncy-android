@@ -1,15 +1,15 @@
 package com.ncy.notechaty.ui.chatlist
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -19,9 +19,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
+import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
+import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.NcyInputSheet
+import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
+import com.ncy.notechaty.ui.desktoptheme.NcySectionLabel
+import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
+import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
@@ -33,12 +40,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.ncy.notechaty.data.model.Chat
-import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.Profile
 import com.ncy.notechaty.security.BiometricHelper
 import com.ncy.notechaty.util.gibberishFor
@@ -66,7 +73,6 @@ fun ChatListScreen(
     val view = LocalView.current
     var showCreateDialog by remember { mutableStateOf(false) }
     var chatToDelete by remember { mutableStateOf<Chat?>(null) }
-    var showSortMenu by remember { mutableStateOf(false) }
     var longPressedChat by remember { mutableStateOf<Chat?>(null) }
     var showArchived by remember { mutableStateOf(false) }
     var chatToUnlock by remember { mutableStateOf<Chat?>(null) }
@@ -110,30 +116,8 @@ fun ChatListScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    }
                     IconButton(onClick = onStarredClick) {
                         Icon(Icons.Default.Star, contentDescription = "Starred")
-                    }
-                    Box {
-                        IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
-                        }
-                        DropdownMenu(
-                            expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false }
-                        ) {
-                            ChatSortMode.entries.forEach { mode ->
-                                DropdownMenuItem(
-                                    text = { Text(mode.displayName) },
-                                    onClick = {
-                                        viewModel.setSortMode(mode)
-                                        showSortMenu = false
-                                    }
-                                )
-                            }
-                        }
                     }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -141,8 +125,9 @@ fun ChatListScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (appSettings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         },
@@ -151,7 +136,9 @@ fun ChatListScreen(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     showCreateDialog = true
-                }
+                },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "New Chat")
             }
@@ -161,23 +148,8 @@ fun ChatListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .ncyDottedGrid()
         ) {
-            // Subtle dot pattern background
-            val dotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val spacing = 24.dp.toPx()
-                val radius = 1.5.dp.toPx()
-                var x = spacing
-                while (x < size.width) {
-                    var y = spacing
-                    while (y < size.height) {
-                        drawCircle(color = dotColor, radius = radius, center = Offset(x, y))
-                        y += spacing
-                    }
-                    x += spacing
-                }
-            }
-
             if (chats.isEmpty() && archivedChats.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -213,35 +185,63 @@ fun ChatListScreen(
                     }
                 }
             } else {
+                val pinned = chats.filter { it.isPinned }
+                val others = chats.filter { !it.isPinned }
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(chats, key = { it.id }) { chat ->
-                        ChatListItem(
-                            chat = chat,
-                            baseDir = baseDir,
-                            isUnlocked = chat.id in unlockedChatIds,
-                            onClick = { openChat(chat) },
-                            onLongClick = { longPressedChat = chat }
-                        )
+                    item(key = "search") { SearchPill(onClick = onSearchClick) }
+
+                    if (pinned.isNotEmpty()) {
+                        item(key = "lbl_pinned") { NcySectionLabel("Pinned") }
+                        item(key = "card_pinned") {
+                            NcyDividedCard {
+                                pinned.forEachIndexed { i, chat ->
+                                    if (i > 0) NcyRowDivider()
+                                    ChatListItem(
+                                        chat = chat,
+                                        baseDir = baseDir,
+                                        isUnlocked = chat.id in unlockedChatIds,
+                                        onClick = { openChat(chat) },
+                                        onLongClick = { longPressedChat = chat }
+                                    )
+                                }
+                            }
+                        }
                     }
 
-                    // Archived section
+                    if (others.isNotEmpty()) {
+                        item(key = "lbl_all") { NcySectionLabel(if (pinned.isEmpty()) "Chats" else "All") }
+                        item(key = "card_all") {
+                            NcyDividedCard {
+                                others.forEachIndexed { i, chat ->
+                                    if (i > 0) NcyRowDivider()
+                                    ChatListItem(
+                                        chat = chat,
+                                        baseDir = baseDir,
+                                        isUnlocked = chat.id in unlockedChatIds,
+                                        onClick = { openChat(chat) },
+                                        onLongClick = { longPressedChat = chat }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Archived section — its own card with an expand/collapse header row.
                     if (archivedChats.isNotEmpty()) {
-                        item(key = "archived_header") {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showArchived = !showArchived
-                                    },
-                                color = Color.Transparent
-                            ) {
+                        item(key = "card_archived") {
+                            NcyDividedCard {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        .clickable {
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                            showArchived = !showArchived
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
@@ -271,18 +271,18 @@ fun ChatListScreen(
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                            }
-                        }
-
-                        if (showArchived) {
-                            items(archivedChats, key = { "archived_${it.id}" }) { chat ->
-                                ChatListItem(
-                                    chat = chat,
-                                    baseDir = baseDir,
-                                    isUnlocked = chat.id in unlockedChatIds,
-                                    onClick = { openChat(chat) },
-                                    onLongClick = { longPressedChat = chat }
-                                )
+                                if (showArchived) {
+                                    archivedChats.forEach { chat ->
+                                        NcyRowDivider()
+                                        ChatListItem(
+                                            chat = chat,
+                                            baseDir = baseDir,
+                                            isUnlocked = chat.id in unlockedChatIds,
+                                            onClick = { openChat(chat) },
+                                            onLongClick = { longPressedChat = chat }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -303,75 +303,64 @@ fun ChatListScreen(
 
     // Long-press menu
     longPressedChat?.let { chat ->
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { longPressedChat = null },
-            title = { Text(chat.name) },
-            text = {
-                Column {
-                    if (!chat.isArchived) {
-                        TextButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.togglePin(chat)
-                                longPressedChat = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                Icons.Default.PushPin,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+                // Sheet header — the chat's avatar + name.
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(36.dp),
+                        shape = NcyAvatarShape,
+                        color = ncyAvatarColor(chat.name)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = chat.name.take(1).uppercase(),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = Color.White
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (chat.isPinned) "Unpin" else "Pin to top")
-                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
-                    TextButton(
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            viewModel.toggleArchive(chat)
-                            longPressedChat = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        chat.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                if (!chat.isArchived) {
+                    NcySheetActionRow(
+                        Icons.Default.PushPin,
+                        if (chat.isPinned) "Unpin" else "Pin to top"
                     ) {
-                        Icon(
-                            if (chat.isArchived) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (chat.isArchived) "Unarchive" else "Archive")
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                    TextButton(
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                            longPressedChat = null
-                            chatToDelete = chat
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Delete")
-                        Spacer(modifier = Modifier.weight(1f))
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.togglePin(chat)
+                        longPressedChat = null
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { longPressedChat = null }) {
-                    Text("Cancel")
+                NcySheetActionRow(
+                    if (chat.isArchived) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
+                    if (chat.isArchived) "Unarchive" else "Archive"
+                ) {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    viewModel.toggleArchive(chat)
+                    longPressedChat = null
+                }
+                NcySheetActionRow(Icons.Default.Delete, "Delete", destructive = true) {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    longPressedChat = null
+                    chatToDelete = chat
                 }
             }
-        )
+        }
     }
 
     // Profile unlock dialog
@@ -420,7 +409,7 @@ fun ChatListScreen(
 
     // Delete confirmation
     chatToDelete?.let { chat ->
-        AlertDialog(
+        NcyAlertDialog(
             onDismissRequest = { chatToDelete = null },
             title = { Text("Delete Chat") },
             text = { Text("Delete \"${chat.name}\" and all its messages? This cannot be undone.") },
@@ -447,6 +436,36 @@ fun ChatListScreen(
     }
 }
 
+/** Search field styled as a flat bordered pill; taps route to the search screen. */
+@Composable
+private fun SearchPill(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                "Search notes & chats",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChatListItem(
@@ -460,20 +479,21 @@ private fun ChatListItem(
     val view = LocalView.current
 
     ListItem(
+        // Transparent so the card surface (and its accent wash for pinned rows)
+        // reads through — the enclosing divided-list card owns the background.
+        colors = ListItemDefaults.colors(
+            containerColor = if (chat.isPinned)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            else Color.Transparent
+        ),
         modifier = Modifier
-            .then(
-                if (chat.isPinned) Modifier.background(
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.08f)
-                ) else Modifier
-            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                     onLongClick()
                 }
-            )
-            .padding(vertical = 2.dp),
+            ),
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val displayName = if (showLocked && chat.hideName) {
@@ -546,14 +566,14 @@ private fun ChatListItem(
                     contentDescription = chat.name,
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(CircleShape),
+                        .clip(NcyAvatarShape),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Surface(
                     modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    shape = NcyAvatarShape,
+                    color = ncyAvatarColor(chat.name)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (showLocked && chat.hideName) {
@@ -561,13 +581,13 @@ private fun ChatListItem(
                                 Icons.Default.Lock,
                                 contentDescription = null,
                                 modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                tint = Color.White
                             )
                         } else {
                             Text(
                                 text = chat.name.take(1).uppercase(),
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = Color.White
                             )
                         }
                     }
@@ -582,33 +602,12 @@ private fun CreateChatDialog(
     onDismiss: () -> Unit,
     onCreate: (String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New Chat") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Chat name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onCreate(name.trim()) },
-                enabled = name.isNotBlank()
-            ) {
-                Text("Create")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+    NcyInputSheet(
+        title = "New chat",
+        label = "Chat name",
+        confirmLabel = "Create",
+        onDismiss = onDismiss,
+        onConfirm = onCreate
     )
 }
 
@@ -639,7 +638,7 @@ private fun ChatUnlockDialog(
         }
     }
 
-    AlertDialog(
+    NcyAlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Lock, contentDescription = null) },
         title = { Text("Protected chat") },
@@ -736,7 +735,7 @@ private fun ProfileUnlockDialog(
         }
     }
 
-    AlertDialog(
+    NcyAlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Lock, contentDescription = null) },
         title = { Text("Switch to ${profile.name}") },
@@ -807,29 +806,12 @@ private fun AddProfileDialog(
     onDismiss: () -> Unit,
     onCreate: (String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New profile") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Profile name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onCreate(name.trim()) },
-                enabled = name.isNotBlank()
-            ) { Text("Create") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+    NcyInputSheet(
+        title = "New profile",
+        label = "Profile name",
+        confirmLabel = "Create",
+        onDismiss = onDismiss,
+        onConfirm = onCreate
     )
 }
 

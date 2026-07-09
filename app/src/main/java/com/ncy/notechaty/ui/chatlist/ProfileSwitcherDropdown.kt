@@ -27,9 +27,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ncy.notechaty.data.model.Profile
+import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
+import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
 import com.ncy.notechaty.ui.profiles.ProfileIcons
 
 @Composable
@@ -47,25 +50,36 @@ fun ProfileSwitcherDropdown(
     Box(modifier = modifier) {
         IconButton(onClick = { expanded = true }) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = ProfileIcons.iconFor(active?.iconKey ?: "person"),
-                    contentDescription = active?.name ?: "Switch profile",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                // Round profile avatar — colored circle + icon, matching the
+                // Profiles screen (per-name hashed color).
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(NcyAvatarShape)
+                        .background(ncyAvatarColor(active?.name ?: "?")),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = ProfileIcons.iconFor(active?.iconKey ?: "person"),
+                        contentDescription = active?.name ?: "Switch profile",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
                 if (active?.isProtected == true) {
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
-                            .offset(x = 10.dp, y = 10.dp)
+                            .size(14.dp)
+                            .offset(x = 11.dp, y = 11.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
+                            .background(MaterialTheme.colorScheme.surface),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Lock,
                             contentDescription = null,
-                            modifier = Modifier.size(10.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            modifier = Modifier.size(9.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

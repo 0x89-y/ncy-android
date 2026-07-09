@@ -11,14 +11,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -30,7 +28,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -47,6 +44,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.MessageType
+import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
+import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
+import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
+import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.ui.richtext.RichTextInput
 import com.ncy.notechaty.ui.voicemessage.VoiceRecorder
 import java.io.File
@@ -219,8 +221,10 @@ fun ChatScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = if (appSettings.topBarGradient) Color.Transparent
-                            else MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             } else if (selectionMode) {
@@ -255,8 +259,10 @@ fun ChatScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = if (appSettings.topBarGradient) Color.Transparent
-                            else MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             } else {
@@ -275,20 +281,20 @@ fun ChatScreen(
                                     contentDescription = null,
                                     modifier = Modifier
                                         .size(36.dp)
-                                        .clip(CircleShape),
+                                        .clip(NcyAvatarShape),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Surface(
                                     modifier = Modifier.size(36.dp),
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer
+                                    shape = NcyAvatarShape,
+                                    color = ncyAvatarColor(uiState.chat?.name ?: chatName)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
                                             text = (uiState.chat?.name ?: chatName.ifEmpty { "?" }).take(1).uppercase(),
                                             style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            color = Color.White
                                         )
                                     }
                                 }
@@ -311,8 +317,10 @@ fun ChatScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = if (appSettings.topBarGradient) Color.Transparent
-                            else MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }
@@ -322,8 +330,15 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // targetSdk 35 forces edge-to-edge on API 35+, which means
+                // Scaffold no longer resizes automatically for the IME even
+                // with `windowSoftInputMode="adjustResize"`. Consume the IME
+                // insets here so the input bar stays visible above the keyboard.
+                .imePadding()
+                // Desktop dotted-grid ground (shared modifier). A per-chat
+                // background image, when set, draws on top of it.
+                .ncyDottedGrid()
         ) {
-            // Background image or subtle dot pattern
             val bgFile = uiState.chat?.backgroundFile?.let { File(chatDir, it) }
             if (bgFile != null && bgFile.exists()) {
                 Image(
@@ -333,21 +348,6 @@ fun ChatScreen(
                     contentScale = ContentScale.Crop,
                     alpha = 0.3f
                 )
-            } else {
-                val dotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val spacing = 24.dp.toPx()
-                    val radius = 1.5.dp.toPx()
-                    var x = spacing
-                    while (x < size.width) {
-                        var y = spacing
-                        while (y < size.height) {
-                            drawCircle(color = dotColor, radius = radius, center = Offset(x, y))
-                            y += spacing
-                        }
-                        x += spacing
-                    }
-                }
             }
 
             Column(
@@ -437,10 +437,10 @@ fun ChatScreen(
                         onCancel = { isRecordingVoice = false }
                     )
                 } else {
-                    // Input bar
+                    // Input bar — flat with a hairline top border (no shadow).
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shadowElevation = 2.dp,
                         color = MaterialTheme.colorScheme.surface
                     ) {
                     RichTextInput(
@@ -481,7 +481,7 @@ fun ChatScreen(
 
     // Delete confirmation
     showDeleteConfirm?.let { messageId ->
-        AlertDialog(
+        NcyAlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
             title = { Text("Delete Message") },
             text = { Text("Delete this message?") },
@@ -511,31 +511,25 @@ fun ChatScreen(
             "In 3 hours" to 3L * 60 * 60 * 1000,
             "Tomorrow" to 24L * 60 * 60 * 1000
         )
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { reminderMessage = null },
-            title = { Text("Set Reminder") },
-            text = {
-                Column {
-                    reminderOptions.forEach { (label, delay) ->
-                        TextButton(
-                            onClick = {
-                                viewModel.setReminder(msg, System.currentTimeMillis() + delay)
-                                reminderMessage = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(label)
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+                Text(
+                    "Set reminder",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                reminderOptions.forEach { (label, delay) ->
+                    NcySheetActionRow(Icons.Default.Alarm, label) {
+                        viewModel.setReminder(msg, System.currentTimeMillis() + delay)
+                        reminderMessage = null
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { reminderMessage = null }) {
-                    Text("Cancel")
-                }
             }
-        )
+        }
     }
 
 }
@@ -559,8 +553,9 @@ private fun ChatLockOverlay(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }

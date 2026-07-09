@@ -74,8 +74,8 @@ fun VoiceRecorder(
     }
 
     Surface(
-        tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier

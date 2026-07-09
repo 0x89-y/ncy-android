@@ -51,13 +51,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import com.ncy.notechaty.data.model.*
+import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
 import com.ncy.notechaty.ui.voicemessage.VoiceMessageBubble
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MessageBubble(
     message: Message,
@@ -102,15 +103,19 @@ fun MessageBubble(
             .padding(horizontal = 12.dp, vertical = 3.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
-        val resolvedBubbleColor = bubbleColor ?: MaterialTheme.colorScheme.primaryContainer
+        // Desktop identity: every note is "yours", so the default bubble is the
+        // accent (--bubble-mine) with white-ish text. A per-chat custom colour
+        // still wins when set.
+        val resolvedBubbleColor = bubbleColor ?: MaterialTheme.colorScheme.primary
         val contentColor = if (bubbleColor != null) {
             if (resolvedBubbleColor.luminance() > 0.4f) Color.Black else Color.White
         } else {
-            MaterialTheme.colorScheme.onPrimaryContainer
+            MaterialTheme.colorScheme.onPrimary
         }
-        val subtleColor = contentColor.copy(alpha = 0.6f)
+        val subtleColor = contentColor.copy(alpha = 0.7f)
 
-        val bubbleShape = RoundedCornerShape(12.dp, 4.dp, 12.dp, 12.dp)
+        // Desktop tail geometry: 18 18 4 18 (rounded except bottom-right).
+        val bubbleShape = RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
         Surface(
             modifier = Modifier
                 .widthIn(max = 300.dp)
@@ -130,7 +135,8 @@ fun MessageBubble(
             shape = bubbleShape,
             color = if (useGradient) Color.Transparent else resolvedBubbleColor,
             contentColor = contentColor,
-            tonalElevation = if (useGradient) 0.dp else 1.dp
+            // Flat like the desktop — depth comes from the accent fill, not shadow.
+            tonalElevation = 0.dp
         ) {
             val bgModifier = if (useGradient) {
                 val gradientTop = lerp(resolvedBubbleColor, Color.White, 0.3f)
@@ -141,7 +147,7 @@ fun MessageBubble(
                     shape = bubbleShape
                 )
             } else Modifier
-            Column(modifier = bgModifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Column(modifier = bgModifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 when (message.type) {
                     MessageType.TEXT -> RichTextContent(message.content, chatDir, contentColor)
                     MessageType.VOICE -> {
@@ -221,20 +227,13 @@ fun MessageBubble(
             }
 
             if (showMenu) {
-                val menuTitle = when (message.type) {
-                    MessageType.CHECKLIST -> "Checklist (${message.checklistItems.size} items)"
-                    MessageType.IMAGE -> "Image"
-                    MessageType.VOICE -> "Voice message"
-                    MessageType.TEXT -> message.content
-                        .joinToString(" ") { block -> block.spans.joinToString("") { it.text } }
-                        .take(40)
-                        .let { if (it.length == 40) "$it…" else it }
-                }
-                AlertDialog(
+                ModalBottomSheet(
                     onDismissRequest = { showMenu = false },
-                    title = { Text(menuTitle) },
-                    text = {
-                        Column {
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+                        // Quick reactions across the top.
+                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                             ReactionPickerStrip(
                                 current = message.reactions,
                                 onPick = { emoji ->
@@ -243,113 +242,59 @@ fun MessageBubble(
                                     onToggleReaction(emoji)
                                 }
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
-                                TextButton(
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showMenu = false
-                                        val plainText = if (message.type == MessageType.CHECKLIST) {
-                                            message.checklistItems.joinToString("\n") { item ->
-                                                "${if (item.checked) "☑" else "☐"} ${item.text}"
-                                            }
-                                        } else {
-                                            message.content.joinToString("\n") { block ->
-                                                block.spans.joinToString("") { it.text }
-                                            }
-                                        }
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
-                                        Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Copy")
-                                    Spacer(modifier = Modifier.weight(1f))
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                        if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
+                            NcySheetActionRow(Icons.Default.ContentCopy, "Copy") {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                showMenu = false
+                                val plainText = if (message.type == MessageType.CHECKLIST) {
+                                    message.checklistItems.joinToString("\n") { item ->
+                                        "${if (item.checked) "☑" else "☐"} ${item.text}"
+                                    }
+                                } else {
+                                    message.content.joinToString("\n") { block ->
+                                        block.spans.joinToString("") { it.text }
+                                    }
                                 }
-                            }
-                            TextButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    showMenu = false
-                                    onToggleStar()
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (message.isStarred) "Unstar" else "Star")
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                            TextButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    showMenu = false
-                                    onSetReminder()
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Alarm, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Set Reminder")
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                            TextButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    showMenu = false
-                                    onEnterSelectionMode()
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.CheckBox, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Select")
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                            if (message.type == MessageType.TEXT || message.type == MessageType.CHECKLIST) {
-                                TextButton(
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showMenu = false
-                                        onEdit()
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Edit")
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                            TextButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                    showMenu = false
-                                    onDelete()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.error
-                                )
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Delete")
-                                Spacer(modifier = Modifier.weight(1f))
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
+                                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                             }
                         }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showMenu = false }) { Text("Cancel") }
+                        NcySheetActionRow(
+                            if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
+                            if (message.isStarred) "Unstar" else "Star"
+                        ) {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            showMenu = false
+                            onToggleStar()
+                        }
+                        NcySheetActionRow(Icons.Default.Alarm, "Set reminder") {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            showMenu = false
+                            onSetReminder()
+                        }
+                        NcySheetActionRow(Icons.Default.CheckBox, "Select") {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            showMenu = false
+                            onEnterSelectionMode()
+                        }
+                        if (message.type == MessageType.TEXT || message.type == MessageType.CHECKLIST) {
+                            NcySheetActionRow(Icons.Default.Edit, "Edit") {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                showMenu = false
+                                onEdit()
+                            }
+                        }
+                        NcySheetActionRow(Icons.Default.Delete, "Delete", destructive = true) {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            showMenu = false
+                            onDelete()
+                        }
                     }
-                )
+                }
             }
         }
     }

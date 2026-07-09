@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.MessageType
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -57,8 +58,9 @@ fun StarredMessagesScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (appSettings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -67,7 +69,8 @@ fun StarredMessagesScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    .ncyDottedGrid(),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -90,6 +93,7 @@ fun StarredMessagesScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .ncyDottedGrid()
             ) {
                 items(starredMessages, key = { it.message.id }) { starred ->
                     StarredMessageItem(

@@ -6,7 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +33,15 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.Profile
+import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
+import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
+import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.NcyInputSheet
+import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
+import com.ncy.notechaty.ui.desktoptheme.NcySectionLabel
+import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
+import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +66,7 @@ fun ProfilesScreen(
     val iconPickerLive = iconPickerProfile?.let { p -> profiles.firstOrNull { it.id == p.id } }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Profiles") },
@@ -67,8 +76,9 @@ fun ProfilesScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         },
@@ -77,7 +87,9 @@ fun ProfilesScreen(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     showAddProfile = true
-                }
+                },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "New profile")
             }
@@ -87,34 +99,30 @@ fun ProfilesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .ncyDottedGrid()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 "Each profile has its own chats and lock. Tap a profile to manage it.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
             )
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    profiles.forEach { profile ->
-                        ProfileRow(
-                            profile = profile,
-                            isActive = profile.id == activeProfileId,
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                profileToManage = profile
-                            }
-                        )
-                    }
+            NcySectionLabel("Profiles")
+            NcyDividedCard {
+                profiles.forEachIndexed { i, profile ->
+                    if (i > 0) NcyRowDivider()
+                    ProfileRow(
+                        profile = profile,
+                        isActive = profile.id == activeProfileId,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            profileToManage = profile
+                        }
+                    )
                 }
             }
         }
@@ -186,7 +194,7 @@ fun ProfilesScreen(
     }
 
     deletingProfile?.let { profile ->
-        AlertDialog(
+        NcyAlertDialog(
             onDismissRequest = { deletingProfile = null },
             title = { Text("Delete \"${profile.name}\"?") },
             text = { Text("All chats and messages in this profile will be permanently deleted. This cannot be undone.") },
@@ -237,14 +245,14 @@ private fun ProfileRow(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+                .clip(NcyAvatarShape)
+                .background(ncyAvatarColor(profile.name)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = ProfileIcons.iconFor(profile.iconKey),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = Color.White,
                 modifier = Modifier.size(22.dp)
             )
         }
@@ -275,6 +283,7 @@ private fun ProfileRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileManageSheet(
     profile: Profile,
@@ -286,104 +295,91 @@ private fun ProfileManageSheet(
     onClearPin: () -> Unit,
     onPickIcon: () -> Unit
 ) {
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+            // Header — profile icon + name.
+            Row(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+                        .clip(NcyAvatarShape)
+                        .background(ncyAvatarColor(profile.name)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         ProfileIcons.iconFor(profile.iconKey),
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        tint = Color.White
                     )
                 }
                 Spacer(Modifier.width(12.dp))
-                Text(profile.name)
+                Text(profile.name, style = MaterialTheme.typography.titleMedium)
             }
-        },
-        text = {
-            Column {
-                ManageRow(icon = Icons.Default.Edit, label = "Rename", onClick = onRename)
-                ManageRow(icon = Icons.Default.Palette, label = "Change icon", onClick = onPickIcon)
-                ManageRow(
-                    icon = Icons.Default.Lock,
-                    label = if (profile.isProtected) "Change PIN" else "Set PIN",
-                    onClick = onSetPin
-                )
-                if (profile.isProtected) {
-                    ManageRow(
-                        icon = Icons.Default.LockOpen,
-                        label = "Remove PIN",
-                        onClick = onClearPin
-                    )
-                }
-                if (canDelete) {
-                    ManageRow(
-                        icon = Icons.Default.Delete,
-                        label = "Delete profile",
-                        onClick = onDelete,
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
-        }
-    )
-}
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-@Composable
-private fun ManageRow(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    contentColor: Color = MaterialTheme.colorScheme.onSurface
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.textButtonColors(contentColor = contentColor)
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label)
-        Spacer(Modifier.weight(1f))
+            NcySheetActionRow(Icons.Default.Edit, "Rename", onClick = onRename)
+            NcySheetActionRow(Icons.Default.Palette, "Change icon", onClick = onPickIcon)
+            NcySheetActionRow(
+                Icons.Default.Lock,
+                if (profile.isProtected) "Change PIN" else "Set PIN",
+                onClick = onSetPin
+            )
+            if (profile.isProtected) {
+                NcySheetActionRow(Icons.Default.LockOpen, "Remove PIN", onClick = onClearPin)
+            }
+            if (canDelete) {
+                NcySheetActionRow(
+                    Icons.Default.Delete,
+                    "Delete profile",
+                    destructive = true,
+                    onClick = onDelete
+                )
+            }
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun IconPickerDialog(
     currentKey: String,
     onDismiss: () -> Unit,
     onPick: (String) -> Unit
 ) {
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("Pick an icon") },
-        text = {
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Pick an icon", style = MaterialTheme.typography.titleLarge)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(5),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.heightIn(max = 280.dp)
+                modifier = Modifier.heightIn(max = 320.dp)
             ) {
                 items(ProfileIcons.keys) { key ->
                     val selected = key == currentKey
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(CircleShape)
+                            .clip(NcyAvatarShape)
                             .background(
                                 if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.surfaceVariant
                             )
                             .clickable { onPick(key) },
                         contentAlignment = Alignment.Center
@@ -392,17 +388,14 @@ private fun IconPickerDialog(
                             ProfileIcons.iconFor(key),
                             contentDescription = key,
                             tint = if (selected) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onPrimaryContainer,
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
         }
-    )
+    }
 }
 
 @Composable
@@ -412,31 +405,17 @@ private fun ProfileNameDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var name by remember { mutableStateOf(initialValue) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Profile name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(name.trim()) },
-                enabled = name.trim().isNotEmpty()
-            ) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+    NcyInputSheet(
+        title = title,
+        label = "Profile name",
+        confirmLabel = "Save",
+        initialValue = initialValue,
+        onDismiss = onDismiss,
+        onConfirm = onConfirm
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfilePinSetupDialog(
     isChange: Boolean,
@@ -448,55 +427,55 @@ private fun ProfilePinSetupDialog(
     val mismatch = confirm.isNotEmpty() && pin != confirm
     val tooShort = pin.isNotEmpty() && pin.length < 4
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text(if (isChange) "Change PIN" else "Set PIN") },
-        text = {
-            Column {
-                Text(
-                    "Choose a PIN of at least 4 characters.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = pin,
-                    onValueChange = { pin = it.take(64) },
-                    label = { Text("New PIN") },
-                    singleLine = true,
-                    isError = tooShort,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.Password
-                    ),
-                    supportingText = if (tooShort) { { Text("Minimum 4 characters") } } else null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = confirm,
-                    onValueChange = { confirm = it.take(64) },
-                    label = { Text("Confirm PIN") },
-                    singleLine = true,
-                    isError = mismatch,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.Password
-                    ),
-                    supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(if (isChange) "Change PIN" else "Set PIN", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Choose a PIN of at least 4 characters.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = pin,
+                onValueChange = { pin = it.take(64) },
+                label = { Text("New PIN") },
+                singleLine = true,
+                isError = tooShort,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = KeyboardType.Password
+                ),
+                supportingText = if (tooShort) { { Text("Minimum 4 characters") } } else null,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = confirm,
+                onValueChange = { confirm = it.take(64) },
+                label = { Text("Confirm PIN") },
+                singleLine = true,
+                isError = mismatch,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = KeyboardType.Password
+                ),
+                supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
                 onClick = { onConfirm(pin) },
-                enabled = pin.length >= 4 && pin == confirm
+                enabled = pin.length >= 4 && pin == confirm,
+                shape = NcyButtonShape,
+                modifier = Modifier.fillMaxWidth()
             ) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 }

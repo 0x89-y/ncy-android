@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -58,8 +59,9 @@ fun SearchScreen(
                 } else Modifier,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (appSettings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 title = {
                     TextField(
@@ -94,7 +96,8 @@ fun SearchScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .ncyDottedGrid(),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
@@ -104,7 +107,8 @@ fun SearchScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .ncyDottedGrid(),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -127,7 +131,8 @@ fun SearchScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .ncyDottedGrid(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -142,6 +147,7 @@ fun SearchScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
+                        .ncyDottedGrid()
                 ) {
                     items(results, key = { it.message.id }) { result ->
                         SearchResultItem(

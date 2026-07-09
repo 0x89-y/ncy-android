@@ -1,6 +1,7 @@
 package com.ncy.notechaty.ui.sync
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,6 +23,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.ncy.notechaty.data.sync.SyncManager
+import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
+import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.NcySectionLabel
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
+import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import java.text.DateFormat
@@ -75,6 +82,7 @@ fun SyncScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Sync devices") },
@@ -82,7 +90,12 @@ fun SyncScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
         }
     ) { padding ->
@@ -90,23 +103,26 @@ fun SyncScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .ncyDottedGrid()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
                 "Run the desktop sync server, then paste the pairing JSON it prints below. " +
                     "While Ncy is open, new messages push to every paired device on the LAN.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp)
             )
 
-            Card {
+            NcySettingsSection("Add device") {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Add device", style = MaterialTheme.typography.titleSmall)
                     Button(
                         onClick = {
                             pairingError = null
@@ -122,6 +138,7 @@ fun SyncScreen(
                             }
                             scanLauncher.launch(options)
                         },
+                        shape = NcyButtonShape,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.QrCodeScanner, contentDescription = null)
@@ -164,6 +181,7 @@ fun SyncScreen(
                                 pairingSuccess = null
                             }
                         },
+                        shape = NcyButtonShape,
                         enabled = pairingText.isNotBlank()
                     ) {
                         Text("Pair from JSON")
@@ -177,20 +195,19 @@ fun SyncScreen(
                 discovered.filter { d -> peers.none { it.id == d.deviceId } }
             }
             if (unpairedDiscovered.isNotEmpty()) {
-                Text(
-                    "Found on this network",
-                    style = MaterialTheme.typography.titleSmall
-                )
-                unpairedDiscovered.forEach { d ->
-                    val busyForThis = pairingBusy == d.name
-                    DiscoveredCard(
-                        peer = d,
-                        isBusy = busyForThis,
-                        anyBusy = pairingBusy != null,
-                        safetyCode = if (busyForThis) pairingSafetyCode else null,
-                        onPair = { viewModel.pairViaDiscovery(d) },
-                        onCancel = { viewModel.cancelPairing() },
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    NcySectionLabel("Found on this network")
+                    unpairedDiscovered.forEach { d ->
+                        val busyForThis = pairingBusy == d.name
+                        DiscoveredCard(
+                            peer = d,
+                            isBusy = busyForThis,
+                            anyBusy = pairingBusy != null,
+                            safetyCode = if (busyForThis) pairingSafetyCode else null,
+                            onPair = { viewModel.pairViaDiscovery(d) },
+                            onCancel = { viewModel.cancelPairing() },
+                        )
+                    }
                 }
             }
 
@@ -198,17 +215,20 @@ fun SyncScreen(
                 Text(
                     "No devices paired yet.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 6.dp)
                 )
             } else {
-                Text("Paired devices", style = MaterialTheme.typography.titleSmall)
-                peers.forEach { peer ->
-                    PeerCard(
-                        peer = peer,
-                        state = states[peer.id] ?: SyncManager.PeerState.Idle,
-                        onSyncNow = { viewModel.syncNow(peer.id) },
-                        onUnpair = { viewModel.unpair(peer.id) }
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    NcySectionLabel("Paired devices")
+                    peers.forEach { peer ->
+                        PeerCard(
+                            peer = peer,
+                            state = states[peer.id] ?: SyncManager.PeerState.Idle,
+                            onSyncNow = { viewModel.syncNow(peer.id) },
+                            onUnpair = { viewModel.unpair(peer.id) }
+                        )
+                    }
                 }
             }
         }
@@ -223,7 +243,7 @@ private fun PeerCard(
     onSyncNow: () -> Unit,
     onUnpair: () -> Unit
 ) {
-    Card {
+    NcyDividedCard {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -241,18 +261,30 @@ private fun PeerCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = statusColor(state)
             )
+            Spacer(Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                FilledTonalButton(onClick = onSyncNow, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Sync, contentDescription = null)
+                Button(
+                    onClick = onSyncNow,
+                    shape = NcyButtonShape,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Sync now")
                 }
-                OutlinedButton(onClick = onUnpair) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
+                OutlinedButton(
+                    onClick = onUnpair,
+                    shape = NcyButtonShape,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Remove")
                 }
@@ -270,7 +302,7 @@ private fun DiscoveredCard(
     onPair: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Card {
+    NcyDividedCard {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -325,11 +357,11 @@ private fun DiscoveredCard(
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(8.dp))
-                    OutlinedButton(onClick = onCancel) {
+                    OutlinedButton(onClick = onCancel, shape = NcyButtonShape) {
                         Text("Cancel")
                     }
                 } else {
-                    Button(onClick = onPair, enabled = !anyBusy) {
+                    Button(onClick = onPair, shape = NcyButtonShape, enabled = !anyBusy) {
                         Text("Pair")
                     }
                 }

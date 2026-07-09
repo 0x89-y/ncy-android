@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NoteChaty"
+rootProject.name = "Ncy"
 include(":app")

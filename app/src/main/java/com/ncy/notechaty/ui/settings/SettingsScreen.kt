@@ -268,7 +268,7 @@ fun SettingsScreen(
                     NcySettingsToggleRow(
                         icon = Icons.Default.Lock,
                         title = "Lock app on start",
-                        subtitle = "Require PIN to open NoteChaty",
+                        subtitle = "Require PIN to open Ncy",
                         checked = settings.lockOnAppStart,
                         onCheckedChange = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)

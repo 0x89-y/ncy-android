@@ -93,9 +93,9 @@ class MainActivity : FragmentActivity() {
 
                     if (needsAppLock) {
                         PinPromptContent(
-                            title = "NoteChaty",
+                            title = "Ncy",
                             subtitle = "Enter your PIN to continue",
-                            biometricTitle = "Unlock NoteChaty",
+                            biometricTitle = "Unlock Ncy",
                             biometricSubtitle = "Verify to open the app",
                             useBiometric = settings.protectionUseBiometric,
                             onVerify = { pin -> pinManager.verifyPin(pin) },

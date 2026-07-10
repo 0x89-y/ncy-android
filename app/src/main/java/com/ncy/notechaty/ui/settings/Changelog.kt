@@ -14,6 +14,13 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.5.1",
+        date = "2026-07-10",
+        changes = listOf(
+            "Added replies to messages.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.5.0",
         date = "2026-07-09",
         changes = listOf(

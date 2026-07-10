@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -49,8 +50,11 @@ import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import androidx.compose.ui.text.style.TextOverflow
 import com.ncy.notechaty.ui.richtext.RichTextInput
 import com.ncy.notechaty.ui.voicemessage.VoiceRecorder
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,6 +116,26 @@ fun ChatScreen(
     LaunchedEffect(isSearching) {
         if (isSearching) {
             searchFocusRequester.requestFocus()
+        }
+    }
+
+    // Jump-to-original, driven by tapping a reply quote. The target is looked up in
+    // the live list, so a quote whose original was deleted simply has no index to
+    // scroll to — the bubble disables the tap for that case anyway.
+    val coroutineScope = rememberCoroutineScope()
+    var replyHighlightId by remember { mutableStateOf<String?>(null) }
+    val messageIds = remember(uiState.messages) {
+        uiState.messages.mapTo(HashSet<String>()) { it.id }
+    }
+    val jumpToMessage: (String) -> Unit = { targetId ->
+        coroutineScope.launch {
+            val index = uiState.messages.reversed().indexOfFirst { it.id == targetId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+                replyHighlightId = targetId
+                delay(1400)
+                if (replyHighlightId == targetId) replyHighlightId = null
+            }
         }
     }
 
@@ -392,6 +416,16 @@ fun ChatScreen(
                                 onToggleChecklistItem = { itemId ->
                                     viewModel.toggleChecklistItem(message, itemId)
                                 },
+                                onReply = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    viewModel.startReply(message)
+                                },
+                                onJumpToReplyTarget = {
+                                    message.replyToId?.let(jumpToMessage)
+                                },
+                                replyTargetExists = message.replyToId != null &&
+                                    message.replyToId in messageIds,
+                                isReplyHighlight = message.id == replyHighlightId,
                                 bubbleColor = parsedBubbleColor,
                                 useGradient = uiState.chat?.bubbleGradient == true,
                                 isSelectionMode = selectionMode,
@@ -427,8 +461,16 @@ fun ChatScreen(
                     }
                 }
 
+                // A pending reply attaches to whatever is sent next — text, checklist,
+                // image, or voice — so the bar shows above the recorder too.
+                val replyTarget = uiState.replyTarget.takeIf { uiState.editingMessage == null }
+
                 // Voice recording UI
                 if (isRecordingVoice) {
+                    if (replyTarget != null) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        ReplyComposerBar(replyTarget, onCancel = { viewModel.cancelReply() })
+                    }
                     VoiceRecorder(
                         onRecorded = { file, durationMs ->
                             viewModel.sendVoiceMessage(file, durationMs)
@@ -443,6 +485,10 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.surface
                     ) {
+                    Column {
+                    if (replyTarget != null) {
+                        ReplyComposerBar(replyTarget, onCancel = { viewModel.cancelReply() })
+                    }
                     RichTextInput(
                         editingMessage = uiState.editingMessage,
                         onSend = { blocks ->
@@ -473,6 +519,7 @@ fun ChatScreen(
                             }
                         }
                     )
+                    }
                     }
                 }
             }
@@ -532,6 +579,47 @@ fun ChatScreen(
         }
     }
 
+}
+
+/**
+ * Bar above the composer showing which message the next send will reply to. Reads the
+ * live [target] rather than a snapshot — the snapshot is only frozen once the reply is
+ * actually sent, so edits made while the bar is open are reflected here.
+ */
+@Composable
+private fun ReplyComposerBar(target: Message, onCancel: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 4.dp, top = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(32.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Replying to",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = replyPreviewText(target.plainTextPreview(), target.type),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(onClick = onCancel) {
+            Icon(Icons.Outlined.Close, contentDescription = "Cancel reply")
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

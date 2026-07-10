@@ -7,8 +7,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Checklist
@@ -38,19 +41,24 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.pointerInput
 import com.ncy.notechaty.data.model.*
+import kotlinx.coroutines.launch
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
 import com.ncy.notechaty.ui.voicemessage.VoiceMessageBubble
@@ -69,6 +77,12 @@ fun MessageBubble(
     onSetReminder: () -> Unit = {},
     onToggleReaction: (String) -> Unit = {},
     onToggleChecklistItem: (String) -> Unit = {},
+    onReply: () -> Unit = {},
+    onJumpToReplyTarget: () -> Unit = {},
+    /** False when the quoted message has since been deleted — the quote stays, the jump doesn't. */
+    replyTargetExists: Boolean = false,
+    /** Briefly tinted after a jump landed on this message. */
+    isReplyHighlight: Boolean = false,
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelect: () -> Unit = {},
@@ -83,6 +97,17 @@ fun MessageBubble(
     val context = LocalContext.current
     val view = LocalView.current
 
+    // Swipe-to-reply. Bubbles are right-aligned, so the natural pull is rightward,
+    // away from the screen edge. Past the trigger distance the gesture arms (with a
+    // haptic tick) and fires on release; the bubble always springs back.
+    val density = LocalDensity.current
+    val triggerPx = with(density) { 56.dp.toPx() }
+    val maxDragPx = with(density) { 72.dp.toPx() }
+    val dragOffset = remember { Animatable(0f) }
+    val dragScope = rememberCoroutineScope()
+    var armed by remember { mutableStateOf(false) }
+    val swipeProgress = (dragOffset.value / triggerPx).coerceIn(0f, 1f)
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -90,6 +115,9 @@ fun MessageBubble(
                 when {
                     isSelected -> Modifier.background(
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    )
+                    isReplyHighlight -> Modifier.background(
+                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.22f)
                     )
                     isCurrentSearchResult -> Modifier.background(
                         MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
@@ -103,6 +131,16 @@ fun MessageBubble(
             .padding(horizontal = 12.dp, vertical = 3.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
+        if (swipeProgress > 0f) {
+            Icon(
+                Icons.AutoMirrored.Filled.Reply,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = swipeProgress),
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(20.dp)
+            )
+        }
         // Desktop identity: every note is "yours", so the default bubble is the
         // accent (--bubble-mine) with white-ish text. A per-chat custom colour
         // still wins when set.
@@ -119,6 +157,31 @@ fun MessageBubble(
         Surface(
             modifier = Modifier
                 .widthIn(max = 300.dp)
+                .graphicsLayer { translationX = dragOffset.value }
+                .pointerInput(message.id, isSelectionMode) {
+                    if (isSelectionMode) return@pointerInput
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (dragOffset.value >= triggerPx) onReply()
+                            armed = false
+                            dragScope.launch { dragOffset.animateTo(0f) }
+                        },
+                        onDragCancel = {
+                            armed = false
+                            dragScope.launch { dragOffset.animateTo(0f) }
+                        }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        val next = (dragOffset.value + dragAmount).coerceIn(0f, maxDragPx)
+                        if (!armed && next >= triggerPx) {
+                            armed = true
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        } else if (armed && next < triggerPx) {
+                            armed = false
+                        }
+                        dragScope.launch { dragOffset.snapTo(next) }
+                    }
+                }
                 .combinedClickable(
                     onClick = {
                         if (isSelectionMode) {
@@ -148,6 +211,17 @@ fun MessageBubble(
                 )
             } else Modifier
             Column(modifier = bgModifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                if (message.replyToId != null) {
+                    ReplyQuote(
+                        message = message,
+                        contentColor = contentColor,
+                        targetExists = replyTargetExists,
+                        onJump = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            onJumpToReplyTarget()
+                        }
+                    )
+                }
                 when (message.type) {
                     MessageType.TEXT -> RichTextContent(message.content, chatDir, contentColor)
                     MessageType.VOICE -> {
@@ -245,6 +319,11 @@ fun MessageBubble(
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+                        NcySheetActionRow(Icons.AutoMirrored.Filled.Reply, "Reply") {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            showMenu = false
+                            onReply()
+                        }
                         if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
                             NcySheetActionRow(Icons.Default.ContentCopy, "Copy") {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -295,6 +374,70 @@ fun MessageBubble(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * One line of text standing in for a quoted message. [preview] is a frozen snapshot
+ * (see `Message.replyingTo`) and is empty for voice-without-transcript and image
+ * messages, which carry no text — those fall back to a label naming the type.
+ */
+internal fun replyPreviewText(preview: String?, type: MessageType?): String =
+    preview?.takeIf { it.isNotBlank() }
+        ?: when (type) {
+            MessageType.VOICE -> "Voice message"
+            MessageType.IMAGE -> "Photo"
+            MessageType.CHECKLIST -> "Checklist"
+            else -> "Message"
+        }
+
+/**
+ * The quoted message shown at the top of a reply bubble, rendered from the snapshot
+ * frozen on [message] rather than from the live original. Tapping jumps to the
+ * original when it still exists; a quote whose target was deleted stays readable but
+ * is inert, since a tombstoned message is gone from the timeline entirely.
+ */
+@Composable
+private fun ReplyQuote(
+    message: Message,
+    contentColor: Color,
+    targetExists: Boolean,
+    onJump: () -> Unit
+) {
+    val text = replyPreviewText(message.replyToPreview, message.replyToType)
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = contentColor.copy(alpha = 0.14f),
+        contentColor = contentColor,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+            .then(if (targetExists) Modifier.clickable(onClick = onJump) else Modifier)
+    ) {
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(contentColor.copy(alpha = 0.8f))
+            )
+            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
+                message.replyToCreatedAt?.let { at ->
+                    Text(
+                        text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(at)),
+                        fontSize = 10.sp,
+                        color = contentColor.copy(alpha = 0.7f)
+                    )
+                }
+                Text(
+                    text = text,
+                    fontSize = 13.sp,
+                    color = contentColor.copy(alpha = 0.9f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

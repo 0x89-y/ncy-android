@@ -28,6 +28,8 @@ data class ChatUiState(
     val chat: Chat? = null,
     val messages: List<Message> = emptyList(),
     val editingMessage: Message? = null,
+    /** Message the composer is currently replying to, shown as a bar above the input. */
+    val replyTarget: Message? = null,
     val searchQuery: String = "",
     val searchResultIds: Set<String> = emptySet(),
     val searchResultIndex: Int = -1,
@@ -140,16 +142,40 @@ class ChatViewModel @Inject constructor(
         return true
     }
 
+    /** Aim the composer at [message]. Replying cancels an in-progress edit. */
+    fun startReply(message: Message) {
+        _uiState.value = _uiState.value.copy(replyTarget = message, editingMessage = null)
+    }
+
+    fun cancelReply() {
+        _uiState.value = _uiState.value.copy(replyTarget = null)
+    }
+
+    /**
+     * Take the pending reply target and clear it, so a reply attaches to exactly one
+     * outgoing message. Read synchronously before the send coroutine launches —
+     * otherwise a fast second send could observe the same target.
+     */
+    private fun consumeReplyTarget(): Message? {
+        val target = _uiState.value.replyTarget ?: return null
+        _uiState.value = _uiState.value.copy(replyTarget = null)
+        return target
+    }
+
+    private fun Message.withReplyTo(target: Message?): Message =
+        if (target == null) this else replyingTo(target)
+
     fun sendTextMessage(blocks: List<RichTextBlock>) {
         if (blocks.isEmpty() || blocks.all { it.spans.isEmpty() || it.spans.all { s -> s.text.isEmpty() } }) return
 
+        val replyTarget = consumeReplyTarget()
         viewModelScope.launch {
             val message = Message(
                 id = UUID.randomUUID().toString(),
                 chatId = chatId,
                 content = blocks,
                 type = MessageType.TEXT
-            )
+            ).withReplyTo(replyTarget)
             repository.addMessage(message)
             loadChat()
         }
@@ -168,6 +194,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendVoiceMessage(voiceFile: File, durationMs: Long) {
+        val replyTarget = consumeReplyTarget()
         viewModelScope.launch {
             val voiceDir = repository.getVoiceDir(chatId)
             val targetFile = ingestMedia(voiceDir, voiceFile, "m4a")
@@ -177,13 +204,14 @@ class ChatViewModel @Inject constructor(
                 voiceFile = "voice/${targetFile.name}",
                 voiceDurationMs = durationMs,
                 type = MessageType.VOICE
-            )
+            ).withReplyTo(replyTarget)
             repository.addMessage(message)
             loadChat()
         }
     }
 
     fun sendImageMessage(imageFile: File) {
+        val replyTarget = consumeReplyTarget()
         viewModelScope.launch {
             val imagesDir = repository.getImagesDir(chatId)
             val targetFile = ingestMedia(imagesDir, imageFile, "jpg")
@@ -197,7 +225,7 @@ class ChatViewModel @Inject constructor(
                     )
                 ),
                 type = MessageType.IMAGE
-            )
+            ).withReplyTo(replyTarget)
             repository.addMessage(message)
             loadChat()
         }
@@ -224,7 +252,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun startEditing(message: Message) {
-        _uiState.value = _uiState.value.copy(editingMessage = message)
+        _uiState.value = _uiState.value.copy(editingMessage = message, replyTarget = null)
     }
 
     fun cancelEditing() {
@@ -278,6 +306,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun deleteMessage(messageId: String) {
+        dropReplyTargetIfDeleted(setOf(messageId))
         viewModelScope.launch {
             repository.deleteMessage(chatId, messageId)
             loadChat()
@@ -285,12 +314,19 @@ class ChatViewModel @Inject constructor(
     }
 
     fun deleteMessages(messageIds: Set<String>) {
+        dropReplyTargetIfDeleted(messageIds)
         viewModelScope.launch {
             messageIds.forEach { id ->
                 repository.deleteMessage(chatId, id)
             }
             loadChat()
         }
+    }
+
+    /** Deleting the message the composer is aimed at leaves the reply bar dangling. */
+    private fun dropReplyTargetIfDeleted(deletedIds: Set<String>) {
+        val targetId = _uiState.value.replyTarget?.id ?: return
+        if (targetId in deletedIds) cancelReply()
     }
 
     fun toggleStar(message: Message) {
@@ -388,6 +424,7 @@ class ChatViewModel @Inject constructor(
 
     fun sendChecklistMessage(items: List<String>) {
         if (items.isEmpty() || items.all { it.isBlank() }) return
+        val replyTarget = consumeReplyTarget()
         viewModelScope.launch {
             val checklistItems = items.filter { it.isNotBlank() }.map { text ->
                 ChecklistItem(
@@ -401,7 +438,7 @@ class ChatViewModel @Inject constructor(
                 chatId = chatId,
                 type = MessageType.CHECKLIST,
                 checklistItems = checklistItems
-            )
+            ).withReplyTo(replyTarget)
             repository.addMessage(message)
             loadChat()
         }

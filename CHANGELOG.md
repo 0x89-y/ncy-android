@@ -16,7 +16,11 @@
 - [x] Stream media without buffering complete files in memory.
 - [x] Expire stalled media transfers after an inactivity timeout.
 - [x] React safely to Android host network/interface and server-port changes.
-- [ ] Add clock-skew, identity-collision, and backup-convergence safeguards.
+- [x] Select deterministic LAN endpoints and support IPv6-safe sync URLs.
+- [x] Explain foreground-only phone hosts and reconnect immediately on return.
+- [x] Stop wasteful retries with per-peer controls and LAN-aware suspension.
+- [x] Reject future-skewed remote clocks before they affect events or watermarks.
+- [ ] Add identity-collision and backup-convergence safeguards.
 - [ ] Harden pairing-secret handling and encrypt unprotected LAN traffic.
 
 The complete prioritized backlog and completion criteria are maintained in
@@ -62,6 +66,29 @@ The complete prioritized backlog and completion criteria are maintained in
   a suitable network appears instead of remaining failed until the app restarts.
 - If port 8765 is occupied, the Android host selects an available fallback port,
   includes it in pairing and mDNS data, and explains the fallback in the UI.
+- Added deterministic Android LAN-address selection: active Wi-Fi and Ethernet
+  are preferred, hotspot interfaces are supported as a fallback, cellular/VPN
+  endpoints are avoided, and IPv6 ULA/global addresses work on IPv6-only LANs.
+- Added IPv6-safe WebSocket and endpoint formatting, including brackets around
+  literals and percent-encoded scope identifiers for manually supplied hosts.
+- Android restarts the phone-host listener when a network transition changes the
+  required IPv4/IPv6 socket family.
+- Android phone pairing data and mDNS now declare foreground-only availability.
+  Transport failures show **Open Ncy / enable phone sync** instead of a generic error;
+  authentication and protocol failures remain visibly distinct.
+- Phone hosts send an explicit WebSocket close reason before leaving the foreground,
+  and a trusted mDNS reappearance resets reconnect delay even at the same endpoint.
+- Added a persisted **Automatic sync** switch to each paired outbound device. Pausing
+  stops its socket and retry task without forgetting credentials or watermarks;
+  resuming triggers an immediate connection.
+- Android now suspends peer sockets and retry timers while no suitable Wi-Fi,
+  Ethernet, or hotspot interface exists, shows **Waiting for Wi-Fi or Ethernet**,
+  and reconnects enabled peers immediately when LAN connectivity returns.
+- Added a shared five-minute future-clock tolerance for remote events, catch-up
+  watermarks, and acknowledgements. Invalid HLCs are rejected before persistence,
+  materialization, acknowledgement, or watermark advancement.
+- Android surfaces clock mismatch as a real sync error and clears legacy future-
+  skewed peer watermarks on upgrade so a corrected clock can catch up again.
 - Added mDNS pairing capabilities so discovered phone/headless hosts direct the
   user to QR scanning instead of offering an unsupported confirmation request.
 - Added the Java-WebSocket dependency for hosting the Android sync endpoint.
@@ -94,6 +121,10 @@ The complete prioritized backlog and completion criteria are maintained in
 ### Verification
 
 - Forced a complete Kotlin recompilation after the network/interface changes.
+- Passed Android endpoint-formatting unit tests.
+- Passed compatibility tests for pairing payloads with and without availability.
+- Verified legacy peer records default to automatic sync enabled.
+- Added HLC boundary and malformed-component tests.
 - Successfully compiled the Kotlin sources.
 - Successfully built the debug APK with `:app:assembleDebug`.
 - Passed `git diff --check`.

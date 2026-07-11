@@ -8,6 +8,7 @@ import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.discovery.MdnsDiscovery
+import com.ncy.notechaty.data.sync.discovery.LanNetworkMonitor
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.SyncClient
@@ -47,6 +48,7 @@ class SyncManager @Inject constructor(
     private val snapshot: SyncSnapshot,
     private val chatRepository: ChatRepository,
     private val mdnsDiscovery: MdnsDiscovery,
+    private val lanNetworkMonitor: LanNetworkMonitor,
 ) {
     private val tag = "SyncManager"
 
@@ -59,15 +61,19 @@ class SyncManager @Inject constructor(
 
     private var running = false
     private var discoveryJob: Job? = null
+    private var networkJob: Job? = null
 
     sealed class PeerState {
         object Idle : PeerState()
+        object Disabled : PeerState()
+        object WaitingForNetwork : PeerState()
         object Connecting : PeerState()
         data class Connected(
             val peerName: String,
             val sentCount: Int,
             val receivedCount: Int = 0
         ) : PeerState()
+        data class Unavailable(val reason: String) : PeerState()
         data class Failed(val reason: String) : PeerState()
     }
 
@@ -75,12 +81,33 @@ class SyncManager @Inject constructor(
     fun start() {
         if (running) return
         running = true
+        lanNetworkMonitor.start()
         mdnsDiscovery.start()
+        networkJob = scope.launch {
+            var wasAvailable = lanNetworkMonitor.available.value
+            lanNetworkMonitor.available.collect { available ->
+                if (!available) {
+                    synchronized(this@SyncManager) {
+                        perPeer.values.toList().forEach { it.pauseForNetwork() }
+                    }
+                } else if (!wasAvailable) {
+                    peerStore.peers.value.forEach { peer ->
+                        if (!peer.disabled) syncNow(peer.id)
+                    }
+                }
+                wasAvailable = available
+            }
+        }
         discoveryJob = scope.launch {
             mdnsDiscovery.peers.collect { discovered ->
                 discovered.forEach { found ->
                     val id = found.deviceId ?: return@forEach
-                    if (peerStore.updateEndpoint(id, found.host, found.port)) {
+                    val endpointChanged = peerStore.updateEndpoint(id, found.host, found.port)
+                    val availabilityChanged = peerStore.updateAvailability(id, found.availability)
+                    val state = _states.value[id]
+                    if (endpointChanged || availabilityChanged || state is PeerState.Unavailable ||
+                        state is PeerState.Failed || state is PeerState.Idle
+                    ) {
                         // The stable device ID matched a trusted pairing. Replace only
                         // its stale address and reconnect immediately using the same secret.
                         syncNow(id)
@@ -88,7 +115,14 @@ class SyncManager @Inject constructor(
                 }
             }
         }
-        peerStore.peers.value.forEach { startSession(it) }
+        peerStore.peers.value.forEach { peer ->
+            when {
+                peer.disabled -> updateState(peer.id, PeerState.Disabled)
+                !lanNetworkMonitor.available.value ->
+                    updateState(peer.id, PeerState.WaitingForNetwork)
+                else -> startSession(peer)
+            }
+        }
     }
 
     @Synchronized
@@ -97,7 +131,10 @@ class SyncManager @Inject constructor(
         running = false
         discoveryJob?.cancel()
         discoveryJob = null
+        networkJob?.cancel()
+        networkJob = null
         mdnsDiscovery.stop()
+        lanNetworkMonitor.stop()
         perPeer.values.toList().forEach { it.shutdown() }
         perPeer.clear()
         _states.value = emptyMap()
@@ -110,7 +147,24 @@ class SyncManager @Inject constructor(
         val peer = peerStore.byId(peerId) ?: return
         perPeer[peerId]?.shutdown()
         perPeer.remove(peerId)
+        if (peer.disabled) {
+            updateState(peerId, PeerState.Disabled)
+            return
+        }
+        if (!lanNetworkMonitor.available.value) {
+            updateState(peerId, PeerState.WaitingForNetwork)
+            return
+        }
         startSession(peer)
+    }
+
+    @Synchronized
+    fun setPeerEnabled(peerId: String, enabled: Boolean) {
+        if (!peerStore.setEnabled(peerId, enabled)) return
+        if (enabled) syncNow(peerId) else {
+            perPeer.remove(peerId)?.shutdown()
+            updateState(peerId, PeerState.Disabled)
+        }
     }
 
     @Synchronized
@@ -120,6 +174,14 @@ class SyncManager @Inject constructor(
     }
 
     private fun startSession(peer: SyncPeer) {
+        if (peer.disabled) {
+            updateState(peer.id, PeerState.Disabled)
+            return
+        }
+        if (!lanNetworkMonitor.available.value) {
+            updateState(peer.id, PeerState.WaitingForNetwork)
+            return
+        }
         updateState(peer.id, PeerState.Connecting)
         val session = PeerSession(peer)
         perPeer[peer.id] = session
@@ -184,9 +246,14 @@ class SyncManager @Inject constructor(
                         scope.launch { pushCatchup() }
                     }
                     is SyncClient.Event.Acked -> {
-                        peerStore.updateLastSent(peer.id, event.upToHlc, System.currentTimeMillis())
-                        val cur = lastAckedHlc
-                        if (cur == null || event.upToHlc > cur) lastAckedHlc = event.upToHlc
+                        val now = System.currentTimeMillis()
+                        if (!HlcTimestamp.isAcceptableRemote(event.upToHlc, now)) {
+                            rejectClockSkew("acknowledgement")
+                        } else {
+                            peerStore.updateLastSent(peer.id, event.upToHlc, now)
+                            val cur = lastAckedHlc
+                            if (cur == null || event.upToHlc > cur) lastAckedHlc = event.upToHlc
+                        }
                     }
                     is SyncClient.Event.EventReceived -> {
                         scope.launch { handleInbound(event.event) }
@@ -213,14 +280,26 @@ class SyncManager @Inject constructor(
                     }
                     is SyncClient.Event.Failed -> {
                         Log.w(tag, "Peer ${peer.id} failed: ${event.reason}")
-                        updateState(peer.id, PeerState.Failed(event.reason))
+                        updateState(
+                            peer.id,
+                            if (peer.foregroundOnly && isTemporaryTransportFailure(event.reason)) {
+                                PeerState.Unavailable("Open Ncy and enable phone sync on ${peer.name}")
+                            } else PeerState.Failed(event.reason)
+                        )
                         scheduleReconnect()
                     }
                     is SyncClient.Event.Disconnected -> {
                         liveJob?.cancel()
                         liveJob = null
-                        if (_states.value[peer.id] !is PeerState.Failed) {
-                            updateState(peer.id, PeerState.Idle)
+                        if (_states.value[peer.id] !is PeerState.Failed &&
+                            _states.value[peer.id] !is PeerState.Unavailable
+                        ) {
+                            updateState(
+                                peer.id,
+                                if (peer.foregroundOnly && event.reason == PHONE_HOST_BACKGROUND_REASON) {
+                                    PeerState.Unavailable("Open Ncy and enable phone sync on ${peer.name}")
+                                } else PeerState.Idle
+                            )
                         }
                         scheduleReconnect()
                     }
@@ -239,6 +318,10 @@ class SyncManager @Inject constructor(
             // implements its own sender-side loop guard, but cheap to check.
             if (event.originDevice == deviceIdentity.deviceId) {
                 session?.ack(event.hlc)
+                return
+            }
+            if (!HlcTimestamp.isAcceptableRemote(event.hlc, System.currentTimeMillis())) {
+                rejectClockSkew("event")
                 return
             }
             chatRepository.applyExternalEvent(event)
@@ -409,6 +492,12 @@ class SyncManager @Inject constructor(
          */
         private fun scheduleReconnect() {
             if (canceled) return
+            if (!lanNetworkMonitor.available.value) {
+                reconnectJob?.cancel()
+                reconnectJob = null
+                updateState(peer.id, PeerState.WaitingForNetwork)
+                return
+            }
             if (reconnectJob != null) return
             val attempt = reconnectAttempt
             reconnectAttempt = attempt + 1
@@ -422,6 +511,10 @@ class SyncManager @Inject constructor(
                     if (!running) return@launch
                     if (perPeer[peer.id] !== this@PeerSession) return@launch
                 }
+                if (!lanNetworkMonitor.available.value) {
+                    updateState(peer.id, PeerState.WaitingForNetwork)
+                    return@launch
+                }
                 // Tear down whatever's left of the prior socket and start fresh.
                 session?.close()
                 session = null
@@ -429,6 +522,32 @@ class SyncManager @Inject constructor(
                 liveJob = null
                 run()
             }
+        }
+
+        fun pauseForNetwork() {
+            reconnectJob?.cancel()
+            reconnectJob = null
+            liveJob?.cancel()
+            liveJob = null
+            session?.close()
+            session = null
+            updateState(peer.id, PeerState.WaitingForNetwork)
+        }
+
+        private fun isTemporaryTransportFailure(reason: String): Boolean {
+            val lower = reason.lowercase()
+            return !lower.contains("auth_failed") &&
+                !lower.contains("invalid pairing secret") &&
+                !lower.contains("protocol") &&
+                !lower.contains("malformed") &&
+                !lower.contains("rejected")
+        }
+
+        private fun rejectClockSkew(kind: String) {
+            val reason = "Clock mismatch: remote $kind is more than 5 minutes ahead"
+            updateState(peer.id, PeerState.Failed(reason))
+            session?.sendError("clock_skew", reason)
+            session?.close()
         }
 
         fun shutdown() {
@@ -477,6 +596,7 @@ class SyncManager @Inject constructor(
     private companion object {
         /** Outbound blob chunk size, bytes (pre-base64). 64 KiB keeps each WS frame small. */
         const val CHUNK_SIZE = 64 * 1024
+        const val PHONE_HOST_BACKGROUND_REASON = "phone_host_left_foreground"
 
         /**
          * Pull every (hash, mediaType) reference out of an event's payload. Skips refs

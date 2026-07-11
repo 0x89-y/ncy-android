@@ -50,20 +50,28 @@ Priority meanings:
   mDNS when the LAN endpoint changes. It may start without a LAN and recover when
   one appears. The callback lifecycle and endpoint refresh compile in the complete
   Android application; physical Wi-Fi/DHCP transition testing remains useful.
-- [ ] **Select the correct interface deterministically.** Handle Wi-Fi, Ethernet,
-  hotspot, VPN, cellular, multiple addresses, IPv6-only networks, IPv6 URL
-  brackets, and scoped link-local addresses.
+- [x] **Select the correct interface deterministically.** Android prefers active
+  Wi-Fi/Ethernet, recognizes hotspot interfaces, rejects cellular/VPN candidates,
+  ranks multiple addresses consistently, and supports IPv6 ULA/global addresses.
+  Core ranks physical interfaces ahead of virtual/VPN adapters and falls back to
+  IPv6 on IPv6-only hosts. Both clients bracket IPv6 URL literals and encode zone
+  identifiers. Link-local addresses are deliberately not shared because a scope
+  identifier is local to one machine; mDNS remains the safe way to resolve them.
 - [x] **Handle Android phone-host server-port conflicts.** Android now probes port
   8765, selects an ephemeral fallback when it is occupied, publishes the actual
   port in pairing and mDNS data, and explains the fallback in the UI. Configured
   Desktop/Server ports continue to fail explicitly rather than silently overriding
   operator configuration.
-- [ ] **Make foreground-only availability explicit.** Ensure clients clearly show
-  when a phone host is unavailable because Ncy is backgrounded or the device is
-  locked, and reconnect promptly when it returns.
-- [ ] **Stop wasteful retries.** Add per-peer enable/disable controls and network-
-  aware retry suspension so an intentionally disabled host does not cause
-  continuous foreground reconnect attempts.
+- [x] **Make foreground-only availability explicit.** Android phone pairing/mDNS
+  data declares `availability=foreground`; clients show an actionable **Open Ncy /
+  enable phone sync** state for transport failures while keeping authentication and
+  protocol errors distinct.
+  Hosts send a background close reason, and trusted mDNS return wakes reconnects.
+- [x] **Stop wasteful retries.** Android and Core persist a local per-peer disabled
+  flag that defaults to enabled for old records. Disabled peers have no connection
+  task but retain trust and watermarks. Android also closes sessions, cancels retry
+  timers, and shows a waiting state while no Wi-Fi/Ethernet/hotspot LAN exists;
+  enabled peers resume immediately when LAN connectivity returns.
 
 ## P2 — discovery behavior
 
@@ -81,8 +89,13 @@ Priority meanings:
 
 ## P0/P1 — data convergence
 
-- [ ] **Detect unreasonable clock jumps.** A device far in the future can dominate
-  HLC last-write-wins decisions. Define skew warnings, clamping rules, and recovery.
+- [x] **Detect unreasonable clock jumps.** Android and Core accept at most five
+  minutes of remote future skew and reject negative/malformed HLC components across
+  events, `Hello.sinceHlc`, and acknowledgements before logs or watermarks change.
+  Clients report `clock_skew`; Desktop shows the peer error and Server logs it.
+  Legacy poisoned peer watermarks are cleared on session/load. Historical event-log
+  repair remains deliberately separate because silently rewriting HLC order would
+  break deterministic convergence.
 - [ ] **Make backup/restore watermarks atomic with event state.** Restoring peer
   watermarks without the corresponding events can suppress required catch-up.
 - [ ] **Test identity collisions explicitly.** Two live devices with one device ID
@@ -111,8 +124,9 @@ Priority meanings:
   multiple peers share the same model or configured name.
 - [ ] **Refresh renamed peers.** Decide when an authenticated device-name change
   updates the stored label and whether user-assigned labels always win.
-- [ ] **Improve reconnect latency.** Reset backoff when a trusted mDNS service
-  reappears even if its endpoint is unchanged.
+- [x] **Improve reconnect latency.** Android restarts unavailable/failed sessions
+  and Core wakes a reconnecting peer task when a trusted stable device ID is
+  resolved over mDNS, even if its endpoint is unchanged.
 - [ ] **Expose useful diagnostics.** Show last discovery, last authenticated endpoint,
   retry state, protocol error, and whether direct LAN traffic is blocked.
 

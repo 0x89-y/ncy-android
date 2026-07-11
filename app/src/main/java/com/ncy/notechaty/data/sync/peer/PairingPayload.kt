@@ -19,7 +19,9 @@ data class PairingPayload(
     val name: String,
     val host: String,
     val port: Int,
-    val secret: String
+    val secret: String,
+    /** Optional host lifecycle capability; absent means continuously available. */
+    val availability: String? = null,
 ) {
     fun toJson(): String = Gson().toJson(this)
 
@@ -29,11 +31,13 @@ data class PairingPayload(
         host = host,
         port = port,
         secret = secret,
-        pairedAt = now
+        pairedAt = now,
+        availability = availability,
     )
 
     companion object {
         const val WIRE_VERSION = 1
+        const val AVAILABILITY_FOREGROUND = "foreground"
 
         fun parse(text: String): PairingPayload? = try {
             val parsed = Gson().fromJson(text.trim(), PairingPayload::class.java)

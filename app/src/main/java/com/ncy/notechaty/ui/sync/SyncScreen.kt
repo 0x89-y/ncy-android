@@ -36,6 +36,7 @@ import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
+import com.ncy.notechaty.data.sync.transport.SyncEndpoint
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import android.graphics.Bitmap
@@ -296,8 +297,11 @@ fun SyncScreen(
                     peers.forEach { peer ->
                         PeerCard(
                             peer = peer,
-                            state = states[peer.id] ?: SyncManager.PeerState.Idle,
+                            state = states[peer.id] ?: if (peer.disabled) {
+                                SyncManager.PeerState.Disabled
+                            } else SyncManager.PeerState.Idle,
                             onSyncNow = { viewModel.syncNow(peer.id) },
+                            onEnabledChange = { viewModel.setPeerEnabled(peer.id, it) },
                             onUnpair = { viewModel.unpair(peer.id) }
                         )
                     }
@@ -355,9 +359,9 @@ private fun PairingDialog(
                     )
                     Text(
                         if (state.usedFallbackPort) {
-                            "Available at ${state.host}:${state.port}. Port 8765 was busy, so Ncy selected a temporary fallback port and included it in this code."
+                            "Available at ${SyncEndpoint.display(state.host, state.port)}. Port 8765 was busy, so Ncy selected a temporary fallback port and included it in this code."
                         } else {
-                            "Available at ${state.host}:${state.port}. This code refreshes automatically if the phone's network address changes."
+                            "Available at ${SyncEndpoint.display(state.host, state.port)}. This code refreshes automatically if the phone's network address changes."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -440,6 +444,7 @@ private fun PeerCard(
     peer: SyncPeer,
     state: SyncManager.PeerState,
     onSyncNow: () -> Unit,
+    onEnabledChange: (Boolean) -> Unit,
     onUnpair: () -> Unit
 ) {
     NcyDividedCard {
@@ -451,7 +456,7 @@ private fun PeerCard(
         ) {
             Text(peer.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                "${peer.host}:${peer.port}",
+                SyncEndpoint.display(peer.host, peer.port),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -460,6 +465,21 @@ private fun PeerCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = statusColor(state)
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Automatic sync",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Switch(
+                    checked = !peer.disabled,
+                    onCheckedChange = onEnabledChange,
+                )
+            }
             Spacer(Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -468,6 +488,7 @@ private fun PeerCard(
             ) {
                 Button(
                     onClick = onSyncNow,
+                    enabled = !peer.disabled,
                     shape = NcyButtonShape,
                     modifier = Modifier.weight(1f)
                 ) {
@@ -511,7 +532,7 @@ private fun DiscoveredCard(
         ) {
             Text(peer.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                "${peer.host}:${peer.port}",
+                SyncEndpoint.display(peer.host, peer.port),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -594,8 +615,11 @@ private fun statusLine(state: SyncManager.PeerState, peer: SyncPeer): String = w
         if (last != null) "Last synced ${DateFormat.getDateTimeInstance().format(Date(last))}"
         else "Not yet synced"
     }
+    SyncManager.PeerState.Disabled -> "Sync disabled for this device"
+    SyncManager.PeerState.WaitingForNetwork -> "Waiting for Wi-Fi or Ethernet"
     SyncManager.PeerState.Connecting -> "Connecting…"
     is SyncManager.PeerState.Connected ->
         "Connected · ${state.sentCount} sent · ${state.receivedCount} received"
+    is SyncManager.PeerState.Unavailable -> "Unavailable · ${state.reason}"
     is SyncManager.PeerState.Failed -> "Failed: ${state.reason}"
 }

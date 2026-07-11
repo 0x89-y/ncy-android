@@ -29,6 +29,7 @@ class PhonePairingIdentity @Inject constructor(
         host = host,
         port = port,
         secret = secret,
+        availability = PairingPayload.AVAILABILITY_FOREGROUND,
     )
 
     fun regenerateSecret() {

@@ -23,6 +23,7 @@ data class DiscoveredPeer(
     val port: Int,
     val deviceId: String?,
     val pairingMode: String,
+    val availability: String?,
 ) {
     val supportsPairRequest: Boolean get() = pairingMode == PAIRING_MODE_REQUEST
 
@@ -128,12 +129,14 @@ class MdnsDiscovery @Inject constructor(
         // the compatibility default when the TXT field is absent.
         val pairingMode = info.attributes["pairingMode"]?.let { String(it) }
             ?: DiscoveredPeer.PAIRING_MODE_REQUEST
+        val availability = info.attributes["availability"]?.let { String(it) }
         val peer = DiscoveredPeer(
             name = info.serviceName ?: "Unknown",
             host = host,
             port = port,
             deviceId = deviceId,
             pairingMode = pairingMode,
+            availability = availability,
         )
         _peers.value = (_peers.value.filterNot { it.name == peer.name } + peer)
             .sortedBy { it.name.lowercase() }

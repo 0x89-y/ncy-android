@@ -53,7 +53,7 @@ class SyncClient @Inject constructor() {
         ) : Event()
         data class BlobMissingReceived(val hash: String) : Event()
         data class Failed(val reason: String) : Event()
-        object Disconnected : Event()
+        data class Disconnected(val reason: String = "") : Event()
     }
 
     interface Session {
@@ -69,6 +69,7 @@ class SyncClient @Inject constructor() {
             isLast: Boolean
         ): Boolean
         fun sendBlobMissing(hash: String): Boolean
+        fun sendError(code: String, message: String): Boolean
         fun close()
     }
 
@@ -81,7 +82,7 @@ class SyncClient @Inject constructor() {
         onEvent(Event.Connecting)
 
         val request = Request.Builder()
-            .url("ws://${peer.host}:${peer.port}/sync")
+            .url(SyncEndpoint.webSocketUrl(peer.host, peer.port, "sync"))
             .build()
 
         var authenticated = false
@@ -151,13 +152,13 @@ class SyncClient @Inject constructor() {
                 if (closed) return
                 closed = true
                 onEvent(Event.Failed(t.message ?: t.javaClass.simpleName))
-                onEvent(Event.Disconnected)
+                onEvent(Event.Disconnected(t.message.orEmpty()))
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 if (closed) return
                 closed = true
-                onEvent(Event.Disconnected)
+                onEvent(Event.Disconnected(reason))
             }
         })
 
@@ -205,11 +206,16 @@ class SyncClient @Inject constructor() {
                 return webSocket.send(codec.encode(SyncWireMessage.BlobMissing(hash)))
             }
 
+            override fun sendError(code: String, message: String): Boolean {
+                if (closed) return false
+                return webSocket.send(codec.encode(SyncWireMessage.Error(code, message)))
+            }
+
             override fun close() {
                 if (closed) return
                 closed = true
                 webSocket.close(CLOSE_NORMAL, "client closing")
-                onEvent(Event.Disconnected)
+                onEvent(Event.Disconnected("client closing"))
             }
         }
     }

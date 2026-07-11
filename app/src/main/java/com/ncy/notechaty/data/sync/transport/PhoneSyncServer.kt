@@ -22,6 +22,7 @@ import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.peer.PhonePairingIdentity
+import com.ncy.notechaty.data.sync.peer.PairingPayload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,6 +41,8 @@ import org.java_websocket.server.WebSocketServer
 import java.io.BufferedOutputStream
 import java.io.File
 import java.net.Inet4Address
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
@@ -107,6 +110,7 @@ class PhoneSyncServer @Inject constructor(
     private var advertisingRestartJob: Job? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val knownNetworks = java.util.concurrent.ConcurrentHashMap.newKeySet<Network>()
+    private var familyRestartPending = false
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var advertisedHost: String? = null
     private var advertisedPort: Int? = null
@@ -135,13 +139,14 @@ class PhoneSyncServer @Inject constructor(
             return
         }
         if (server != null) return
-        val port = selectServerPort()
+        val initialHost = localLanAddress()
+        val port = selectServerPort(initialHost?.let(::isIpv6Host) == true)
         if (port == null) {
             _state.value = HostState.Failed("Could not find an available port for phone sync.")
             return
         }
         _state.value = HostState.Starting
-        val next = Server(port)
+        val next = Server(port, initialHost?.let(::isIpv6Host) == true)
         server = next
         next.isReuseAddr = true
         registerNetworkCallback()
@@ -158,7 +163,7 @@ class PhoneSyncServer @Inject constructor(
     }
 
     @Synchronized
-    fun stop() {
+    fun stop(reason: String = CLOSE_REASON_FOREGROUND) {
         liveJob?.cancel()
         liveJob = null
         transferCleanupJob?.cancel()
@@ -169,7 +174,10 @@ class PhoneSyncServer @Inject constructor(
         advertisingRestartJob = null
         unregisterNetworkCallback()
         stopAdvertising()
-        server?.let { runCatching { it.stop(500) } }
+        server?.let { current ->
+            current.closeAll(reason)
+            runCatching { current.stop(500) }
+        }
         server = null
         _hostedPeers.value = _hostedPeers.value.map { it.copy(connected = false) }
         _state.value = if (_enabled.value) HostState.Stopped else HostState.Disabled
@@ -179,7 +187,7 @@ class PhoneSyncServer @Inject constructor(
         if (_enabled.value == enabled) return
         _enabled.value = enabled
         prefs.edit().putBoolean(KEY_ENABLED, enabled).apply()
-        if (enabled) start() else stop()
+        if (enabled) start() else stop(CLOSE_REASON_DISABLED)
     }
 
     @Synchronized
@@ -198,7 +206,7 @@ class PhoneSyncServer @Inject constructor(
 
     private fun refreshPairingPayload() {
         val current = server
-        val host = localIpv4()
+        val host = localLanAddress()
         _state.value = if (current?.listening == true && host != null) {
             HostState.Ready(
                 pairingJson = pairingIdentity.payload(host, current.boundPort).toJson(),
@@ -209,8 +217,11 @@ class PhoneSyncServer @Inject constructor(
         } else HostState.Failed("Connect this phone to Wi-Fi to share pairing data.")
     }
 
-    private inner class Server(val boundPort: Int) :
-        WebSocketServer(InetSocketAddress(boundPort)) {
+    private inner class Server(val boundPort: Int, val ipv6: Boolean) :
+        WebSocketServer(
+            if (ipv6) InetSocketAddress(InetAddress.getByName("::"), boundPort)
+            else InetSocketAddress(boundPort)
+        ) {
         private val clients = java.util.concurrent.ConcurrentHashMap<WebSocket, Client>()
         @Volatile var listening: Boolean = false
 
@@ -246,6 +257,20 @@ class PhoneSyncServer @Inject constructor(
                 if (hello == null) {
                     conn.send(codec.encode(SyncWireMessage.Error("auth_failed", "Invalid pairing secret")))
                     conn.close(1002, "auth failed")
+                    return
+                }
+                if (hello.sinceHlc?.let {
+                        !com.ncy.notechaty.data.sync.event.HlcTimestamp.isAcceptableRemote(
+                            it,
+                            System.currentTimeMillis(),
+                        )
+                    } == true
+                ) {
+                    conn.send(codec.encode(SyncWireMessage.Error(
+                        "clock_skew",
+                        "Remote catch-up clock is more than 5 minutes ahead",
+                    )))
+                    conn.close(1002, "clock skew")
                     return
                 }
                 val name = hello.deviceName.ifBlank { "Phone ${hello.deviceId.take(8)}" }
@@ -316,6 +341,10 @@ class PhoneSyncServer @Inject constructor(
             .filter { it.value.deviceId == deviceId }
             .forEach { it.key.close(1000, "pairing revoked") }
 
+        fun closeAll(reason: String) = clients.keys.forEach {
+            it.close(CLOSE_GOING_AWAY, reason)
+        }
+
         suspend fun expireStalledTransfers() {
             val cutoff = System.currentTimeMillis() - SyncLimits.TRANSFER_TIMEOUT_MS
             clients.values.forEach { client ->
@@ -333,6 +362,18 @@ class PhoneSyncServer @Inject constructor(
         private suspend fun receiveEvent(conn: WebSocket, client: Client, event: ChatEvent) {
             if (event.originDevice == identity.deviceId) {
                 conn.send(codec.encode(SyncWireMessage.Ack(event.hlc)))
+                return
+            }
+            if (!com.ncy.notechaty.data.sync.event.HlcTimestamp.isAcceptableRemote(
+                    event.hlc,
+                    System.currentTimeMillis(),
+                )
+            ) {
+                conn.send(codec.encode(SyncWireMessage.Error(
+                    "clock_skew",
+                    "Remote event clock is more than 5 minutes ahead",
+                )))
+                conn.close(1002, "clock skew")
                 return
             }
             repository.applyExternalEvent(event)
@@ -528,33 +569,35 @@ class PhoneSyncServer @Inject constructor(
         prefs.edit().putString(KEY_HOSTED_PEERS, gson.toJson(persisted)).apply()
     }
 
-    private fun localIpv4(): String? {
+    private fun localLanAddress(): String? {
         val active = connectivity.activeNetwork
         val fromConnectivity = runCatching {
             knownNetworks.asSequence()
-                .mapNotNull { network ->
-                    val capabilities = connectivity.getNetworkCapabilities(network) ?: return@mapNotNull null
-                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return@mapNotNull null
+                .flatMap { network ->
+                    val capabilities = connectivity.getNetworkCapabilities(network)
+                        ?: return@flatMap emptySequence()
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+                        return@flatMap emptySequence()
+                    }
                     val isWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
                     val isEthernet = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-                    if (!isWifi && !isEthernet) return@mapNotNull null
+                    if (!isWifi && !isEthernet) return@flatMap emptySequence()
                     val rank = when {
                         network == active && isWifi -> 0
                         network == active && isEthernet -> 1
                         isWifi -> 2
                         else -> 3
                     }
-                    val address = connectivity.getLinkProperties(network)
+                    connectivity.getLinkProperties(network)
                         ?.linkAddresses
                         ?.asSequence()
                         ?.map { it.address }
-                        ?.filterIsInstance<Inet4Address>()
-                        ?.firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
-                        ?.hostAddress
-                    address?.let { rank to it }
+                        ?.filter(::isUsableLanAddress)
+                        ?.map { address -> Triple(rank, addressRank(address), address.hostAddress ?: "") }
+                        ?: emptySequence()
                 }
-                .sortedBy { it.first }
-                .map { it.second }
+                .sortedWith(compareBy<Triple<Int, Int, String>> { it.first }.thenBy { it.second }.thenBy { it.third })
+                .map { it.third }
                 .firstOrNull()
         }.getOrNull()
         if (fromConnectivity != null) return fromConnectivity
@@ -578,18 +621,46 @@ class PhoneSyncServer @Inject constructor(
                     }
                 }
                 .flatMap { it.inetAddresses.toList().asSequence() }
-                .filterIsInstance<Inet4Address>()
+                .filter(::isUsableLanAddress)
+                .sortedWith(compareBy<InetAddress>(::addressRank).thenBy { it.hostAddress })
                 .mapNotNull { it.hostAddress }
-                .firstOrNull { !it.startsWith("169.254.") }
+                .firstOrNull()
         }.getOrNull()
     }
 
-    private fun selectServerPort(): Int? = probePort(DEFAULT_PORT) ?: probePort(0)
+    private fun isUsableLanAddress(address: InetAddress): Boolean =
+        !address.isAnyLocalAddress &&
+            !address.isLoopbackAddress &&
+            !address.isLinkLocalAddress &&
+            !address.isMulticastAddress
 
-    private fun probePort(port: Int): Int? = runCatching {
+    private fun addressRank(address: InetAddress): Int = when (address) {
+        is Inet4Address -> {
+            val octets = address.address.map { it.toInt() and 0xff }
+            when {
+                octets[0] == 192 && octets[1] == 168 -> 0
+                octets[0] == 172 && octets[1] in 16..31 -> 1
+                octets[0] == 10 -> 2
+                else -> 3
+            }
+        }
+        is Inet6Address -> if ((address.address[0].toInt() and 0xfe) == 0xfc) 4 else 5
+        else -> 6
+    }
+
+    private fun isIpv6Host(host: String): Boolean =
+        host.trim().removePrefix("[").removeSuffix("]").contains(':')
+
+    private fun selectServerPort(ipv6: Boolean): Int? =
+        probePort(DEFAULT_PORT, ipv6) ?: probePort(0, ipv6)
+
+    private fun probePort(port: Int, ipv6: Boolean): Int? = runCatching {
         ServerSocket().use { socket ->
             socket.reuseAddress = true
-            socket.bind(InetSocketAddress(port))
+            socket.bind(
+                if (ipv6) InetSocketAddress(InetAddress.getByName("::"), port)
+                else InetSocketAddress(port)
+            )
             socket.localPort
         }
     }.getOrNull()
@@ -653,7 +724,7 @@ class PhoneSyncServer @Inject constructor(
     private fun refreshNetworkEndpoint(forceAdvertising: Boolean = false) {
         val current = server ?: return
         if (!current.listening) return
-        val host = localIpv4()
+        val host = localLanAddress()
         if (host == null) {
             _state.value = HostState.Failed("Connect this phone to Wi-Fi or Ethernet to share pairing data.")
             advertisedHost = null
@@ -661,6 +732,18 @@ class PhoneSyncServer @Inject constructor(
             advertisingRestartJob?.cancel()
             advertisingRestartJob = null
             stopAdvertising()
+            return
+        }
+        if (current.ipv6 != isIpv6Host(host)) {
+            if (!familyRestartPending) {
+                familyRestartPending = true
+                _state.value = HostState.Starting
+                scope.launch {
+                    stop(CLOSE_REASON_NETWORK_CHANGED)
+                    synchronized(this@PhoneSyncServer) { familyRestartPending = false }
+                    if (_enabled.value) start()
+                }
+            }
             return
         }
 
@@ -687,7 +770,7 @@ class PhoneSyncServer @Inject constructor(
             delay(ADVERTISEMENT_RESTART_DELAY_MS)
             synchronized(this@PhoneSyncServer) {
                 val current = server
-                if (current?.listening == true && current.boundPort == port && localIpv4() == host) {
+                if (current?.listening == true && current.boundPort == port && localLanAddress() == host) {
                     startAdvertising(host, port)
                 }
             }
@@ -737,6 +820,7 @@ class PhoneSyncServer @Inject constructor(
             this.port = port
             setAttribute("deviceId", identity.deviceId)
             setAttribute("pairingMode", "qr")
+            setAttribute("availability", PairingPayload.AVAILABILITY_FOREGROUND)
         }
         registrationListener = listener
         advertisedHost = host
@@ -787,6 +871,10 @@ class PhoneSyncServer @Inject constructor(
         const val CHUNK_SIZE = 64 * 1024
         const val NETWORK_REFRESH_DEBOUNCE_MS = 500L
         const val ADVERTISEMENT_RESTART_DELAY_MS = 500L
+        const val CLOSE_GOING_AWAY = 1001
+        const val CLOSE_REASON_FOREGROUND = "phone_host_left_foreground"
+        const val CLOSE_REASON_DISABLED = "phone_host_disabled"
+        const val CLOSE_REASON_NETWORK_CHANGED = "phone_host_network_changed"
         const val PREFS = "ncy_phone_sync_server"
         const val KEY_ENABLED = "enabled"
         const val KEY_HOSTED_PEERS = "hosted_peers"

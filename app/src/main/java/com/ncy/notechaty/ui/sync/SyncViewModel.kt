@@ -145,6 +145,9 @@ class SyncViewModel @Inject constructor(
         syncManager.syncNow(peerId)
     }
 
+    fun setPeerEnabled(peerId: String, enabled: Boolean) =
+        syncManager.setPeerEnabled(peerId, enabled)
+
     fun regeneratePairing() = phoneSyncServer.regeneratePairing()
 
     fun revokeHostedPeer(peerId: String) = phoneSyncServer.revokeHostedPeer(peerId)

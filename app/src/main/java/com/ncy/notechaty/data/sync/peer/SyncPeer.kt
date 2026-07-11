@@ -24,5 +24,12 @@ data class SyncPeer(
     /** Highest HLC we've received and applied from this peer. Sent as Hello.sinceHlc. */
     val lastReceivedHlcMs: Long? = null,
     val lastReceivedHlcLogical: Int? = null,
-    val lastReceivedHlcNode: String? = null
-)
+    val lastReceivedHlcNode: String? = null,
+    /** Host lifecycle capability from pairing data; null means always available. */
+    val availability: String? = null,
+    /** User-controlled outbound connection switch. Missing legacy values default to enabled. */
+    val disabled: Boolean = false,
+) {
+    val foregroundOnly: Boolean
+        get() = availability == PairingPayload.AVAILABILITY_FOREGROUND
+}

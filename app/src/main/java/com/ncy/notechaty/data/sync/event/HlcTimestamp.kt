@@ -17,6 +17,19 @@ data class HlcTimestamp(
     }
 
     companion object {
+        const val MAX_FUTURE_SKEW_MS = 5 * 60 * 1000L
+
+        /** Remote timestamps beyond this bounded tolerance must not reach logs/watermarks. */
+        fun isAcceptableRemote(timestamp: HlcTimestamp, nowMs: Long): Boolean {
+            val futureLimit = if (nowMs > Long.MAX_VALUE - MAX_FUTURE_SKEW_MS) {
+                Long.MAX_VALUE
+            } else nowMs + MAX_FUTURE_SKEW_MS
+            return timestamp.physicalMs >= 0L &&
+                timestamp.logical >= 0 &&
+                timestamp.nodeId.isNotBlank() &&
+                timestamp.physicalMs <= futureLimit
+        }
+
         /** Generate the next local timestamp given the previous local clock and current wall-clock. */
         fun tick(previous: HlcTimestamp?, nowMs: Long, nodeId: String): HlcTimestamp {
             val prev = previous ?: HlcTimestamp(0L, 0, nodeId)

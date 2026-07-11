@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.ncy.notechaty.data.sync.transport.SyncEndpoint
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -89,7 +90,7 @@ class PairingClient @Inject constructor() {
         val phonePubB64 = Base64.encodeToString(phonePubBytes, Base64.NO_WRAP)
 
         val request = Request.Builder()
-            .url("ws://$host:$port/pair")
+            .url(SyncEndpoint.webSocketUrl(host, port, "pair"))
             .build()
 
         val outcome = CompletableDeferred<Result>()

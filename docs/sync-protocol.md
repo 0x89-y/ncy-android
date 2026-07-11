@@ -49,7 +49,8 @@ Out-of-band exchange. Format (JSON, UTF-8):
   "name": "My Laptop",
   "host": "192.168.1.42",
   "port": 8765,
-  "secret": "RnFTM05OdndNb1plUkRwY3FRRzRlZ0FUWlBNQ0JLN3M="
+  "secret": "RnFTM05OdndNb1plUkRwY3FRRzRlZ0FUWlBNQ0JLN3M=",
+  "availability": "foreground"
 }
 ```
 
@@ -62,6 +63,7 @@ Out-of-band exchange. Format (JSON, UTF-8):
 | `port`     | int     | TCP port. Range 1–65535.                                 |
 | `secret`   | string  | Base64-encoded pre-shared key. **At least 32 bytes** of  |
 |            |         | cryptographic randomness. Used to HMAC the auth nonce.   |
+| `availability` | string, optional | `foreground` means the host is reachable only while its app is open. Absence means continuously available. |
 
 A new pairing payload **must** generate a fresh `secret`. The phone treats the QR scan
 as trust-on-first-use: it stores the (`deviceId`, `secret`) pair and uses them for
@@ -79,26 +81,41 @@ The stored `host` and `port` are last-known endpoints rather than identity. A pe
 advertise `_ncy-sync._tcp` with its stable `deviceId`; an already-paired client may then
 refresh only the endpoint when DHCP changes it. Discovery never replaces the stored
 secret and therefore cannot establish trust by itself.
+Clients may store a local `disabled` flag alongside a paired peer. This flag is not
+transmitted and does not revoke the pairing: it suppresses that client's outbound
+connection/retry task while retaining the secret and sync watermarks. Missing legacy
+values mean enabled. Network-aware clients should similarly suspend retry timers when
+no usable LAN exists and resume enabled peers immediately when connectivity returns.
 An active host must refresh both its pairing payload and mDNS registration when its
-reachable LAN address changes. The Android phone host listens on all interfaces and
-selects a Wi-Fi or Ethernet IPv4 address for the payload; it withdraws advertising
-while no suitable LAN address exists and restores it when one appears. If its default
-port is occupied, it may choose an available fallback, but every payload and service
-record must contain the port actually bound. Configured Desktop/Server deployments
-instead report a bind failure so operator-selected ports are never changed silently.
+reachable LAN address changes. Android selects active Wi-Fi/Ethernet before hotspot
+fallbacks and excludes cellular/VPN candidates. Core prefers physical Wi-Fi/Ethernet
+over virtual and VPN adapters. IPv4 is preferred for compatibility, followed by IPv6
+ULA/global addresses on IPv6-only LANs. Link-local addresses are not placed in pairing
+payloads because their scope identifiers are machine-local. IPv6 literals are stored
+unbracketed in `host`, then bracketed when constructing URLs; any zone `%` is encoded
+as `%25`. Hosts bind the wildcard matching the selected address family. Android
+withdraws advertising while no suitable address exists and restores it when one
+appears. If its default port is occupied, it may choose an available fallback, but
+every payload and service record must contain the port actually bound. Configured
+Desktop/Server deployments instead report a bind failure so operator-selected ports
+are never changed silently.
 
 The mDNS TXT record includes `pairingMode`. A value of `request` means the host
 supports the interactive `PairRequest` flow; `qr` means pairing must happen through
 the host's QR/JSON payload. Clients must not offer `PairRequest` to a `qr` host.
-For compatibility, an absent value is treated as `request`.
+For compatibility, an absent value is treated as `request`. A phone host also sets
+`availability=foreground`; clients may persist this capability after matching the
+advertised stable `deviceId`, but discovery still cannot change credentials.
 
 ## 3. Connection & transport
 
 - URL: `ws://<host>:<port>/sync`
 - Frames: WebSocket **text** frames. UTF-8 JSON. One JSON object per frame.
 - The connection is long-lived: phone keeps it open while the app is foregrounded.
-- Closing codes: `1000` (normal), `1002` (protocol error). The phone will not retry
-  automatically in phase 1 — the user taps "Sync now" or backgrounds + foregrounds.
+- Closing codes: `1000` (normal), `1001` (host going away), `1002` (protocol error).
+  A foreground-only phone host closes with reason `phone_host_left_foreground` before
+  stopping. Clients retry with capped backoff; resolving the trusted stable device ID
+  over mDNS wakes that delay immediately, even when host and port are unchanged.
 
 Phase 1 is plaintext over LAN. The phone manifest declares
 `android:usesCleartextTraffic="true"`. Desktop clients should accept any client
@@ -474,6 +491,21 @@ Phase 1 desktop clients only receive events; they don't author any, so a strict
 implementation of `receive` isn't required to pass the tests. But for phase 2
 (bidirectional) the desktop clock **must** call `receive` on every inbound event
 to keep its own clock causally ahead.
+
+### 8.4 Remote clock validation
+
+Every untrusted HLC position—event `hlc`, `Hello.sinceHlc`, and `Ack.upToHlc`—must
+be validated before it affects a log, materialized state, HLC clock, or watermark.
+`physicalMs` and `logical` must be non-negative, `nodeId` must be non-empty, and
+`physicalMs` may be no more than five minutes ahead of the receiver's current wall
+clock. The five-minute boundary is accepted; anything beyond it is rejected with
+`Error.code = "clock_skew"` and the session closes without acknowledging the value.
+
+Remote timestamps are not clamped: different receivers would clamp at different
+instants and could materialize conflicting order. A sender retries after its system
+clock is corrected. Persisted peer/pairing watermarks from older builds that violate
+the rule are cleared so catch-up restarts safely; historical event logs are never
+silently rewritten.
 
 ## 9. Embedded data models
 

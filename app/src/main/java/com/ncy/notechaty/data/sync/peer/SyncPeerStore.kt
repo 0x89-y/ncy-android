@@ -33,11 +33,29 @@ class SyncPeerStore @Inject constructor(
     private fun load() {
         val json = prefs.getString(KEY_PEERS, null) ?: return
         val type = object : TypeToken<List<SyncPeer>>() {}.type
-        _peers.value = try {
+        val loaded = try {
             gson.fromJson<List<SyncPeer>>(json, type) ?: emptyList()
         } catch (_: Exception) {
             emptyList()
         }
+        val now = System.currentTimeMillis()
+        var repaired = false
+        _peers.value = loaded.map { peer ->
+            val clearSent = lastSentHlc(peer)?.let { !HlcTimestamp.isAcceptableRemote(it, now) } == true
+            val clearReceived = lastReceivedHlc(peer)?.let { !HlcTimestamp.isAcceptableRemote(it, now) } == true
+            if (!clearSent && !clearReceived) peer else {
+                repaired = true
+                peer.copy(
+                    lastSentHlcMs = if (clearSent) null else peer.lastSentHlcMs,
+                    lastSentHlcLogical = if (clearSent) null else peer.lastSentHlcLogical,
+                    lastSentHlcNode = if (clearSent) null else peer.lastSentHlcNode,
+                    lastReceivedHlcMs = if (clearReceived) null else peer.lastReceivedHlcMs,
+                    lastReceivedHlcLogical = if (clearReceived) null else peer.lastReceivedHlcLogical,
+                    lastReceivedHlcNode = if (clearReceived) null else peer.lastReceivedHlcNode,
+                )
+            }
+        }
+        if (repaired) persist()
     }
 
     private fun persist() {
@@ -63,6 +81,28 @@ class SyncPeerStore @Inject constructor(
         if (existing.host == host && existing.port == port) return false
         _peers.value = _peers.value.map {
             if (it.id == peerId) it.copy(host = host, port = port) else it
+        }
+        persist()
+        return true
+    }
+
+    /** Learn an optional lifecycle capability from trusted-ID mDNS discovery. */
+    fun updateAvailability(peerId: String, availability: String?): Boolean {
+        if (availability.isNullOrBlank()) return false
+        val existing = byId(peerId) ?: return false
+        if (existing.availability == availability) return false
+        _peers.value = _peers.value.map {
+            if (it.id == peerId) it.copy(availability = availability) else it
+        }
+        persist()
+        return true
+    }
+
+    fun setEnabled(peerId: String, enabled: Boolean): Boolean {
+        val existing = byId(peerId) ?: return false
+        if (existing.disabled == !enabled) return false
+        _peers.value = _peers.value.map {
+            if (it.id == peerId) it.copy(disabled = !enabled) else it
         }
         persist()
         return true

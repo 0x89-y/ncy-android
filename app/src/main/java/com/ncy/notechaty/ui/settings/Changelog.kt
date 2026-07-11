@@ -14,6 +14,17 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.6.0",
+        date = "2026-07-11",
+        changes = listOf(
+            "Added phone-to-phone sync over local Wi-Fi, paired by scanning a QR code.",
+            "Share this phone from Sync devices to host, with per-device invitations you can revoke.",
+            "Paired devices reconnect automatically after their LAN address changes.",
+            "Sync now rejects oversized frames and streams media with bounded memory use.",
+            "Stalled media transfers clean themselves up automatically.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.5.1",
         date = "2026-07-10",
         changes = listOf(

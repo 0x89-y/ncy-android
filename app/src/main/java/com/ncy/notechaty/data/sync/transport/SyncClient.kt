@@ -1,6 +1,7 @@
 package com.ncy.notechaty.data.sync.transport
 
 import android.util.Base64
+import android.os.Build
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.peer.SyncPeer
@@ -89,6 +90,11 @@ class SyncClient @Inject constructor() {
 
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
+                if (text.length > SyncLimits.MAX_TEXT_FRAME_CHARS) {
+                    onEvent(Event.Failed("Wire frame exceeds the 1 MiB limit"))
+                    webSocket.close(CLOSE_PROTOCOL_ERROR, "frame too large")
+                    return
+                }
                 val msg = try {
                     codec.decode(text)
                 } catch (e: Exception) {
@@ -108,7 +114,8 @@ class SyncClient @Inject constructor() {
                             SyncWireMessage.Hello(
                                 deviceId = localDeviceId,
                                 auth = signed,
-                                sinceHlc = sinceHlc
+                                sinceHlc = sinceHlc,
+                                deviceName = Build.MODEL?.takeIf { it.isNotBlank() } ?: "Android phone",
                             )
                         ))
                     }

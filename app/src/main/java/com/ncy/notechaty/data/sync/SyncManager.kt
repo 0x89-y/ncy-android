@@ -7,19 +7,25 @@ import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.media.MediaHash
+import com.ncy.notechaty.data.sync.discovery.MdnsDiscovery
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.SyncClient
+import com.ncy.notechaty.data.sync.transport.SyncLimits
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.io.BufferedOutputStream
+import java.io.File
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,7 +45,8 @@ class SyncManager @Inject constructor(
     private val eventBus: ChatEventBus,
     private val syncClient: SyncClient,
     private val snapshot: SyncSnapshot,
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val mdnsDiscovery: MdnsDiscovery,
 ) {
     private val tag = "SyncManager"
 
@@ -51,6 +58,7 @@ class SyncManager @Inject constructor(
     val states: StateFlow<Map<String, PeerState>> = _states.asStateFlow()
 
     private var running = false
+    private var discoveryJob: Job? = null
 
     sealed class PeerState {
         object Idle : PeerState()
@@ -67,6 +75,19 @@ class SyncManager @Inject constructor(
     fun start() {
         if (running) return
         running = true
+        mdnsDiscovery.start()
+        discoveryJob = scope.launch {
+            mdnsDiscovery.peers.collect { discovered ->
+                discovered.forEach { found ->
+                    val id = found.deviceId ?: return@forEach
+                    if (peerStore.updateEndpoint(id, found.host, found.port)) {
+                        // The stable device ID matched a trusted pairing. Replace only
+                        // its stale address and reconnect immediately using the same secret.
+                        syncNow(id)
+                    }
+                }
+            }
+        }
         peerStore.peers.value.forEach { startSession(it) }
     }
 
@@ -74,6 +95,9 @@ class SyncManager @Inject constructor(
     fun stop() {
         if (!running) return
         running = false
+        discoveryJob?.cancel()
+        discoveryJob = null
+        mdnsDiscovery.stop()
         perPeer.values.toList().forEach { it.shutdown() }
         perPeer.clear()
         _states.value = emptyMap()
@@ -114,18 +138,23 @@ class SyncManager @Inject constructor(
     private data class PendingFetch(
         val chatId: String,
         val mediaType: String,
-        val buffer: ByteArrayOutputStream
+        val tempFile: File,
+        val output: BufferedOutputStream,
+        var received: Int = 0,
+        var lastActivityAt: Long = System.currentTimeMillis(),
     )
 
     private inner class PeerSession(private val peer: SyncPeer) {
         private var session: SyncClient.Session? = null
         private var liveJob: Job? = null
         private var reconnectJob: Job? = null
+        private var transferCleanupJob: Job? = null
         private var reconnectAttempt = 0
         @Volatile private var canceled = false
         private var sentCount = 0
         private var receivedCount = 0
         private var peerName: String = peer.name
+        private val blobMutex = Mutex()
 
         // Outbound watermark: highest HLC the peer has acked from us. Drives our catchup.
         @Volatile private var lastAckedHlc: HlcTimestamp? = peerStore.lastSentHlc(peer)
@@ -135,6 +164,7 @@ class SyncManager @Inject constructor(
         @Volatile private var lastReceivedHlc: HlcTimestamp? = peerStore.lastReceivedHlc(peer)
 
         fun run() {
+            startTransferCleanup()
             session = syncClient.connect(
                 peer = peer,
                 localDeviceId = deviceIdentity.deviceId,
@@ -166,18 +196,20 @@ class SyncManager @Inject constructor(
                     }
                     is SyncClient.Event.BlobChunkReceived -> {
                         scope.launch {
-                            handleBlobChunkInbound(
-                                hash = event.hash,
-                                mediaType = event.mediaType,
-                                offset = event.offset,
-                                totalSize = event.totalSize,
-                                data = event.data,
-                                isLast = event.isLast
-                            )
+                            blobMutex.withLock {
+                                handleBlobChunkInbound(
+                                    hash = event.hash,
+                                    mediaType = event.mediaType,
+                                    offset = event.offset,
+                                    totalSize = event.totalSize,
+                                    data = event.data,
+                                    isLast = event.isLast
+                                )
+                            }
                         }
                     }
                     is SyncClient.Event.BlobMissingReceived -> {
-                        synchronized(this@PeerSession) { pendingFetches.remove(event.hash) }
+                        discardPending(event.hash)
                     }
                     is SyncClient.Event.Failed -> {
                         Log.w(tag, "Peer ${peer.id} failed: ${event.reason}")
@@ -226,12 +258,14 @@ class SyncManager @Inject constructor(
             for ((hash, mediaType) in extractMediaRefs(event)) {
                 if (chatRepository.mediaFileForHash(hash, mediaType) != null) continue
                 val newlyPending = synchronized(this@PeerSession) {
-                    if (pendingFetches.containsKey(hash)) false
+                    if (pendingFetches.containsKey(hash) || pendingFetches.size >= SyncLimits.MAX_PENDING_BLOBS) false
                     else {
+                        val temp = SyncLimits.newBlobTempFile(chatRepository.getBaseDir())
                         pendingFetches[hash] = PendingFetch(
                             chatId = event.chatId,
                             mediaType = mediaType,
-                            buffer = ByteArrayOutputStream()
+                            tempFile = temp,
+                            output = BufferedOutputStream(temp.outputStream())
                         )
                         true
                     }
@@ -247,21 +281,28 @@ class SyncManager @Inject constructor(
                 s.sendBlobMissing(hash)
                 return
             }
-            val bytes = file.readBytes()
-            val total = bytes.size
+            if (file.length() > SyncLimits.MAX_BLOB_BYTES) {
+                Log.w(tag, "refusing oversized blob $hash (${file.length()} bytes)")
+                s.sendBlobMissing(hash)
+                return
+            }
+            val total = file.length().toInt()
             val encoder = Base64.getEncoder()
             if (total == 0) {
                 s.sendBlobChunk(hash, mediaType, 0, 0, "", isLast = true)
                 return
             }
-            var offset = 0
-            while (offset < total) {
-                val n = minOf(CHUNK_SIZE, total - offset)
-                val slice = bytes.copyOfRange(offset, offset + n)
-                val data = encoder.encodeToString(slice)
-                val isLast = offset + n >= total
-                if (!s.sendBlobChunk(hash, mediaType, offset, total, data, isLast)) return
-                offset += n
+            file.inputStream().buffered().use { input ->
+                val buffer = ByteArray(CHUNK_SIZE)
+                var offset = 0
+                while (offset < total) {
+                    val n = input.read(buffer)
+                    if (n <= 0) return
+                    val data = encoder.encodeToString(if (n == buffer.size) buffer else buffer.copyOf(n))
+                    val isLast = offset + n >= total
+                    if (!s.sendBlobChunk(hash, mediaType, offset, total, data, isLast)) return
+                    offset += n
+                }
             }
         }
 
@@ -275,35 +316,53 @@ class SyncManager @Inject constructor(
         ) {
             val pending = synchronized(this@PeerSession) { pendingFetches[hash] }
             if (pending == null) return // unsolicited / already finalized; ignore
+            if (totalSize !in 0..SyncLimits.MAX_BLOB_BYTES ||
+                data.length > SyncLimits.MAX_BASE64_CHARS ||
+                offset < 0 || offset > totalSize
+            ) {
+                discardPending(hash)
+                return
+            }
             val bytes = try {
                 Base64.getDecoder().decode(data)
             } catch (e: Exception) {
                 Log.w(tag, "blob chunk: bad base64 for $hash", e)
-                synchronized(this@PeerSession) { pendingFetches.remove(hash) }
+                discardPending(hash)
+                return
+            }
+            if (bytes.size > SyncLimits.MAX_CHUNK_BYTES ||
+                pending.received + bytes.size > totalSize ||
+                pending.received + bytes.size > SyncLimits.MAX_BLOB_BYTES
+            ) {
+                discardPending(hash)
                 return
             }
             // Expect strictly in-order chunks. Drop the fetch if the sender deviates so we
             // don't end up with garbage assembled bytes.
-            if (offset != pending.buffer.size()) {
-                Log.w(tag, "out-of-order blob chunk for $hash (got $offset, expected ${pending.buffer.size()})")
-                synchronized(this@PeerSession) { pendingFetches.remove(hash) }
+            if (offset != pending.received) {
+                Log.w(tag, "out-of-order blob chunk for $hash (got $offset, expected ${pending.received})")
+                discardPending(hash)
                 return
             }
-            pending.buffer.write(bytes)
+            pending.output.write(bytes)
+            pending.received += bytes.size
+            pending.lastActivityAt = System.currentTimeMillis()
             if (!isLast) return
 
-            val collected = pending.buffer.toByteArray()
             synchronized(this@PeerSession) { pendingFetches.remove(hash) }
-            if (collected.size != totalSize) {
-                Log.w(tag, "blob $hash size mismatch: got ${collected.size} expected $totalSize")
+            pending.output.close()
+            if (pending.received != totalSize) {
+                Log.w(tag, "blob $hash size mismatch: got ${pending.received} expected $totalSize")
+                pending.tempFile.delete()
                 return
             }
-            val computed = MediaHash.ofBytes(collected)
+            val computed = MediaHash.ofFile(pending.tempFile)
             if (computed != hash) {
                 Log.w(tag, "blob hash mismatch: expected=$hash got=$computed")
+                pending.tempFile.delete()
                 return
             }
-            chatRepository.saveMediaBlob(pending.chatId, hash, pending.mediaType, collected)
+            chatRepository.saveMediaBlobFromFile(pending.chatId, hash, pending.mediaType, pending.tempFile)
             // Tell any open ChatScreen to re-render — the materialized message hasn't
             // changed but the file it references now exists on disk.
             eventBus.notifyMediaArrived(pending.chatId)
@@ -377,7 +436,41 @@ class SyncManager @Inject constructor(
             reconnectJob?.cancel()
             reconnectJob = null
             liveJob?.cancel()
+            transferCleanupJob?.cancel()
+            transferCleanupJob = null
+            synchronized(this@PeerSession) {
+                pendingFetches.values.forEach { pending ->
+                    runCatching { pending.output.close() }
+                    pending.tempFile.delete()
+                }
+                pendingFetches.clear()
+            }
             session?.close()
+        }
+
+        private fun discardPending(hash: String) {
+            val pending = synchronized(this@PeerSession) { pendingFetches.remove(hash) } ?: return
+            runCatching { pending.output.close() }
+            pending.tempFile.delete()
+        }
+
+        private fun startTransferCleanup() {
+            if (transferCleanupJob != null) return
+            transferCleanupJob = scope.launch {
+                while (isActive && !canceled) {
+                    delay(SyncLimits.TRANSFER_SWEEP_MS)
+                    blobMutex.withLock {
+                        val cutoff = System.currentTimeMillis() - SyncLimits.TRANSFER_TIMEOUT_MS
+                        val stale = synchronized(this@PeerSession) {
+                            pendingFetches.filterValues { it.lastActivityAt < cutoff }.keys.toList()
+                        }
+                        stale.forEach { hash ->
+                            Log.w(tag, "discarding stalled blob transfer $hash")
+                            discardPending(hash)
+                        }
+                    }
+                }
+            }
         }
     }
 

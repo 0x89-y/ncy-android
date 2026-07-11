@@ -64,7 +64,8 @@ interface ChatRepository {
      * Persist a freshly-downloaded media blob into the given chat. The file is named
      * `<hash>.<ext>` under the appropriate subdirectory (`voice/` or `images/`).
      */
-    suspend fun saveMediaBlob(chatId: String, hash: String, mediaType: String, bytes: ByteArray)
+    /** Move/copy a verified temporary blob into its canonical content-addressed path. */
+    suspend fun saveMediaBlobFromFile(chatId: String, hash: String, mediaType: String, sourceFile: File)
 
     fun getBaseDir(): File
 }

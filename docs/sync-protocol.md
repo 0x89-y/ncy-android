@@ -67,6 +67,31 @@ A new pairing payload **must** generate a fresh `secret`. The phone treats the Q
 as trust-on-first-use: it stores the (`deviceId`, `secret`) pair and uses them for
 every subsequent connection. Removing a peer on the phone fully forgets the secret.
 
+Device IDs, peer secrets, and sync watermarks are **installation-local state** and
+must be excluded from operating-system backup and device-transfer facilities. Chat
+events may be transferred, retaining their original `originDevice` stamps, but the
+restored installation must generate a new local device ID and pair again.
+Hosts should treat a displayed payload as a one-device invitation: once a new
+`deviceId` authenticates with its secret, bind that credential to the device and
+rotate the displayed invitation. A credential already bound to one device must not
+authenticate a different device ID.
+The stored `host` and `port` are last-known endpoints rather than identity. A peer may
+advertise `_ncy-sync._tcp` with its stable `deviceId`; an already-paired client may then
+refresh only the endpoint when DHCP changes it. Discovery never replaces the stored
+secret and therefore cannot establish trust by itself.
+An active host must refresh both its pairing payload and mDNS registration when its
+reachable LAN address changes. The Android phone host listens on all interfaces and
+selects a Wi-Fi or Ethernet IPv4 address for the payload; it withdraws advertising
+while no suitable LAN address exists and restores it when one appears. If its default
+port is occupied, it may choose an available fallback, but every payload and service
+record must contain the port actually bound. Configured Desktop/Server deployments
+instead report a bind failure so operator-selected ports are never changed silently.
+
+The mDNS TXT record includes `pairingMode`. A value of `request` means the host
+supports the interactive `PairRequest` flow; `qr` means pairing must happen through
+the host's QR/JSON payload. Clients must not offer `PairRequest` to a `qr` host.
+For compatibility, an absent value is treated as `request`.
+
 ## 3. Connection & transport
 
 - URL: `ws://<host>:<port>/sync`
@@ -155,6 +180,7 @@ be treated as a protocol error.
 {
   "type": "Hello",
   "deviceId": "<phone uuid>",
+  "deviceName": "Pixel 9",
   "auth": "<base64 of HMAC-SHA256(secret, base64decode(nonce))>",
   "sinceHlc": { "physicalMs": 1714000000000, "logical": 3, "nodeId": "<phone uuid>" }
 }
@@ -164,6 +190,8 @@ be treated as a protocol error.
 received and applied from this peer. The peer should resume sending events with HLC
 strictly greater than this. **`null` means "send everything from the beginning."**
 A fresh pairing always sends `null`.
+`deviceName` is an optional friendly label. Receivers must accept it when absent for
+compatibility with older clients.
 
 > Note for phase 1 servers: an old phase-1 phone client sent its *outbound* watermark
 > here (a holdover from the unidirectional days). Phase-1-only servers ignored the
@@ -246,6 +274,20 @@ a single `BlobMissing` if they don't have it.
 The reference implementations chunk at 64 KiB pre-base64. Receivers **must** verify
 that `SHA-256(assembled bytes)` matches `hash` before persisting; on mismatch the
 fetch is dropped and the requester may retry by sending a fresh `BlobRequest`.
+
+Resource ceilings are part of the protocol defense: text messages are limited to
+1 MiB, decoded chunks to 64 KiB, assembled blobs to 100 MiB, and pending downloads
+to eight per peer. A receiver must discard a transfer whose declared total, encoded
+payload, decoded chunk, offset, or cumulative size exceeds these bounds.
+
+Implementations stream outgoing blobs from disk and incoming chunks into a temporary
+file; they do not retain the assembled blob in memory. The receiver verifies the
+temporary file's size and SHA-256 before moving it into the content-addressed store.
+Invalid or interrupted transfers must remove their temporary files, and stale files
+left by process termination must be cleaned on a later launch.
+An incoming transfer with no new chunk for 60 seconds is stalled and must be
+discarded, closing and deleting its temporary file. Reference implementations
+check for stalled transfers every 15 seconds.
 
 ### 6.9 `BlobMissing` (either side, in response to a `BlobRequest`)
 

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy full-backup equivalent. Retained for tooling/OEM compatibility. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="ncy_device.xml" />
+    <exclude domain="sharedpref" path="ncy_sync_peers.xml" />
+    <exclude domain="sharedpref" path="ncy_phone_pairing.xml" />
+    <exclude domain="sharedpref" path="ncy_phone_sync_server.xml" />
+</full-backup-content>

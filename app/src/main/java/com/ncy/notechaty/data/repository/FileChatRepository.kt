@@ -292,26 +292,27 @@ class FileChatRepository @Inject constructor(
             ?.firstOrNull()
     }
 
-    override suspend fun saveMediaBlob(
+    override suspend fun saveMediaBlobFromFile(
         chatId: String,
         hash: String,
         mediaType: String,
-        bytes: ByteArray
+        sourceFile: File
     ): Unit = withContext(Dispatchers.IO) {
-        val ext = mediaExt(mediaType) ?: return@withContext
-        // Receive-side: save into the canonical write dir (voice/ or images/). Avatars
-        // arriving from a peer also land in images/ — Avatar.svelte locally looks up by
-        // hash, not by literal path, so the on-disk location doesn't matter to renderers.
-        val subdir = mediaWriteSubdir(mediaType) ?: return@withContext
+        val ext = mediaExt(mediaType) ?: run {
+            sourceFile.delete()
+            return@withContext
+        }
+        val subdir = mediaWriteSubdir(mediaType) ?: run {
+            sourceFile.delete()
+            return@withContext
+        }
         val dir = File(File(profileDir, "chat_$chatId"), subdir).apply { mkdirs() }
         val target = File(dir, "$hash.$ext")
-        if (target.isFile && target.length() == bytes.size.toLong()) return@withContext
-        val tmp = File(dir, ".incoming_${UUID.randomUUID()}.$ext")
-        tmp.writeBytes(bytes)
-        if (target.exists()) tmp.delete()
-        else if (!tmp.renameTo(target)) {
-            tmp.copyTo(target, overwrite = false)
-            tmp.delete()
+        if (target.exists()) {
+            sourceFile.delete()
+        } else if (!sourceFile.renameTo(target)) {
+            sourceFile.copyTo(target, overwrite = false)
+            sourceFile.delete()
         }
     }
 

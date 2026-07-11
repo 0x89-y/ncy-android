@@ -57,6 +57,17 @@ class SyncPeerStore @Inject constructor(
 
     fun byId(peerId: String): SyncPeer? = _peers.value.firstOrNull { it.id == peerId }
 
+    /** Refresh a paired device's last-known LAN endpoint without touching its secret or watermarks. */
+    fun updateEndpoint(peerId: String, host: String, port: Int): Boolean {
+        val existing = byId(peerId) ?: return false
+        if (existing.host == host && existing.port == port) return false
+        _peers.value = _peers.value.map {
+            if (it.id == peerId) it.copy(host = host, port = port) else it
+        }
+        persist()
+        return true
+    }
+
     /**
      * Update the high-water-mark HLC after a successful ack from the peer. Refuses to
      * regress — out-of-order acks for older HLCs are ignored so the watermark only ever

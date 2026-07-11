@@ -22,6 +22,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.rememberNavController
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.SyncManager
+import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
@@ -45,13 +46,18 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var syncManager: SyncManager
 
+    @Inject
+    lateinit var phoneSyncServer: PhoneSyncServer
+
     override fun onStart() {
         super.onStart()
+        phoneSyncServer.start()
         syncManager.start()
     }
 
     override fun onStop() {
         syncManager.stop()
+        phoneSyncServer.stop()
         super.onStop()
     }
 

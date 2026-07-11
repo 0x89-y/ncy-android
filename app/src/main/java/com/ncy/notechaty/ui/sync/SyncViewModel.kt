@@ -11,6 +11,7 @@ import com.ncy.notechaty.data.sync.pairing.PairingClient
 import com.ncy.notechaty.data.sync.peer.PairingPayload
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
+import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,11 +28,15 @@ class SyncViewModel @Inject constructor(
     private val mdnsDiscovery: MdnsDiscovery,
     private val pairingClient: PairingClient,
     private val deviceIdentity: DeviceIdentity,
+    private val phoneSyncServer: PhoneSyncServer,
 ) : ViewModel() {
 
     val peers: StateFlow<List<SyncPeer>> = peerStore.peers
     val states: StateFlow<Map<String, SyncManager.PeerState>> = syncManager.states
     val discovered: StateFlow<List<DiscoveredPeer>> = mdnsDiscovery.peers
+    val hostState: StateFlow<PhoneSyncServer.HostState> = phoneSyncServer.state
+    val hostingEnabled: StateFlow<Boolean> = phoneSyncServer.enabled
+    val hostedPeers: StateFlow<List<PhoneSyncServer.HostedPeer>> = phoneSyncServer.hostedPeers
 
     /** Which discovered peer (by mDNS serviceName) has an in-flight pair request. */
     private val _pairingBusy = MutableStateFlow<String?>(null)
@@ -51,17 +56,6 @@ class SyncViewModel @Inject constructor(
      *  abort the WebSocket wait if the user notices the safety code doesn't
      *  match the desktop's before the desktop user confirms. */
     private var pairingJob: kotlinx.coroutines.Job? = null
-
-    init {
-        // Discovery is cheap when the screen is open and we don't want it running
-        // forever in the background — start on first VM init, stop on cleared.
-        mdnsDiscovery.start()
-    }
-
-    override fun onCleared() {
-        mdnsDiscovery.stop()
-        super.onCleared()
-    }
 
     /** Returns null on success, an error message on failure. */
     fun pair(rawText: String): String? {
@@ -150,4 +144,10 @@ class SyncViewModel @Inject constructor(
     fun syncNow(peerId: String) {
         syncManager.syncNow(peerId)
     }
+
+    fun regeneratePairing() = phoneSyncServer.regeneratePairing()
+
+    fun revokeHostedPeer(peerId: String) = phoneSyncServer.revokeHostedPeer(peerId)
+
+    fun setHostingEnabled(enabled: Boolean) = phoneSyncServer.setEnabled(enabled)
 }

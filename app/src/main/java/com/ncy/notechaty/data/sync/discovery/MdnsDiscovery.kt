@@ -5,6 +5,7 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.ncy.notechaty.data.sync.DeviceIdentity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,12 +21,21 @@ data class DiscoveredPeer(
     val name: String,
     val host: String,
     val port: Int,
-    val deviceId: String?
-)
+    val deviceId: String?,
+    val pairingMode: String,
+) {
+    val supportsPairRequest: Boolean get() = pairingMode == PAIRING_MODE_REQUEST
+
+    companion object {
+        const val PAIRING_MODE_REQUEST = "request"
+        const val PAIRING_MODE_QR = "qr"
+    }
+}
 
 @Singleton
 class MdnsDiscovery @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val identity: DeviceIdentity,
 ) {
     private val tag = "MdnsDiscovery"
     private val serviceType = "_ncy-sync._tcp."
@@ -113,11 +123,17 @@ class MdnsDiscovery @Inject constructor(
         val port = info.port
         if (port <= 0) return
         val deviceId = info.attributes["deviceId"]?.let { String(it) }
+        if (deviceId == identity.deviceId) return
+        // Pre-capability desktop builds supported PairRequest, so retain that as
+        // the compatibility default when the TXT field is absent.
+        val pairingMode = info.attributes["pairingMode"]?.let { String(it) }
+            ?: DiscoveredPeer.PAIRING_MODE_REQUEST
         val peer = DiscoveredPeer(
             name = info.serviceName ?: "Unknown",
             host = host,
             port = port,
-            deviceId = deviceId
+            deviceId = deviceId,
+            pairingMode = pairingMode,
         )
         _peers.value = (_peers.value.filterNot { it.name == peer.name } + peer)
             .sortedBy { it.name.lowercase() }

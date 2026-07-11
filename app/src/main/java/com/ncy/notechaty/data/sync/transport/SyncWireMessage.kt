@@ -22,7 +22,9 @@ sealed class SyncWireMessage {
     data class Hello(
         val deviceId: String,
         val auth: String,
-        val sinceHlc: HlcTimestamp?
+        val sinceHlc: HlcTimestamp?,
+        /** Optional for compatibility with older clients. */
+        val deviceName: String = "",
     ) : SyncWireMessage()
 
     /** Server → client. Authentication accepted; client may begin streaming. */

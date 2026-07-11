@@ -3,6 +3,7 @@ package com.ncy.notechaty.ui.sync
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -10,12 +11,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,6 +35,10 @@ import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
+import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import android.graphics.Bitmap
 import java.text.DateFormat
 import java.util.Date
 
@@ -45,6 +54,10 @@ fun SyncScreen(
     val pairingBusy by viewModel.pairingBusy.collectAsState()
     val pairingMessage by viewModel.pairingMessage.collectAsState()
     val pairingSafetyCode by viewModel.pairingSafetyCode.collectAsState()
+    val hostState by viewModel.hostState.collectAsState()
+    val hostingEnabled by viewModel.hostingEnabled.collectAsState()
+    val hostedPeers by viewModel.hostedPeers.collectAsState()
+    var showShareDialog by remember { mutableStateOf(false) }
     var pairingText by remember { mutableStateOf("") }
     var pairingError by remember { mutableStateOf<String?>(null) }
     var pairingSuccess by remember { mutableStateOf<String?>(null) }
@@ -80,6 +93,26 @@ fun SyncScreen(
             }
         }
     }
+    val launchQrScanner = {
+        pairingError = null
+        pairingSuccess = null
+        val options = ScanOptions().apply {
+            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            setPrompt("Point at the pairing QR")
+            setOrientationLocked(false)
+            setBeepEnabled(false)
+            setBarcodeImageEnabled(false)
+        }
+        scanLauncher.launch(options)
+    }
+
+    if (showShareDialog) {
+        PairingDialog(
+            state = hostState,
+            onDismiss = { showShareDialog = false },
+            onRegenerate = viewModel::regeneratePairing,
+        )
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -109,12 +142,63 @@ fun SyncScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                "Run the desktop sync server, then paste the pairing JSON it prints below. " +
-                    "While Ncy is open, new messages push to every paired device on the LAN.",
+                "Pair two phones directly on the same Wi-Fi, or connect to the desktop. " +
+                    "Keep Ncy open on the phone sharing its code while syncing.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 6.dp)
             )
+
+            NcySettingsSection("Share this phone") {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "On the other phone, open Sync devices and scan this phone's code.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Allow phone-to-phone connections")
+                            Text(
+                                if (hostingEnabled) "Available while Ncy is open"
+                                else "Server off — no server battery use",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = hostingEnabled,
+                            onCheckedChange = viewModel::setHostingEnabled,
+                        )
+                    }
+                    Button(
+                        onClick = { showShareDialog = true },
+                        enabled = hostingEnabled &&
+                            hostState !is PhoneSyncServer.HostState.Failed &&
+                            hostState !is PhoneSyncServer.HostState.Stopped,
+                        shape = NcyButtonShape,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Default.QrCode2, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Show pairing code")
+                    }
+                    if (hostState is PhoneSyncServer.HostState.Failed) {
+                        Text(
+                            (hostState as PhoneSyncServer.HostState.Failed).reason,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
 
             NcySettingsSection("Add device") {
                 Column(
@@ -124,20 +208,7 @@ fun SyncScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = {
-                            pairingError = null
-                            pairingSuccess = null
-                            val options = ScanOptions().apply {
-                                // Restrict to QR — also switches the viewfinder from a
-                                // wide 1D-barcode rectangle to the square portrait one.
-                                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                                setPrompt("Point at the desktop QR")
-                                setOrientationLocked(false)
-                                setBeepEnabled(false)
-                                setBarcodeImageEnabled(false)
-                            }
-                            scanLauncher.launch(options)
-                        },
+                        onClick = launchQrScanner,
                         shape = NcyButtonShape,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -146,7 +217,7 @@ fun SyncScreen(
                         Text("Scan QR")
                     }
                     Text(
-                        "or paste the JSON the desktop printed:",
+                        "or paste pairing JSON:",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -205,13 +276,14 @@ fun SyncScreen(
                             anyBusy = pairingBusy != null,
                             safetyCode = if (busyForThis) pairingSafetyCode else null,
                             onPair = { viewModel.pairViaDiscovery(d) },
+                            onScanQr = launchQrScanner,
                             onCancel = { viewModel.cancelPairing() },
                         )
                     }
                 }
             }
 
-            if (peers.isEmpty()) {
+            if (peers.isEmpty() && hostedPeers.isEmpty()) {
                 Text(
                     "No devices paired yet.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -229,10 +301,137 @@ fun SyncScreen(
                             onUnpair = { viewModel.unpair(peer.id) }
                         )
                     }
+                    hostedPeers.forEach { peer ->
+                        HostedPeerCard(peer, onRemove = { viewModel.revokeHostedPeer(peer.id) })
+                    }
                 }
             }
         }
 
+    }
+}
+
+@Composable
+private fun PairingDialog(
+    state: PhoneSyncServer.HostState,
+    onDismiss: () -> Unit,
+    onRegenerate: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pair with this phone") },
+        text = {
+            when (state) {
+                PhoneSyncServer.HostState.Disabled -> Text(
+                    "Turn on phone-to-phone connections to generate a pairing code.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PhoneSyncServer.HostState.Starting,
+                PhoneSyncServer.HostState.Stopped -> Box(
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
+                is PhoneSyncServer.HostState.Failed -> Text(
+                    state.reason,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                is PhoneSyncServer.HostState.Ready -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    val qr = remember(state.pairingJson) { pairingQrBitmap(state.pairingJson) }
+                    if (qr != null) {
+                        Image(
+                            bitmap = qr.asImageBitmap(),
+                            contentDescription = "Phone pairing QR code",
+                            modifier = Modifier.size(240.dp),
+                        )
+                    }
+                    Text(
+                        "Scan this from one other device. The code refreshes after it is claimed. Both devices must be on the same Wi-Fi and this phone must keep Ncy open.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        if (state.usedFallbackPort) {
+                            "Available at ${state.host}:${state.port}. Port 8765 was busy, so Ncy selected a temporary fallback port and included it in this code."
+                        } else {
+                            "Available at ${state.host}:${state.port}. This code refreshes automatically if the phone's network address changes."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(
+                        onClick = { clipboard.setText(AnnotatedString(state.pairingJson)) },
+                        shape = NcyButtonShape,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Copy pairing JSON") }
+                    TextButton(onClick = onRegenerate) {
+                        Text("Make a fresh invitation code")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        },
+    )
+}
+
+private fun pairingQrBitmap(text: String, size: Int = 768): Bitmap? = runCatching {
+    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
+    val pixels = IntArray(size * size)
+    for (y in 0 until size) {
+        for (x in 0 until size) {
+            pixels[y * size + x] = if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+        }
+    }
+    Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+        setPixels(pixels, 0, size, 0, 0, size, size)
+    }
+}.getOrNull()
+
+@Composable
+private fun HostedPeerCard(peer: PhoneSyncServer.HostedPeer, onRemove: () -> Unit) {
+    NcyDividedCard {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(peer.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Paired to this phone · incoming connection",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                if (peer.connected) "Connected"
+                else "Last connected ${DateFormat.getDateTimeInstance().format(Date(peer.lastSeenAt))}",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (peer.connected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (peer.legacySharedCredential) {
+                Text(
+                    "Legacy shared credential · remove and re-pair for independent revocation",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = onRemove,
+                shape = NcyButtonShape,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Revoke")
+            }
+        }
     }
 }
 
@@ -300,6 +499,7 @@ private fun DiscoveredCard(
     anyBusy: Boolean,
     safetyCode: String?,
     onPair: () -> Unit,
+    onScanQr: () -> Unit,
     onCancel: () -> Unit,
 ) {
     NcyDividedCard {
@@ -316,8 +516,13 @@ private fun DiscoveredCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                if (isBusy) "Waiting for the desktop to confirm…"
-                else "Tap Pair to ask the desktop to add this phone. Confirm on the desktop when the prompt appears.",
+                when {
+                    isBusy -> "Waiting for the desktop to confirm…"
+                    peer.supportsPairRequest ->
+                        "Tap Pair to ask this device to add this phone, then confirm there."
+                    else ->
+                        "This device pairs using a QR code or JSON. Show its pairing code, then scan it here."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -360,9 +565,15 @@ private fun DiscoveredCard(
                     OutlinedButton(onClick = onCancel, shape = NcyButtonShape) {
                         Text("Cancel")
                     }
-                } else {
+                } else if (peer.supportsPairRequest) {
                     Button(onClick = onPair, shape = NcyButtonShape, enabled = !anyBusy) {
                         Text("Pair")
+                    }
+                } else {
+                    Button(onClick = onScanQr, shape = NcyButtonShape, enabled = !anyBusy) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan its QR")
                     }
                 }
             }

@@ -21,6 +21,8 @@ data class PairingPayload(
     val port: Int,
     val secret: String
 ) {
+    fun toJson(): String = Gson().toJson(this)
+
     fun toPeer(now: Long): SyncPeer = SyncPeer(
         id = deviceId,
         name = name,

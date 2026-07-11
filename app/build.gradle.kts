@@ -17,8 +17,8 @@ android {
         applicationId = "com.ncy.notechaty"
         minSdk = 31
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.5.1"
+        versionCode = 7
+        versionName = "0.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -96,6 +96,7 @@ dependencies {
     // Sync (Phase 1: WebSocket client + QR scanning)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("org.java-websocket:Java-WebSocket:1.5.7")
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.5.0")

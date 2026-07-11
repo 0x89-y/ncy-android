@@ -25,6 +25,7 @@ class SyncWireCodec(
             is SyncWireMessage.Hello -> {
                 obj.addProperty("type", T_HELLO)
                 obj.addProperty("deviceId", message.deviceId)
+                if (message.deviceName.isNotBlank()) obj.addProperty("deviceName", message.deviceName)
                 obj.addProperty("auth", message.auth)
                 if (message.sinceHlc != null) {
                     obj.add("sinceHlc", gson.toJsonTree(message.sinceHlc))
@@ -81,7 +82,8 @@ class SyncWireCodec(
                 auth = obj["auth"].asString,
                 sinceHlc = obj["sinceHlc"]?.takeIf { !it.isJsonNull }?.let {
                     gson.fromJson(it, HlcTimestamp::class.java)
-                }
+                },
+                deviceName = obj["deviceName"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
             )
             T_WELCOME -> SyncWireMessage.Welcome(
                 deviceId = obj["deviceId"].asString,

@@ -3,6 +3,7 @@ package com.ncy.notechaty.data.serialization
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.ncy.notechaty.data.model.ChatData
+import com.ncy.notechaty.data.model.normalizedForCompatibility
 import java.io.File
 
 class ChatSerializer {
@@ -15,7 +16,7 @@ class ChatSerializer {
     }
 
     fun deserialize(json: String): ChatData {
-        return gson.fromJson(json, ChatData::class.java)
+        return gson.fromJson(json, ChatData::class.java).normalizedForCompatibility()
     }
 
     fun writeToFile(file: File, chatData: ChatData) {

@@ -10,10 +10,9 @@ import javax.inject.Singleton
  * across chats so the receiver can apply them in a single pass.
  *
  * Profile sync: this walks **every** `profile_<id>` directory, not just the active
- * one, so a paired desktop receives all profiles. Each event is stamped with its
- * profile (id + display name) — taken from the event itself when present (events
- * authored after profile-sync landed) and otherwise backfilled from the directory
- * the chat lives in (legacy events). Pre-profile-migration chats that still sit
+ * one, so a paired desktop receives all profiles. Each event in a profile directory
+ * is stamped with that physical directory's canonical id + display name, replacing
+ * obsolete historical reinstall IDs. Pre-profile-migration chats that still sit
  * directly under the root sync with an empty profile id (a single "default" bucket
  * on the receiver).
  */
@@ -59,12 +58,13 @@ class SyncSnapshot @Inject constructor(
                 val log = EventLog(File(chatDir, "events.ndjson"), codec)
                 if (!log.exists()) return@forEach
                 log.readSince(since).forEach { ev ->
-                    // Keep an event's own profile stamp when it has one (authoritative);
-                    // otherwise backfill from the directory it physically lives in.
-                    out += if (ev.profileId.isNotEmpty()) {
-                        ev
-                    } else {
+                    // The physical directory is this installation's canonical profile.
+                    // Restored historical events may carry obsolete profile UUIDs;
+                    // restamp them on the wire so one chat cannot split across profiles.
+                    out += if (profileId.isNotEmpty()) {
                         ev.copy(profileId = profileId, profileName = profileName)
+                    } else {
+                        ev
                     }
                 }
             }

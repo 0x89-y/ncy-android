@@ -94,10 +94,13 @@ client must likewise reject `Welcome.deviceId` when it equals its local ID, and 
 `identity_mismatch` when it differs from the stable ID in the pairing record. These
 errors are persistent configuration/identity failures, so automatic timed retries
 should pause until pairing or peer state changes.
-The stored `host` and `port` are last-known endpoints rather than identity. A peer may
-advertise `_ncy-sync._tcp` with its stable `deviceId`; an already-paired client may then
-refresh only the endpoint when DHCP changes it. Discovery never replaces the stored
-secret and therefore cannot establish trust by itself.
+The stored `host` and `port` are the last **authenticated** endpoint rather than
+identity. A peer may advertise `_ncy-sync._tcp` with its stable `deviceId`, but a
+differing result is only an in-memory candidate. Clients try the authenticated
+endpoint first, expire candidates after five minutes, and accept at most one changed
+candidate per device every 30 seconds. A candidate is persisted only after its
+encrypted handshake authenticates the pairing secret and expected `Welcome.deviceId`;
+failure discards it. Discovery never replaces credentials or progress state.
 Clients may store a local `disabled` flag alongside a paired peer. This flag is not
 transmitted and does not revoke the pairing: it suppresses that client's outbound
 connection/retry task while retaining the secret and sync watermarks. Missing legacy
@@ -121,8 +124,9 @@ The mDNS TXT record includes `pairingMode`. A value of `request` means the host
 supports the interactive `PairRequest` flow; `qr` means pairing must happen through
 the host's QR/JSON payload. Clients must not offer `PairRequest` to a `qr` host.
 For compatibility, an absent value is treated as `request`. A phone host also sets
-`availability=foreground`; clients may persist this capability after matching the
-advertised stable `deviceId`, but discovery still cannot change credentials.
+`availability=foreground`. Paired clients retain lifecycle capability from their
+credential-bearing pairing payload; unauthenticated mDNS TXT data may guide the
+unpaired discovery UI but must not overwrite persisted paired-peer capabilities.
 
 ## 3. Connection & transport
 
@@ -244,7 +248,9 @@ be treated as a protocol error.
 `sinceHlc` is the **client's inbound watermark** — the highest HLC it has already
 received and applied from this peer. The peer should resume sending events with HLC
 strictly greater than this. **`null` means "send everything from the beginning."**
-A fresh pairing always sends `null`.
+A fresh pairing always sends `null`. This client declaration is authoritative: a
+server-side cached acknowledgement must never replace it or raise it. In particular,
+`null` requests a complete recovery replay after reinstall, restore, or local reset.
 `deviceName` is an optional friendly label. Receivers must accept it when absent for
 compatibility with older clients.
 
@@ -305,12 +311,14 @@ sending an `Error` **should** close the connection immediately afterward.
 ### 6.7 `BlobRequest` (either side)
 
 ```json
-{ "type": "BlobRequest", "hash": "<sha256-hex>", "mediaType": "voice" | "image" }
+{ "type": "BlobRequest", "hash": "<sha256-hex>", "mediaType": "voice" | "image" | "file" }
 ```
 
 Either side asks the other for the bytes of a content-addressed blob whose hash
 appeared in a previously-applied event. `mediaType` is a hint for the responder's
-file-extension convention (`voice` → `.m4a`, `image` → `.jpg`). Recipients **must**
+file-extension convention (`voice` → `.m4a`, `image` → `.jpg`, opaque generic
+`file` → `.bin`). The original filename and MIME type for a generic file live in
+the event metadata, never in the storage path. Recipients **must**
 respond with one or more `BlobChunk` frames totaling exactly the blob's bytes, or
 a single `BlobMissing` if they don't have it.
 
@@ -320,7 +328,7 @@ a single `BlobMissing` if they don't have it.
 {
   "type": "BlobChunk",
   "hash": "<sha256-hex>",
-  "mediaType": "voice" | "image",
+  "mediaType": "voice" | "image" | "file",
   "offset": 0,
   "totalSize": 12345,
   "data": "<base64>",
@@ -473,9 +481,11 @@ profile, matching the phone.
   `profileId`; receivers MUST treat empty/absent as a single **"default"
   bucket**. A receiver backfilling a legacy event from the directory it
   physically lives in is allowed but never overrides a non-empty stamp.
-- `profileName` is **advisory** — a human label captured at author time. The
-  authoritative key is `profileId`; a receiver may re-resolve the name locally
-  and SHOULD tolerate it being empty.
+- `profileName` is **advisory** — a human label captured at author time. A stable
+  `profileId` identifies a profile within one installation generation, but restore
+  and reinstall can produce several historical IDs for the same logical default
+  profile. A receiver may re-resolve both fields locally and SHOULD tolerate an
+  empty name.
 - Android treats profile names as local labels: an incoming advisory rename never
   overwrites a locally chosen label. Core clients without a local profile registry
   display the name from the highest-HLC event stamp. Concurrent phone renames may
@@ -483,6 +493,15 @@ profile, matching the phone.
 - A receiver must route a non-empty valid `profileId` independently of its currently
   selected profile, including downloaded media. An unknown ID creates a local profile
   using `profileName` only as its initial fallback label.
+- Android receivers map historical IDs for equal-name **unprotected** profiles to one
+  canonical local profile, preferring the active matching profile and otherwise the
+  oldest. They merge duplicate chat logs by `eventId` before materialization and
+  route media to the same canonical directory. PIN-protected profiles never merge by
+  name and require an exact ID because equal labels do not imply equal PIN boundaries.
+- When reading a canonical physical profile directory for catch-up, Android may
+  restamp historical events with that directory's current ID/name. This prevents
+  obsolete reinstall IDs from multiplying again without changing `eventId`, HLC,
+  payload, or tombstone semantics.
 - A chat's effective profile is the stamp on its **highest-HLC** event carrying
   a non-empty `profileId`. Desktop-authored events for an existing chat inherit
   that same profile so a round-trip to the phone groups correctly.
@@ -577,9 +596,10 @@ These are the JSON shapes embedded inside `payload`. They mirror the on-disk
   voiceDurationMs: number | null,
   createdAt: number,             // epoch millis
   editedAt: number | null,       // epoch millis or null
-  type: "TEXT" | "VOICE" | "IMAGE" | "CHECKLIST",
+  type: "TEXT" | "VOICE" | "IMAGE" | "CHECKLIST" | "FILE",
   isStarred: boolean,
   imageFiles: string[],          // filenames inside chat dir's images/
+  fileAttachments: FileAttachment[],
   tags: string[],
   reminderAt: number | null,     // epoch millis or null
   checklistItems: ChecklistItem[]
@@ -591,11 +611,24 @@ These are the JSON shapes embedded inside `payload`. They mirror the on-disk
 { id: string, text: string, checked: boolean }
 ```
 
+#### `FileAttachment`
+```typescript
+{
+  file: string,                 // "files/<sha256>.bin"
+  name: string,                 // original display name; not a storage path
+  mimeType: string | null,
+  sizeBytes: number | null
+}
+```
+
 Notes for desktop implementers:
 
-- `voiceFile` and `imageFiles` reference files **on the phone**. Phase 1 does **not**
-  transfer media — only the references. A phase-2 wire message will hand off blobs
-  by content-hash. For now, expect missing media to render as placeholders.
+- `voiceFile`, `imageFiles`, and `fileAttachments[].file` are content-addressed
+  references. Blob frames transfer their bytes after the event; clients render a
+  downloading/missing placeholder until the verified blob is present.
+- Generic files are opaque and require no preview support. Clients should show the
+  original name and size and offer an OS open/save action. A filename is display
+  metadata only and must never be joined directly to a storage directory.
 - `editedAt` is informational; HLC ordering is authoritative for "which version wins."
 
 ### 9.2 `ChatMetadata`
@@ -751,11 +784,14 @@ Once any party can both send and receive, naïve forwarding produces echo loops.
 The rules:
 
 - **On the receiver:** if an inbound event's `originDevice` equals your own
-  `deviceId`, you can ack it (so the peer's outbound watermark advances) but you
-  **must not** apply it. It's your own event coming back at you.
+  `deviceId`, still offer it to the idempotent event store. A normal echo is rejected
+  by `eventId`; a reinstalled/restored device that lost its own historical event can
+  recover it. Ack either outcome.
 - **On the sender:** when forwarding events from a local event-bus to a peer,
   skip events whose `originDevice` equals that peer's `deviceId`. This prevents
-  events received from peer A from being immediately pushed back to A.
+  events received from peer A from being immediately pushed back to A. The exception
+  is a complete recovery replay requested with `sinceHlc: null`: it includes every
+  origin because the peer has explicitly declared empty inbound state.
 
 The combination is sufficient for two parties. For a future multi-peer mesh
 (phase 3+), the same rules give correct gossip: events from peer A reach peers
@@ -770,18 +806,20 @@ watermark per peer so reconnects don't replay everything from scratch.
 |---------|--------------------------------------------|----------------------------------------------------------------|
 | Phone   | `SyncPeer.lastSentHlc{Ms,Logical,Node}`    | "Highest HLC the desktop has acked from me." Drives catchup.   |
 | Phone   | `SyncPeer.lastReceivedHlc{Ms,Logical,Node}`| "Highest HLC I've applied from the desktop." Sent as `Hello.sinceHlc`. |
-| Desktop | `Pairing.lastSentToPhoneHlc`               | "Highest HLC the phone has acked from me." Drives catchup.     |
+| Desktop | `Pairing.lastSentToPhoneHlc`               | Cached highest ack for diagnostics/optimization only; never overrides `Hello.sinceHlc`. |
 | Desktop | (none persisted)                           | The phone announces its inbound watermark via `Hello.sinceHlc`; the server doesn't need to remember it. |
 
 A server **must** advance `lastSentToPhoneHlc` only on `Ack` (never on send) and
-**must not** regress it. On (re)connect it streams everything past
-`max(Hello.sinceHlc, lastSentToPhoneHlc)` so a phone that wiped local state still
-gets a fresh full replay if it sends `sinceHlc: null`.
+**must not** regress it during ordinary sessions. On reconnect, however,
+`Hello.sinceHlc` alone selects catch-up. If it is `null`, the cached server value is
+cleared and every event is replayed, including events originally authored by that
+client. This is what makes reinstall and stale-backup recovery complete.
 
 The sender must subscribe to its live event source **before** reading the catch-up
 snapshot. Events published during that read remain queued and are processed after
-the sorted snapshot. A session-local sent watermark suppresses an event present in
-both sources and advances after each successful live send. Receivers must acknowledge
+the sorted snapshot. Snapshot/live overlap is suppressed by `eventId`, not merely a
+scalar HLC: a distinct event appended concurrently must still be sent even if its HLC
+sorts below the snapshot maximum. Receivers must acknowledge
 duplicate event IDs, but must not re-materialize them or start another media fetch.
 This ordering turns every overlap into either one delivery or harmless wire-level
 replay; it never creates a gap between snapshot and live forwarding.
@@ -813,6 +851,7 @@ its SHA-256 hash:
 | `voiceFile`                | `<chat dir>/voice/<hash>.m4a`   | `"voice/<hash>.m4a"`    |
 | `imageFiles[i]`            | `<chat dir>/images/<hash>.jpg`  | `"images/<hash>.jpg"`   |
 | `RichTextSpan.inlineImage` | `<chat dir>/images/<hash>.jpg`  | `"images/<hash>.jpg"`   |
+| `fileAttachments[i].file`  | `<chat dir>/files/<hash>.bin`   | `"files/<hash>.bin"`    |
 
 The `<hash>` is lowercase hex, 64 chars. A receiver extracts the hash by stripping
 the leading directory and the trailing extension, then validating the regex
@@ -1071,7 +1110,7 @@ T3   S → C   {"type":"Welcome","deviceId":"laptop-uuid","name":"My Laptop"}
 
    ----- catchup phase, both directions -----
    Phone sends events with HLC > its lastSentHlc (none new in this run).
-   Desktop sends events with HLC > max(Hello.sinceHlc, lastSentToPhoneHlc).
+   Desktop sends events with HLC > Hello.sinceHlc; null requests every event.
 
 T4   S → C   {"type":"Event","event":{
                 "v":1,"type":"MessageEdited","eventId":"e3",

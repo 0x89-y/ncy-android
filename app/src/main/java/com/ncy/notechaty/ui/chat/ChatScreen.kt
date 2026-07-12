@@ -3,6 +3,8 @@ package com.ncy.notechaty.ui.chat
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -45,6 +47,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.MessageType
+import com.ncy.notechaty.data.sync.transport.SyncLimits
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
@@ -54,8 +57,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.ncy.notechaty.ui.richtext.RichTextInput
 import com.ncy.notechaty.ui.voicemessage.VoiceRecorder
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -165,6 +171,84 @@ fun ChatScreen(
             }
             viewModel.sendImageMessage(tempFile)
             tempFile.delete()
+        }
+    }
+
+    // Generic file picker. Files are copied into app storage immediately, so no
+    // long-lived document-provider permission is required.
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        coroutineScope.launch {
+            uris.forEach { uri ->
+                val picked = withContext(Dispatchers.IO) {
+                    val resolver = context.contentResolver
+                    var displayName = "File"
+                    var declaredSize: Long? = null
+                    resolver.query(
+                        uri,
+                        arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                        null,
+                        null,
+                        null,
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                            if (nameIndex >= 0) displayName = cursor.getString(nameIndex) ?: "File"
+                            if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+                                declaredSize = cursor.getLong(sizeIndex)
+                            }
+                        }
+                    }
+                    if (declaredSize != null && declaredSize!! > SyncLimits.MAX_BLOB_BYTES) {
+                        return@withContext null
+                    }
+                    val temp = File.createTempFile("picked_${UUID.randomUUID()}_", ".bin", context.cacheDir)
+                    var copied = 0L
+                    val successful = runCatching {
+                        resolver.openInputStream(uri)?.use { input ->
+                            temp.outputStream().buffered().use { output ->
+                                val buffer = ByteArray(64 * 1024)
+                                while (true) {
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    copied += count
+                                    if (copied > SyncLimits.MAX_BLOB_BYTES) {
+                                        throw IllegalArgumentException("File exceeds sync limit")
+                                    }
+                                    output.write(buffer, 0, count)
+                                }
+                            }
+                        } ?: throw IllegalArgumentException("Cannot read selected file")
+                    }.isSuccess
+                    if (!successful) {
+                        temp.delete()
+                        null
+                    } else {
+                        val safeName = displayName
+                            .substringAfterLast('/').substringAfterLast('\\')
+                            .filterNot { it.isISOControl() }
+                            .take(255)
+                            .ifBlank { "File" }
+                        PickedFile(temp, safeName, resolver.getType(uri), copied)
+                    }
+                }
+                if (picked == null) {
+                    Toast.makeText(
+                        context,
+                        "Could not attach file (maximum size is 100 MB)",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                } else {
+                    viewModel.sendFileMessage(
+                        picked.file,
+                        picked.displayName,
+                        picked.mimeType,
+                        picked.sizeBytes,
+                    )
+                }
+            }
         }
     }
 
@@ -501,6 +585,7 @@ fun ChatScreen(
                         onCancelEdit = { viewModel.cancelEditing() },
                         onVoiceClick = { isRecordingVoice = true },
                         onImageClick = { imagePickerLauncher.launch("image/*") },
+                        onFileClick = { filePickerLauncher.launch("*/*") },
                         onSendChecklist = { items ->
                             if (uiState.editingMessage != null) viewModel.saveChecklistEdit(items)
                             else viewModel.sendChecklistMessage(items)
@@ -580,6 +665,13 @@ fun ChatScreen(
     }
 
 }
+
+private data class PickedFile(
+    val file: File,
+    val displayName: String,
+    val mimeType: String?,
+    val sizeBytes: Long,
+)
 
 /**
  * Bar above the composer showing which message the next send will reply to. Reads the

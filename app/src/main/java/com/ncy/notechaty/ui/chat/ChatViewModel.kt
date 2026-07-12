@@ -231,6 +231,38 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun sendFileMessage(
+        sourceFile: File,
+        displayName: String,
+        mimeType: String?,
+        sizeBytes: Long,
+    ) {
+        val replyTarget = consumeReplyTarget()
+        viewModelScope.launch {
+            try {
+                val filesDir = repository.getFilesDir(chatId)
+                val targetFile = ingestMedia(filesDir, sourceFile, "bin")
+                val message = Message(
+                    id = UUID.randomUUID().toString(),
+                    chatId = chatId,
+                    type = MessageType.FILE,
+                    fileAttachments = listOf(
+                        FileAttachment(
+                            file = "files/${targetFile.name}",
+                            name = displayName.ifBlank { "File" },
+                            mimeType = mimeType,
+                            sizeBytes = sizeBytes,
+                        )
+                    ),
+                ).withReplyTo(replyTarget)
+                repository.addMessage(message)
+                loadChat()
+            } finally {
+                sourceFile.delete()
+            }
+        }
+    }
+
     /**
      * Copy [source] into [destDir] under a content-addressed name (`<sha256>.<ext>`).
      * Subsequent ingests of the same bytes reuse the existing file (dedup). The
@@ -372,7 +404,10 @@ class ChatViewModel @Inject constructor(
             return
         }
         val matchingIds = messages
-            .filter { it.type == MessageType.TEXT || it.type == MessageType.IMAGE || it.type == MessageType.CHECKLIST }
+            .filter {
+                it.type == MessageType.TEXT || it.type == MessageType.IMAGE ||
+                    it.type == MessageType.CHECKLIST || it.type == MessageType.FILE
+            }
             .filter {
                 if (it.type == MessageType.CHECKLIST) {
                     it.checklistItems.any { item -> item.text.contains(query, ignoreCase = true) }

@@ -322,14 +322,13 @@ class PhoneSyncServer @Inject constructor(
                 if (auth.claimedInvitation) {
                     refreshPairingPayload()
                 }
-                sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, android.os.Build.MODEL ?: "Android phone"))
-                scope.launch {
-                    snapshot.eventsSince(hello.sinceHlc).forEach { event ->
-                        if (event.originDevice != hello.deviceId && conn.isOpen) {
-                            sendSecure(conn, client, SyncWireMessage.Event(event))
-                        }
-                    }
+                synchronized(client) {
+                    client.catchingUp = true
+                    client.queuedLive.clear()
+                    client.catchupSentEventIds.clear()
                 }
+                sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, android.os.Build.MODEL ?: "Android phone"))
+                scope.launch { finishCatchupAndGoLive(conn, client, hello.deviceId, hello.sinceHlc) }
                 return
             }
             when (msg) {
@@ -362,8 +361,60 @@ class PhoneSyncServer @Inject constructor(
         fun broadcastEvent(event: ChatEvent) {
             clients.forEach { (socket, client) ->
                 if (socket.isOpen && client.deviceId != null && event.originDevice != client.deviceId) {
-                    sendSecure(socket, client, SyncWireMessage.Event(event))
+                    synchronized(client) {
+                        if (client.catchingUp) {
+                            client.queuedLive.addLast(event)
+                        } else {
+                            sendSecure(socket, client, SyncWireMessage.Event(event))
+                        }
+                    }
                 }
+            }
+        }
+
+        private fun finishCatchupAndGoLive(
+            conn: WebSocket,
+            client: Client,
+            remoteDeviceId: String,
+            sinceHlc: com.ncy.notechaty.data.sync.event.HlcTimestamp?,
+        ) {
+            val fullReplay = sinceHlc == null
+            snapshot.eventsSince(sinceHlc).forEach { event ->
+                synchronized(client) {
+                    if (!conn.isOpen) return
+                    if (SyncCatchupPolicy.markForSend(
+                            event.eventId,
+                            event.originDevice,
+                            remoteDeviceId,
+                            fullReplay,
+                            client.catchupSentEventIds,
+                        )
+                    ) {
+                        sendSecure(conn, client, SyncWireMessage.Event(event))
+                    }
+                }
+            }
+            synchronized(client) {
+                if (!conn.isOpen) {
+                    client.queuedLive.clear()
+                    client.catchingUp = false
+                    return
+                }
+                client.queuedLive.sortedBy { it.hlc }.forEach { event ->
+                    if (SyncCatchupPolicy.markForSend(
+                            event.eventId,
+                            event.originDevice,
+                            remoteDeviceId,
+                            fullReplay = false,
+                            sentEventIds = client.catchupSentEventIds,
+                        )
+                    ) {
+                        sendSecure(conn, client, SyncWireMessage.Event(event))
+                    }
+                }
+                client.queuedLive.clear()
+                client.catchupSentEventIds.clear()
+                client.catchingUp = false
             }
         }
 
@@ -411,10 +462,8 @@ class PhoneSyncServer @Inject constructor(
         }
 
         private suspend fun receiveEvent(conn: WebSocket, client: Client, event: ChatEvent) {
-            if (event.originDevice == identity.deviceId) {
-                sendSecure(conn, client, SyncWireMessage.Ack(event.hlc))
-                return
-            }
+            // Event-id dedup makes normal echoes harmless while allowing a restored
+            // installation to recover an own-origin event it no longer has locally.
             if (!com.ncy.notechaty.data.sync.event.HlcTimestamp.isAcceptableRemote(
                     event.hlc,
                     System.currentTimeMillis(),
@@ -427,14 +476,15 @@ class PhoneSyncServer @Inject constructor(
                 conn.close(1002, "clock skew")
                 return
             }
-            val newlyApplied = repository.applyExternalEvent(event)
-            sendSecure(conn, client, SyncWireMessage.Ack(event.hlc))
+            val routedEvent = repository.canonicalizeInboundEvent(event)
+            val newlyApplied = repository.applyExternalEvent(routedEvent)
+            sendSecure(conn, client, SyncWireMessage.Ack(routedEvent.hlc))
             if (!newlyApplied) return
-            mediaRefs(event).forEach { (hash, mediaType) ->
+            mediaRefs(routedEvent).forEach { (hash, mediaType) ->
                 if (client.pending.size < SyncLimits.MAX_PENDING_BLOBS &&
-                    repository.mediaFileForHash(hash, mediaType, event.profileId) == null
+                    repository.mediaFileForHash(hash, mediaType, routedEvent.profileId) == null
                 ) {
-                    val candidate = newPending(event.chatId, event.profileId, mediaType)
+                    val candidate = newPending(routedEvent.chatId, routedEvent.profileId, mediaType)
                     if (client.pending.putIfAbsent(hash, candidate) == null) {
                         sendSecure(conn, client, SyncWireMessage.BlobRequest(hash, mediaType))
                     } else {
@@ -525,6 +575,9 @@ class PhoneSyncServer @Inject constructor(
         @Volatile var secure: TransportCrypto? = null,
         @Volatile var deviceId: String? = null,
         @Volatile var deviceName: String? = null,
+        var catchingUp: Boolean = false,
+        val queuedLive: ArrayDeque<ChatEvent> = ArrayDeque(),
+        val catchupSentEventIds: MutableSet<String> = HashSet(),
         val pending: java.util.concurrent.ConcurrentHashMap<String, Pending> = java.util.concurrent.ConcurrentHashMap(),
         val blobMutex: Mutex = Mutex(),
     )
@@ -905,6 +958,9 @@ class PhoneSyncServer @Inject constructor(
         fun fromMessage(message: Message) {
             MediaHash.extractHash(message.voiceFile)?.let { refs += it to "voice" }
             message.imageFiles.forEach { file -> MediaHash.extractHash(file)?.let { refs += it to "image" } }
+            message.fileAttachments.forEach { attachment ->
+                MediaHash.extractHash(attachment.file)?.let { refs += it to "file" }
+            }
             message.content.flatMap { it.spans }.forEach { span ->
                 MediaHash.extractHash(span.inlineImage)?.let { refs += it to "image" }
             }

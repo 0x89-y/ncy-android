@@ -4,6 +4,7 @@ import com.ncy.notechaty.data.model.ChatMetadata
 import com.ncy.notechaty.data.model.Message
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -66,6 +67,21 @@ class MaterializedViewConflictTest {
             )
         )!!
         assertTrue(result.messages.isEmpty())
+    }
+
+    @Test
+    fun fullReplayTombstoneRemovesChatRestoredFromStaleBackup() {
+        val staleBackup = listOf(
+            event("meta", 1, "phone", ChatEventOp.ChatMetadataChanged(metadata())),
+            event("message", 2, "phone", ChatEventOp.MessageCreated(message(false))),
+        )
+        val desktopTombstone = event(
+            "delete",
+            3,
+            "desktop",
+            ChatEventOp.ChatTombstoned("chat"),
+        )
+        assertNull(MaterializedView.fold(staleBackup + desktopTombstone))
     }
 
     @Test

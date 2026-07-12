@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.ncy.notechaty.data.model.Profile
 import com.ncy.notechaty.security.PinHasher
+import com.ncy.notechaty.data.sync.event.ProfileRoutingPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -148,6 +149,25 @@ class ProfileRepository @Inject constructor(
         if (_profiles.value.any { it.id == id }) return
         _profiles.value = _profiles.value + Profile(id = id, name = fallbackName)
         persist()
+    }
+
+    /** Resolve a remote profile stamp without multiplying reinstall generations. */
+    @Synchronized
+    fun resolveSyncedProfile(remoteId: String, remoteName: String): Profile {
+        val chosen = ProfileRoutingPolicy.chooseProfileId(
+            _profiles.value,
+            _activeProfileId.value,
+            remoteId,
+            remoteName,
+        )?.let(::profileById)
+        if (chosen != null) return chosen
+        val exact = profileById(remoteId)
+        if (exact != null) return exact
+        val id = remoteId.takeIf { it.isNotBlank() } ?: return ensureDefault()
+        val profile = Profile(id = id, name = remoteName.ifBlank { "Synced profile ${id.take(8)}" })
+        _profiles.value = _profiles.value + profile
+        persist()
+        return profile
     }
 
     /**

@@ -14,6 +14,15 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.6.3",
+        date = "2026-07-11",
+        changes = listOf(
+            "Discovered address changes are now trusted only after the device authenticates.",
+            "Reinstalled devices now recover complete chat history and deletion tombstones.",
+            "Any file type can now be sent, received, and saved as a chat attachment.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.6.2",
         date = "2026-07-11",
         changes = listOf(

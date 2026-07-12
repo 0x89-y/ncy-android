@@ -75,24 +75,19 @@ class SyncPeerStore @Inject constructor(
 
     fun byId(peerId: String): SyncPeer? = _peers.value.firstOrNull { it.id == peerId }
 
-    /** Refresh a paired device's last-known LAN endpoint without touching its secret or watermarks. */
-    fun updateEndpoint(peerId: String, host: String, port: Int): Boolean {
+    /** Persist discovery metadata only after this exact endpoint authenticated. */
+    fun promoteAuthenticatedEndpoint(
+        peerId: String,
+        host: String,
+        port: Int,
+    ): Boolean {
         val existing = byId(peerId) ?: return false
         if (existing.host == host && existing.port == port) return false
         _peers.value = _peers.value.map {
-            if (it.id == peerId) it.copy(host = host, port = port) else it
-        }
-        persist()
-        return true
-    }
-
-    /** Learn an optional lifecycle capability from trusted-ID mDNS discovery. */
-    fun updateAvailability(peerId: String, availability: String?): Boolean {
-        if (availability.isNullOrBlank()) return false
-        val existing = byId(peerId) ?: return false
-        if (existing.availability == availability) return false
-        _peers.value = _peers.value.map {
-            if (it.id == peerId) it.copy(availability = availability) else it
+            if (it.id == peerId) it.copy(
+                host = host,
+                port = port,
+            ) else it
         }
         persist()
         return true

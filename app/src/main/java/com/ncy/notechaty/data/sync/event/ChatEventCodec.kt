@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.ncy.notechaty.data.model.ChatMetadata
 import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.model.normalizedForCompatibility
 import com.ncy.notechaty.data.sync.protection.ProtectionCrypto
 import java.util.Base64
 
@@ -55,15 +56,21 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
                             ?.takeIf { !it.isJsonNull }?.asString
                     )
                 } else if (type == TYPE_MESSAGE_CREATED) {
-                    ChatEventOp.MessageCreated(gson.fromJson(payload, Message::class.java))
+                    ChatEventOp.MessageCreated(
+                        gson.fromJson(payload, Message::class.java).normalizedForCompatibility()
+                    )
                 } else {
-                    ChatEventOp.MessageEdited(gson.fromJson(payload, Message::class.java))
+                    ChatEventOp.MessageEdited(
+                        gson.fromJson(payload, Message::class.java).normalizedForCompatibility()
+                    )
                 }
             }
             TYPE_MESSAGE_TOMBSTONED ->
                 ChatEventOp.MessageTombstoned(payload.asJsonObject["messageId"].asString)
             TYPE_CHAT_METADATA_CHANGED ->
-                ChatEventOp.ChatMetadataChanged(gson.fromJson(payload, ChatMetadata::class.java))
+                ChatEventOp.ChatMetadataChanged(
+                    gson.fromJson(payload, ChatMetadata::class.java).normalizedForCompatibility()
+                )
             TYPE_CHAT_TOMBSTONED ->
                 ChatEventOp.ChatTombstoned(payload.asJsonObject["chatId"].asString)
             else -> throw IllegalArgumentException("Unknown event type: $type")

@@ -23,6 +23,7 @@ interface ChatRepository {
     suspend fun getChatDir(chatId: String): File
     suspend fun getImagesDir(chatId: String): File
     suspend fun getVoiceDir(chatId: String): File
+    suspend fun getFilesDir(chatId: String): File
 
     suspend fun exportChat(chatId: String, outputFile: File)
     suspend fun exportAllChats(outputFile: File)
@@ -36,6 +37,9 @@ interface ChatRepository {
      * newly applied (and thus needs an ack), false if it was a duplicate.
      */
     suspend fun applyExternalEvent(event: ChatEvent): Boolean
+
+    /** Map a remote historical profile stamp onto this installation's canonical profile. */
+    fun canonicalizeInboundEvent(event: ChatEvent): ChatEvent
 
     /**
      * Phase 3: like [getMessages] but decrypts any `EncryptedMessage` ops on the fly
@@ -54,8 +58,8 @@ interface ChatRepository {
     suspend fun migrateProtectedChat(chatId: String)
 
     /**
-     * Locate a content-addressed media blob by its SHA-256 hash. `mediaType` is `"voice"`
-     * or `"image"`. Returns null if no matching file exists in any chat under the active
+     * Locate a content-addressed media blob by its SHA-256 hash. `mediaType` is `"voice"`,
+     * `"image"`, or `"file"`. Returns null if no matching file exists in any chat under the active
      * profile. When [profileId] is null, all local profiles are searched so a peer
      * can request media for a background profile.
      */
@@ -63,7 +67,7 @@ interface ChatRepository {
 
     /**
      * Persist a freshly-downloaded media blob into the given chat. The file is named
-     * `<hash>.<ext>` under the appropriate subdirectory (`voice/` or `images/`).
+     * `<hash>.<ext>` under the appropriate subdirectory (`voice/`, `images/`, or `files/`).
      */
     /** Move/copy a verified temporary blob into its canonical content-addressed path. */
     suspend fun saveMediaBlobFromFile(

@@ -101,7 +101,10 @@ class FileChatRepository @Inject constructor(
 
     init {
         // Initial load + react to profile switches.
-        scope.launch { refreshChats() }
+        scope.launch {
+            consolidateEquivalentProfiles()
+            refreshChats()
+        }
         scope.launch {
             profileRepository.activeProfileId
                 .drop(1) // initial value already handled above
@@ -322,6 +325,7 @@ class FileChatRepository @Inject constructor(
     private fun mediaExt(mediaType: String): String? = when (mediaType) {
         "voice" -> "m4a"
         "image" -> "jpg"
+        "file" -> "bin"
         else -> null
     }
 
@@ -330,6 +334,7 @@ class FileChatRepository @Inject constructor(
     private fun mediaSearchSubdirs(mediaType: String): List<String>? = when (mediaType) {
         "voice" -> listOf("voice")
         "image" -> listOf("images", "avatar", "background")
+        "file" -> listOf("files")
         else -> null
     }
 
@@ -337,6 +342,7 @@ class FileChatRepository @Inject constructor(
     private fun mediaWriteSubdir(mediaType: String): String? = when (mediaType) {
         "voice" -> "voice"
         "image" -> "images"
+        "file" -> "files"
         else -> null
     }
 
@@ -350,6 +356,12 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun getVoiceDir(chatId: String): File {
         val dir = File(File(profileDir, "chat_$chatId"), "voice")
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    override suspend fun getFilesDir(chatId: String): File {
+        val dir = File(File(profileDir, "chat_$chatId"), "files")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
@@ -471,14 +483,18 @@ class FileChatRepository @Inject constructor(
             }
             val restoredProfileIds = HashSet<String>()
 
-            // Locate every chat.json in the extracted tree. Single-chat backups
-            // place it at the root; exportAllChats nests it under chat_<id>/;
-            // exportEveryProfile under profile_<id>/chat_<id>/.
-            val chatFiles = tempDir.walkTopDown()
-                .filter { it.isFile && it.name == "chat.json" }
+            // Locate every chat directory, including tombstone-only histories that
+            // intentionally have no chat.json. Single-chat backups place files at
+            // the root; exportAllChats nests under chat_<id>/; exportEveryProfile
+            // under profile_<id>/chat_<id>/.
+            val chatDirs = tempDir.walkTopDown()
+                .filter { dir ->
+                    dir.isDirectory &&
+                        (File(dir, "chat.json").isFile || File(dir, "events.ndjson").isFile)
+                }
                 .toList()
 
-            if (chatFiles.isEmpty()) {
+            if (chatDirs.isEmpty()) {
                 throw IllegalArgumentException("No chats found in backup")
             }
 
@@ -486,8 +502,8 @@ class FileChatRepository @Inject constructor(
             // Restore is allowed to replay old events, but it must not bypass the
             // same remote-clock policy enforced by live sync.
             val importNow = System.currentTimeMillis()
-            chatFiles.forEach { chatFile ->
-                val eventsFile = File(chatFile.parentFile, "events.ndjson")
+            chatDirs.forEach { chatDir ->
+                val eventsFile = File(chatDir, "events.ndjson")
                 if (eventsFile.exists()) {
                     val invalid = EventLog(eventsFile, eventCodec).readAll().firstOrNull {
                         !HlcTimestamp.isAcceptableRemote(it.hlc, importNow)
@@ -500,9 +516,12 @@ class FileChatRepository @Inject constructor(
                 }
             }
 
-            for (chatFile in chatFiles) {
-                val srcChatDir = chatFile.parentFile ?: continue
-                val data = serializer.readFromFile(chatFile)
+            for (srcChatDir in chatDirs) {
+                val chatFile = File(srcChatDir, "chat.json")
+                val data = chatFile.takeIf { it.isFile }?.let(serializer::readFromFile)
+                val backupEventsFile = File(srcChatDir, "events.ndjson")
+                val firstEvent = backupEventsFile.takeIf { it.isFile }
+                    ?.let { EventLog(it, eventCodec).readAll().firstOrNull() }
                 // **Preserve the original chatId.** Rekeying to a fresh UUID
                 // would silently duplicate the whole chat on any peer that
                 // still holds it under the old id: `applyExternalEventLocked`
@@ -510,7 +529,8 @@ class FileChatRepository @Inject constructor(
                 // with the original chatId lands in a *different* dir on this
                 // device and every event gets appended fresh. Same-id restore
                 // keeps eventId dedup working and syncs merge cleanly.
-                val chatId = data.chat.id
+                val chatId = data?.chat?.id ?: firstEvent?.chatId
+                    ?: throw IllegalArgumentException("Backup chat has no stable chat ID")
 
                 // Restore into the profile the chat came from. exportEveryProfile
                 // records a `profile_<id>/` path segment; honor it so a multi-profile
@@ -527,8 +547,6 @@ class FileChatRepository @Inject constructor(
                 }
 
                 val targetDir = File(targetParent, "chat_$chatId")
-                val backupEventsFile = File(srcChatDir, "events.ndjson")
-
                 if (!targetDir.exists()) {
                     // Fresh restore: copy the chat dir verbatim (events + media).
                     // eventIds and chatIds already match what any peer holds, so
@@ -543,12 +561,20 @@ class FileChatRepository @Inject constructor(
                         if (rebuilt != null) {
                             serializer.writeToFile(File(targetDir, "chat.json"), rebuilt)
                         } else {
-                            // Tombstoned / metadata-less log → nothing to show.
-                            targetDir.deleteRecursively()
+                            // Nothing to show, but the event log is still source of
+                            // truth. In particular, deleting a tombstone-only directory
+                            // here would let a stale peer resurrect the chat later.
+                            File(targetDir, "chat.json").delete()
+                            targetDir.listFiles()?.forEach { child ->
+                                if (child.name != "events.ndjson") child.deleteRecursively()
+                            }
                         }
                     } else {
                         // Legacy chat.json-only backup: keep the id, synthesize log.
-                        serializer.writeToFile(File(targetDir, "chat.json"), data)
+                        serializer.writeToFile(
+                            File(targetDir, "chat.json"),
+                            requireNotNull(data) { "Legacy backup chat is missing chat.json" },
+                        )
                         EventLogMigrator.migrateChatIfNeeded(targetDir, deviceIdentity.deviceId)
                     }
                 } else if (backupEventsFile.exists()) {
@@ -576,6 +602,8 @@ class FileChatRepository @Inject constructor(
                     val rebuilt = MaterializedView.fold(existingLog.readAll())
                     if (rebuilt != null) {
                         serializer.writeToFile(File(targetDir, "chat.json"), rebuilt)
+                    } else {
+                        File(targetDir, "chat.json").delete()
                     }
                     Log.i(
                         "FileChatRepo",
@@ -640,9 +668,14 @@ class FileChatRepository @Inject constructor(
                 }
             }
 
+            // A backup created after several reinstall generations can legitimately
+            // contain multiple equal-name profile IDs. Repair them immediately so
+            // the user never has to restart or wait for another sync connection.
+            consolidateEquivalentProfiles()
+
             Log.i(
                 "FileChatRepo",
-                "import: done — chats=${chatFiles.size}, profileDirs=${restoredProfileIds.size}," +
+                "import: done — chats=${chatDirs.size}, profileDirs=${restoredProfileIds.size}," +
                     " manifestProfiles=${manifest?.profiles?.size ?: 0}," +
                     " activeAfter=${profileRepository.activeProfileId.value}," +
                     " profilesAfter=${profileRepository.profiles.value.size}"
@@ -693,12 +726,20 @@ class FileChatRepository @Inject constructor(
      * Returns true if the event was newly applied (caller should ack); false if duplicate.
      */
     override suspend fun applyExternalEvent(event: ChatEvent): Boolean = withContext(Dispatchers.IO) {
-        applyExternalEventLocked(event)
+        applyExternalEventLocked(canonicalizeInboundEvent(event))
+    }
+
+    override fun canonicalizeInboundEvent(event: ChatEvent): ChatEvent {
+        val id = safeProfileId(event.profileId) ?: return event
+        val profile = profileRepository.resolveSyncedProfile(id, event.profileName)
+        return event.copy(profileId = profile.id, profileName = profile.name)
     }
 
     @Synchronized
     private fun applyExternalEventLocked(event: ChatEvent): Boolean {
-        val chatDir = File(profileDirForInbound(event), "chat_${event.chatId}")
+        val targetProfileDir = profileDirForInbound(event)
+        consolidateChatCopies(event.chatId, targetProfileDir)
+        val chatDir = File(targetProfileDir, "chat_${event.chatId}")
         chatDir.mkdirs()
         val chatFile = File(chatDir, "chat.json")
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
@@ -720,6 +761,101 @@ class FileChatRepository @Inject constructor(
         eventBus.publish(event)
         scope.launch { refreshChats() }
         return true
+    }
+
+    /** Merge reinstall-generated copies of one logical chat before applying an event. */
+    private fun consolidateChatCopies(chatId: String, targetProfileDir: File) {
+        val targetDir = File(targetProfileDir, "chat_$chatId")
+        val targetProfile = targetProfileDir.name
+            .takeIf { it.startsWith("profile_") }
+            ?.removePrefix("profile_")
+            ?.let(profileRepository::profileById)
+        val parents = buildList {
+            add(rootDir) // legacy pre-profile layout
+            rootDir.listFiles()
+                ?.filterTo(this) { it.isDirectory && it.name.startsWith("profile_") }
+        }
+        val sources = parents.map { File(it, "chat_$chatId") }
+            .filter { it.exists() && it.absolutePath != targetDir.absolutePath }
+            .filter { source ->
+                if (source.parentFile == rootDir) return@filter true
+                val sourceProfile = source.parentFile?.name
+                    ?.removePrefix("profile_")
+                    ?.let(profileRepository::profileById)
+                    ?: return@filter false
+                targetProfile != null &&
+                    !targetProfile.isProtected && !sourceProfile.isProtected &&
+                    targetProfile.name.trim().equals(sourceProfile.name.trim(), ignoreCase = true)
+            }
+        if (sources.isEmpty()) return
+
+        targetDir.mkdirs()
+        val targetLog = EventLog(File(targetDir, "events.ndjson"), eventCodec)
+        val combined = targetLog.readAll().toMutableList()
+        val seen = combined.mapTo(HashSet()) { it.eventId }
+        sources.forEach { source ->
+            val sourceLog = EventLog(File(source, "events.ndjson"), eventCodec)
+            sourceLog.readAll().forEach { if (seen.add(it.eventId)) combined += it }
+            source.walkTopDown().filter { it.isFile }.forEach { file ->
+                if (file.name == "events.ndjson" || file.name == "chat.json") return@forEach
+                val destination = File(targetDir, file.relativeTo(source).path)
+                if (!destination.exists()) {
+                    destination.parentFile?.mkdirs()
+                    file.copyTo(destination, overwrite = false)
+                }
+            }
+        }
+        if (combined.isNotEmpty()) targetLog.replaceAll(combined.sortedBy { it.hlc })
+        sources.forEach { source ->
+            val sourceProfileId = source.parentFile?.name
+                ?.takeIf { it.startsWith("profile_") }
+                ?.removePrefix("profile_")
+            source.deleteRecursively()
+            if (sourceProfileId != null && !profileDirHasChats(sourceProfileId)) {
+                profileRepository.removeOrphanProfile(sourceProfileId)
+            }
+        }
+        Log.i("FileChatRepo", "consolidated ${sources.size} duplicate copies of chat $chatId")
+    }
+
+    /**
+     * Repair profile multiplication caused by older clients treating every historical
+     * reinstall UUID as a new profile. Only unprotected, equal-name profiles are safe
+     * to coalesce; PIN-protected profiles always retain their separate identity.
+     */
+    @Synchronized
+    private fun consolidateEquivalentProfiles() {
+        val activeId = profileRepository.activeProfileId.value
+        profileRepository.profiles.value
+            .filterNot { it.isProtected }
+            .groupBy { it.name.trim().lowercase() }
+            .values
+            .filter { it.size > 1 }
+            .forEach { equivalents ->
+                val target = equivalents.firstOrNull { it.id == activeId }
+                    ?: equivalents.minWith(compareBy<com.ncy.notechaty.data.model.Profile> { it.createdAt }.thenBy { it.id })
+                val chatIds = equivalents.asSequence()
+                    .flatMap { profile ->
+                        File(rootDir, "profile_${profile.id}").listFiles()
+                            ?.asSequence()
+                            ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+                            ?.map { it.name.removePrefix("chat_") }
+                            ?: emptySequence()
+                    }
+                    .toSet()
+                val targetProfileDir = File(rootDir, "profile_${target.id}").also { it.mkdirs() }
+                chatIds.forEach { chatId ->
+                    consolidateChatCopies(chatId, targetProfileDir)
+                    val chatDir = File(targetProfileDir, "chat_$chatId")
+                    val events = EventLog(File(chatDir, "events.ndjson"), eventCodec).readAll()
+                    val chatFile = File(chatDir, "chat.json")
+                    MaterializedView.fold(events)?.let { serializer.writeToFile(chatFile, it) }
+                        ?: chatFile.delete()
+                }
+                equivalents.filter { it.id != target.id }.forEach { source ->
+                    if (!profileDirHasChats(source.id)) profileRepository.removeOrphanProfile(source.id)
+                }
+            }
     }
 
     /** Route a stamped event independently of the profile currently open in the UI. */
@@ -935,6 +1071,7 @@ class FileChatRepository @Inject constructor(
         ) ?: return event
         val message = try {
             gson.fromJson(String(plaintext, Charsets.UTF_8), Message::class.java)
+                .normalizedForCompatibility()
         } catch (_: Exception) {
             return event
         }
@@ -960,6 +1097,7 @@ class FileChatRepository @Inject constructor(
                     MessageType.VOICE -> "🎤 Voice message"
                     MessageType.IMAGE -> "🖼 Image"
                     MessageType.CHECKLIST -> "☑ ${it.plainTextPreview()}"
+                    MessageType.FILE -> "📎 ${it.plainTextPreview()}"
                     MessageType.TEXT -> it.plainTextPreview()
                 }
             },

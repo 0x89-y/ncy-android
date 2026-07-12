@@ -41,6 +41,7 @@ fun RichTextInput(
     onCancelEdit: () -> Unit,
     onVoiceClick: () -> Unit,
     onImageClick: () -> Unit,
+    onFileClick: () -> Unit,
     onSendChecklist: (List<String>) -> Unit = {},
     onCameraClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -394,6 +395,15 @@ fun RichTextInput(
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         showAttachMenu = false
                                         onImageClick()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("File") },
+                                    leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null) },
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        showAttachMenu = false
+                                        onFileClick()
                                     }
                                 )
                                 DropdownMenuItem(

@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -20,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
@@ -247,6 +251,14 @@ fun MessageBubble(
                         }
                     }
                     MessageType.IMAGE -> RichTextContent(message.content, chatDir, contentColor)
+                    MessageType.FILE -> {
+                        val attachment = message.fileAttachments.firstOrNull()
+                        if (attachment != null) {
+                            FileAttachmentContent(attachment, chatDir, contentColor)
+                        } else {
+                            Text("File", color = contentColor)
+                        }
+                    }
                     MessageType.CHECKLIST -> {
                         ChecklistContent(
                             items = message.checklistItems,
@@ -389,6 +401,7 @@ internal fun replyPreviewText(preview: String?, type: MessageType?): String =
         ?: when (type) {
             MessageType.VOICE -> "Voice message"
             MessageType.IMAGE -> "Photo"
+            MessageType.FILE -> "File"
             MessageType.CHECKLIST -> "Checklist"
             else -> "Message"
         }
@@ -441,6 +454,102 @@ private fun ReplyQuote(
             }
         }
     }
+}
+
+@Composable
+private fun FileAttachmentContent(
+    attachment: FileAttachment,
+    chatDir: File,
+    contentColor: Color,
+) {
+    val context = LocalContext.current
+    val localFile = remember(chatDir, attachment.file) { File(chatDir, attachment.file) }
+    var available by remember(localFile) { mutableStateOf(localFile.isFile) }
+    LaunchedEffect(localFile) {
+        while (!available) {
+            kotlinx.coroutines.delay(2_000)
+            available = localFile.isFile
+        }
+    }
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(attachment.mimeType ?: "application/octet-stream")
+    ) { destination ->
+        if (destination != null && localFile.isFile) {
+            runCatching {
+                context.contentResolver.openOutputStream(destination)?.use { output ->
+                    localFile.inputStream().use { input -> input.copyTo(output) }
+                } ?: error("Cannot open destination")
+            }.onSuccess {
+                Toast.makeText(context, "File saved", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "Could not save file", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    val openFile: () -> Unit = {
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            localFile,
+        )
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, attachment.mimeType ?: "application/octet-stream")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "Open file")) }
+            .onFailure {
+                Toast.makeText(context, "No app can open this file", Toast.LENGTH_SHORT).show()
+            }
+        Unit
+    }
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = contentColor.copy(alpha = 0.14f),
+        contentColor = contentColor,
+        modifier = Modifier,
+    ) {
+        Row(
+            modifier = Modifier
+                .clickable(enabled = available, onClick = openFile)
+                .padding(start = 10.dp, top = 8.dp, bottom = 8.dp, end = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (available) Icons.Default.AttachFile else Icons.Default.Download,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    attachment.name,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                val detail = buildList {
+                    attachment.sizeBytes?.let { add(formatFileSize(it)) }
+                    if (!available) add("Downloading…")
+                }.joinToString(" · ")
+                if (detail.isNotEmpty()) {
+                    Text(detail, fontSize = 11.sp, color = contentColor.copy(alpha = 0.72f))
+                }
+            }
+            IconButton(
+                enabled = available,
+                onClick = { saveLauncher.launch(attachment.name) },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Icons.Default.Download, contentDescription = "Save file")
+            }
+        }
+    }
+}
+
+private fun formatFileSize(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
+    else -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
 }
 
 @Composable

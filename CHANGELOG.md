@@ -26,11 +26,21 @@
 - [x] Define and test deterministic three-device conflict behavior.
 - [x] Reduce pairing-secret exposure in UI, clipboards, backups, and local files.
 - [x] Encrypt authenticated LAN sync traffic without plaintext downgrade.
+- [x] Prevent unauthenticated mDNS endpoint replacement and rapid endpoint flapping.
+- [x] Make reinstall/full-restore catch-up replay all chats and deletion tombstones.
+- [x] Consolidate reinstall-generated duplicate profiles and preserve tombstones
+  during backup restoration.
 
 The complete prioritized backlog and completion criteria are maintained in
 [`docs/sync-edge-cases.md`](docs/sync-edge-cases.md).
 
 ### Added
+
+- Added generic file attachments from Android's system document picker. Any file
+  type up to the existing 100 MB blob limit can be sent without a preview; messages
+  preserve the original filename, MIME type, and size, sync the bytes through the
+  encrypted content-addressed blob protocol, and open through an installed Android
+  app after download.
 
 - Added direct phone-to-phone synchronization over the same local Wi-Fi network.
 - Added an Android WebSocket sync server that uses Ncy's existing authentication,
@@ -132,6 +142,26 @@ The complete prioritized backlog and completion criteria are maintained in
   nested envelopes, and post-handshake plaintext are rejected.
 - Added a deterministic Core/Android encryption vector and Android round-trip/replay
   regression tests. Older plaintext builds fail with an explicit upgrade error.
+- Hardened paired-peer rediscovery against mDNS spoofing. Android keeps changed
+  endpoints as expiring, rate-limited candidates, tries the last authenticated
+  address first, and persists a replacement only after the encrypted handshake
+  confirms both the pairing secret and expected device ID. Failed candidates are
+  discarded, and mDNS TXT capabilities no longer overwrite paired state.
+- Fixed reinstall recovery so `sinceHlc: null` cannot be overridden by a stale
+  server watermark. Full replay now includes the device's own historical events,
+  allowing restored chats and tombstones to reconstruct correctly.
+- Android phone hosting now queues live events until its initial snapshot finishes
+  and deduplicates snapshot/live overlap by event ID, preventing a newer live HLC
+  from suppressing older chats during the next reconnect.
+- Android now treats historical UUIDs for equal-name, unprotected profiles as
+  generations of one local profile. Existing duplicate profile directories are
+  merged automatically at startup, event IDs are deduplicated, media is retained,
+  and empty obsolete profile records are removed. PIN-protected profiles are never
+  merged by name.
+- Incoming events and their media are canonicalized to the same local profile before
+  persistence, preventing a chat or its tombstone from being split across profile
+  directories. Outgoing snapshots restamp events with their canonical physical
+  profile so obsolete IDs do not spread again.
 
 ### Changed
 
@@ -149,6 +179,13 @@ The complete prioritized backlog and completion criteria are maintained in
 - The server phone now records phones that authenticate against it and displays
   them in **Paired devices** with connected or last-connected status. Previously,
   only the phone that scanned the pairing code displayed the relationship.
+- Backup import no longer deletes an event directory when its materialized view is
+  empty. Tombstone-only histories remain available to suppress stale chats restored
+  from an older backup or replayed by another device.
+- Fixed a crash when opening chats containing legacy, restored, or desktop-authored
+  messages whose newer collection fields (notably `reactions`) were absent or JSON
+  `null`. Chat snapshots, sync events, and decrypted messages now normalize missing
+  collections and enum defaults before repository or UI code sees them.
 
 ### Battery behavior
 
@@ -174,6 +211,16 @@ The complete prioritized backlog and completion criteria are maintained in
   trusted in-memory decryption, wire compatibility, and compaction.
 - Passed all 12 Android unit tests after a forced rebuild.
 - Passed all 14 Android unit tests, including Core-compatible transport encryption.
+- Passed all 17 Android unit tests, including endpoint flapping, expiry, and
+  refresh-starvation coverage.
+- Passed all 21 Android unit tests, including authoritative empty-watermark,
+  own-origin recovery, stale tombstone, and snapshot/live overlap coverage.
+- Passed all 24 Android unit tests, including canonical unprotected-profile routing
+  and protected-profile isolation across differing historical IDs.
+- Passed all 26 Android unit tests, including legacy chat JSON and sync-event
+  compatibility with null or absent message fields.
+- Passed all 27 Android unit tests, including portable generic-file message
+  metadata, then rebuilt the debug APK.
 - Rebuilt Android after the screenshot and clipboard hardening changes.
 - Successfully compiled the Kotlin sources.
 - Successfully built the debug APK with `:app:assembleDebug`.

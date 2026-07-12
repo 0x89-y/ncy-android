@@ -78,9 +78,12 @@ Priority meanings:
 - [ ] **Explain client-isolated and multicast-blocked networks.** Guest Wi-Fi,
   enterprise VLANs, and access-point isolation can block direct traffic or mDNS
   even when devices show the same SSID.
-- [ ] **Handle mDNS spoofing and endpoint flapping.** A spoofed stable device ID
-  cannot pass HMAC authentication, but it can redirect attempts. Rate-limit
-  endpoint changes and prefer a recently authenticated address.
+- [x] **Handle mDNS spoofing and endpoint flapping.** Android and Core retain the
+  last authenticated endpoint as the first choice. A differing mDNS result becomes
+  an in-memory candidate for five minutes, changes at most once per 30 seconds, and
+  receives one attempt only after the trusted endpoint fails. Host/port promotion
+  occurs only after encrypted authentication and identity verification; a failed
+  candidate is discarded. Unauthenticated TXT capabilities are never persisted.
 - [ ] **Define discoverability requirements consistently.** Desktop/server peers
   with advertising disabled cannot recover from a stale LAN address. Surface this
   tradeoff wherever discoverability is toggled.
@@ -88,6 +91,22 @@ Priority meanings:
   are visible to the LAN and consider a privacy-preserving label or setting.
 
 ## P0/P1 — data convergence
+
+- [x] **Canonicalize reinstall-generated profile generations.** Historical
+  unprotected profiles with the same local label now resolve to one canonical
+  Android profile. Existing directories are merged on startup by stable event ID,
+  media is retained, and the combined log is materialized only after all copies are
+  present so chat tombstones remain dominant. Imported tombstone-only logs are kept
+  even when they have no `chat.json`. PIN-protected profiles require an exact ID and
+  are never merged by label.
+
+- [x] **Recover a reinstalled or stale-restored device completely.** The client's
+  `Hello.sinceHlc` is authoritative; `null` clears cached server progress and requests
+  every event. Full replay includes events originally authored by that same device,
+  while idempotent receivers accept own-origin recovery without reapplying normal
+  echoes. Android phone hosting queues live events until its snapshot completes and
+  deduplicates overlap by event ID, preventing a high-HLC live event from hiding
+  older chats or deletion tombstones.
 
 - [x] **Detect unreasonable clock jumps.** Android and Core accept at most five
   minutes of remote future skew and reject negative/malformed HLC components across

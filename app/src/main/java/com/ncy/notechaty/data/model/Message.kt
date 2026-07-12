@@ -1,8 +1,17 @@
 package com.ncy.notechaty.data.model
 
 enum class MessageType {
-    TEXT, VOICE, IMAGE, CHECKLIST
+    TEXT, VOICE, IMAGE, CHECKLIST, FILE
 }
+
+data class FileAttachment(
+    /** Content-addressed path inside the chat directory, e.g. `files/<sha256>.bin`. */
+    val file: String,
+    /** Original display name; never used as a filesystem path. */
+    val name: String,
+    val mimeType: String? = null,
+    val sizeBytes: Long? = null,
+)
 
 data class ChecklistItem(
     val id: String,
@@ -31,6 +40,8 @@ data class Message(
      * Empty for legacy messages authored before this field existed.
      */
     val reactions: List<String> = emptyList(),
+    /** Generic files are stored as opaque blobs; previews are intentionally optional. */
+    val fileAttachments: List<FileAttachment> = emptyList(),
     /**
      * Whisper.cpp transcript for voice messages (null for other types, or when
      * transcription hasn't run yet). Symmetric sync: whichever device produces
@@ -60,6 +71,9 @@ data class Message(
     val replyToCreatedAt: Long? = null
 ) {
     fun plainTextPreview(): String {
+        if (type == MessageType.FILE) {
+            return fileAttachments.firstOrNull()?.name?.take(100) ?: "File"
+        }
         if (type == MessageType.CHECKLIST) {
             val done = checklistItems.count { it.checked }
             val total = checklistItems.size

@@ -9,9 +9,11 @@ import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.discovery.MdnsDiscovery
 import com.ncy.notechaty.data.sync.discovery.LanNetworkMonitor
+import com.ncy.notechaty.data.sync.discovery.EndpointCandidateTracker
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.SyncClient
+import com.ncy.notechaty.data.sync.transport.SyncCatchupPolicy
 import com.ncy.notechaty.data.sync.transport.SyncLimits
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -59,6 +61,7 @@ class SyncManager @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val perPeer = mutableMapOf<String, PeerSession>()
+    private val endpointCandidates = EndpointCandidateTracker()
 
     private val _states = MutableStateFlow<Map<String, PeerState>>(emptyMap())
     val states: StateFlow<Map<String, PeerState>> = _states.asStateFlow()
@@ -106,15 +109,27 @@ class SyncManager @Inject constructor(
             mdnsDiscovery.peers.collect { discovered ->
                 discovered.forEach { found ->
                     val id = found.deviceId ?: return@forEach
-                    val endpointChanged = peerStore.updateEndpoint(id, found.host, found.port)
-                    val availabilityChanged = peerStore.updateAvailability(id, found.availability)
+                    val trusted = peerStore.byId(id) ?: return@forEach
                     val state = _states.value[id]
-                    if (endpointChanged || availabilityChanged || state is PeerState.Unavailable ||
-                        state is PeerState.Failed || state is PeerState.Idle
-                    ) {
-                        // The stable device ID matched a trusted pairing. Replace only
-                        // its stale address and reconnect immediately using the same secret.
-                        syncNow(id)
+                    if (trusted.host == found.host && trusted.port == found.port) {
+                        if (state is PeerState.Unavailable || state is PeerState.Failed || state is PeerState.Idle) {
+                            syncNow(id)
+                        }
+                        return@forEach
+                    }
+                    val accepted = endpointCandidates.observe(
+                        id, found.host, found.port)
+                    if (accepted) {
+                        Log.i(tag, "Recorded untrusted mDNS candidate for $id at ${found.host}:${found.port}")
+                    } else {
+                        Log.d(tag, "Ignored duplicate or rapidly flapping mDNS endpoint for $id")
+                    }
+                    if (accepted) {
+                        when (state) {
+                            is PeerState.Unavailable, is PeerState.Failed -> syncCandidateNow(id)
+                            is PeerState.Idle -> syncNow(id) // authenticated endpoint still gets first attempt
+                            else -> Unit
+                        }
                     }
                 }
             }
@@ -159,7 +174,19 @@ class SyncManager @Inject constructor(
             updateState(peerId, PeerState.WaitingForNetwork)
             return
         }
-        startSession(peer)
+        startSession(peer, candidateMode = false)
+    }
+
+    @Synchronized
+    private fun syncCandidateNow(peerId: String) {
+        val trusted = peerStore.byId(peerId) ?: return
+        val candidate = endpointCandidates.fresh(peerId) ?: return
+        perPeer.remove(peerId)?.shutdown()
+        val candidatePeer = trusted.copy(
+            host = candidate.host,
+            port = candidate.port,
+        )
+        startSession(candidatePeer, candidateMode = true)
     }
 
     @Synchronized
@@ -177,7 +204,10 @@ class SyncManager @Inject constructor(
         updateState(peerId, PeerState.Idle)
     }
 
-    private fun startSession(peer: SyncPeer) {
+    private fun startSession(
+        peer: SyncPeer,
+        candidateMode: Boolean = false,
+    ) {
         if (peer.disabled) {
             updateState(peer.id, PeerState.Disabled)
             return
@@ -187,7 +217,7 @@ class SyncManager @Inject constructor(
             return
         }
         updateState(peer.id, PeerState.Connecting)
-        val session = PeerSession(peer)
+        val session = PeerSession(peer, candidateMode)
         perPeer[peer.id] = session
         session.run()
     }
@@ -211,7 +241,10 @@ class SyncManager @Inject constructor(
         var lastActivityAt: Long = System.currentTimeMillis(),
     )
 
-    private inner class PeerSession(private val peer: SyncPeer) {
+    private inner class PeerSession(
+        private val peer: SyncPeer,
+        private var candidateMode: Boolean,
+    ) {
         private var session: SyncClient.Session? = null
         private var liveJob: Job? = null
         private var reconnectJob: Job? = null
@@ -219,6 +252,7 @@ class SyncManager @Inject constructor(
         private var reconnectAttempt = 0
         @Volatile private var canceled = false
         @Volatile private var identityFailure = false
+        @Volatile private var switchingEndpoint = false
         private var sentCount = 0
         private var receivedCount = 0
         private var peerName: String = peer.name
@@ -244,6 +278,16 @@ class SyncManager @Inject constructor(
                     }
                     is SyncClient.Event.Authenticated -> {
                         identityFailure = false
+                        if (candidateMode) {
+                            peerStore.promoteAuthenticatedEndpoint(
+                                peer.id,
+                                peer.host,
+                                peer.port,
+                            )
+                            endpointCandidates.remove(peer.id)
+                            candidateMode = false
+                            Log.i(tag, "Promoted authenticated endpoint for ${peer.id}")
+                        }
                         peerName = event.peerName
                         reconnectAttempt = 0 // healthy session — reset backoff
                         updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
@@ -291,7 +335,7 @@ class SyncManager @Inject constructor(
                                 PeerState.Unavailable("Open Ncy and enable phone sync on ${peer.name}")
                             } else PeerState.Failed(event.reason)
                         )
-                        if (!identityFailure) scheduleReconnect()
+                        if (!switchToAlternativeEndpoint() && !identityFailure) scheduleReconnect()
                     }
                     is SyncClient.Event.Disconnected -> {
                         liveJob?.cancel()
@@ -306,7 +350,7 @@ class SyncManager @Inject constructor(
                                 } else PeerState.Idle
                             )
                         }
-                        if (!identityFailure) scheduleReconnect()
+                        if (!switchingEndpoint && !identityFailure) scheduleReconnect()
                     }
                 }
             }
@@ -321,25 +365,24 @@ class SyncManager @Inject constructor(
             // Defensive loop guard: an event that originated from this device should never
             // be applied (the peer is echoing it back). Should not happen if the peer
             // implements its own sender-side loop guard, but cheap to check.
-            if (event.originDevice == deviceIdentity.deviceId) {
-                session?.ack(event.hlc)
-                return
-            }
+            // Always offer own-origin replays to the idempotent event store. A normal
+            // echo is rejected by eventId; a reinstall that lost the event recovers it.
             if (!HlcTimestamp.isAcceptableRemote(event.hlc, System.currentTimeMillis())) {
                 rejectClockSkew("event")
                 return
             }
-            val newlyApplied = chatRepository.applyExternalEvent(event)
-            session?.ack(event.hlc)
-            peerStore.updateLastReceived(peer.id, event.hlc)
+            val routedEvent = chatRepository.canonicalizeInboundEvent(event)
+            val newlyApplied = chatRepository.applyExternalEvent(routedEvent)
+            session?.ack(routedEvent.hlc)
+            peerStore.updateLastReceived(peer.id, routedEvent.hlc)
             val cur = lastReceivedHlc
-            if (cur == null || event.hlc > cur) lastReceivedHlc = event.hlc
+            if (cur == null || routedEvent.hlc > cur) lastReceivedHlc = routedEvent.hlc
             if (!newlyApplied) return
             receivedCount++
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
 
             // Phase 2b: kick off blob fetches for any media references we don't have yet.
-            scope.launch { fetchMissingMedia(event) }
+            scope.launch { fetchMissingMedia(routedEvent) }
         }
 
         private suspend fun fetchMissingMedia(event: ChatEvent) {
@@ -466,9 +509,10 @@ class SyncManager @Inject constructor(
 
         private fun pushCatchup() {
             val s = session ?: return
+            val fullReplay = lastAckedHlc == null
             val pending = snapshot.eventsSince(lastAckedHlc)
             for (event in pending) {
-                if (!sendEvent(s, event)) return
+                if (!sendEvent(s, event, fullReplay)) return
             }
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
         }
@@ -509,11 +553,15 @@ class SyncManager @Inject constructor(
         }
 
         @Synchronized
-        private fun sendEvent(s: SyncClient.Session, event: ChatEvent): Boolean {
+        private fun sendEvent(
+            s: SyncClient.Session,
+            event: ChatEvent,
+            fullReplay: Boolean = false,
+        ): Boolean {
             // Loop prevention: don't send events back to the peer that authored them.
             // (Matters once events from peer A get republished to the bus by `applyExternalEvent`
             // and would otherwise be forwarded straight back to A.)
-            if (event.originDevice == peer.id) return true
+            if (!SyncCatchupPolicy.shouldSend(event.originDevice, peer.id, fullReplay)) return true
             // Skip events the peer already acked (cheap dedupe; the receiver also tolerates
             // duplicates by event id, but we save bandwidth).
             val acked = lastAckedHlc
@@ -561,6 +609,38 @@ class SyncManager @Inject constructor(
                 liveJob = null
                 run()
             }
+        }
+
+        /**
+         * A trusted endpoint is always attempted first. After it fails, one fresh
+         * mDNS candidate may be tried; a failed candidate is discarded and the
+         * persisted authenticated endpoint becomes the fallback again.
+         */
+        private fun switchToAlternativeEndpoint(): Boolean {
+            if (switchingEndpoint || canceled) return switchingEndpoint
+            val trusted = peerStore.byId(peer.id) ?: return false
+            val (nextPeer, nextIsCandidate) = if (candidateMode) {
+                endpointCandidates.remove(peer.id)
+                if (trusted.host == peer.host && trusted.port == peer.port) return false
+                trusted to false
+            } else {
+                val candidate = endpointCandidates.fresh(peer.id) ?: return false
+                trusted.copy(
+                    host = candidate.host,
+                    port = candidate.port,
+                ) to true
+            }
+            switchingEndpoint = true
+            scope.launch {
+                yield()
+                synchronized(this@SyncManager) {
+                    if (!running || perPeer[peer.id] !== this@PeerSession) return@synchronized
+                    perPeer.remove(peer.id)
+                    this@PeerSession.shutdown()
+                    startSession(nextPeer, nextIsCandidate)
+                }
+            }
+            return true
         }
 
         fun pauseForNetwork() {
@@ -670,6 +750,9 @@ class SyncManager @Inject constructor(
             MediaHash.extractHash(message.voiceFile)?.let { refs += it to "voice" }
             for (img in message.imageFiles) {
                 MediaHash.extractHash(img)?.let { refs += it to "image" }
+            }
+            for (attachment in message.fileAttachments) {
+                MediaHash.extractHash(attachment.file)?.let { refs += it to "file" }
             }
             for (block in message.content) {
                 for (span in block.spans) {

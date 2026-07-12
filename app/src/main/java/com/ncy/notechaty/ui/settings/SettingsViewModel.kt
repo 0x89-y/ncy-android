@@ -9,6 +9,9 @@ import com.ncy.notechaty.data.model.AppSettings
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.sync.SyncManager
+import com.ncy.notechaty.data.sync.peer.SyncPeerStore
+import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +28,9 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val pinManager: PinManager,
     private val chatLockState: ChatLockState,
+    private val syncManager: SyncManager,
+    private val peerStore: SyncPeerStore,
+    private val phoneSyncServer: PhoneSyncServer,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -53,7 +59,18 @@ class SettingsViewModel @Inject constructor(
     }
 
     suspend fun importChat(zipFile: File) {
-        repository.importChat(zipFile)
+        val restartHost = phoneSyncServer.enabled.value
+        syncManager.stop()
+        if (restartHost) phoneSyncServer.pauseForRestore()
+        try {
+            check(peerStore.resetAllWatermarks()) {
+                "Could not persist sync progress reset before restore"
+            }
+            repository.importChat(zipFile)
+        } finally {
+            syncManager.start()
+            if (restartHost) phoneSyncServer.start()
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {

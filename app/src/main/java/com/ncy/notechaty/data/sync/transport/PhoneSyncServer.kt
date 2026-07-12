@@ -46,10 +46,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
-import java.security.MessageDigest
 import java.security.SecureRandom
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -183,6 +180,8 @@ class PhoneSyncServer @Inject constructor(
         _state.value = if (_enabled.value) HostState.Stopped else HostState.Disabled
     }
 
+    fun pauseForRestore() = stop(CLOSE_REASON_RESTORE)
+
     fun setEnabled(enabled: Boolean) {
         if (_enabled.value == enabled) return
         _enabled.value = enabled
@@ -236,27 +235,52 @@ class PhoneSyncServer @Inject constructor(
                 conn.close(1002, "wrong path")
                 return
             }
-            val nonce = ByteArray(32).also(SecureRandom()::nextBytes)
+            val nonce = ByteArray(16).also(SecureRandom()::nextBytes)
             val nonce64 = Base64.encodeToString(nonce, Base64.NO_WRAP)
             clients[conn] = Client(nonce64)
-            conn.send(codec.encode(SyncWireMessage.Challenge(nonce64)))
+            conn.send(codec.encode(SyncWireMessage.Challenge(nonce64, TransportCrypto.TRANSPORT)))
         }
 
         override fun onMessage(conn: WebSocket, text: String) {
-            if (text.length > SyncLimits.MAX_TEXT_FRAME_CHARS) {
+            if (text.length > SyncLimits.MAX_WIRE_FRAME_CHARS) {
                 conn.close(1009, "frame too large")
                 return
             }
-            val msg = runCatching { codec.decode(text) }.getOrElse {
+            val outer = runCatching { codec.decode(text) }.getOrElse {
                 conn.close(1002, "bad frame")
                 return
             }
             val client = clients[conn] ?: return
+            val msg = if (client.deviceId == null) outer else runCatching {
+                client.secure?.open(outer) ?: error("Missing encrypted transport")
+            }.getOrElse {
+                Log.w(TAG, "Rejected encrypted sync frame", it)
+                conn.close(1002, "secure frame rejected")
+                return
+            }
             if (client.deviceId == null) {
                 val hello = msg as? SyncWireMessage.Hello
                 if (hello == null) {
                     conn.send(codec.encode(SyncWireMessage.Error("auth_failed", "Invalid pairing secret")))
                     conn.close(1002, "auth failed")
+                    return
+                }
+                if (hello.transport != TransportCrypto.TRANSPORT) {
+                    conn.send(codec.encode(SyncWireMessage.Error("upgrade_required", "Encrypted transport psk-aead-v1 is required")))
+                    conn.close(1002, "encrypted transport required")
+                    return
+                }
+                val name = hello.deviceName.ifBlank { "Phone ${hello.deviceId.take(8)}" }
+                val auth = authenticate(client.nonce, hello.clientNonce, hello.auth, hello.deviceId, name)
+                if (auth == null) {
+                    conn.send(codec.encode(SyncWireMessage.Error("auth_failed", "Invalid or already-claimed pairing code")))
+                    conn.close(1002, "auth failed")
+                    return
+                }
+                client.secure = runCatching {
+                    TransportCrypto.forServer(auth.credential, client.nonce, hello.clientNonce, codec)
+                }.getOrElse {
+                    conn.close(1002, "invalid transport key material")
                     return
                 }
                 if (hello.sinceHlc?.let {
@@ -266,21 +290,27 @@ class PhoneSyncServer @Inject constructor(
                         )
                     } == true
                 ) {
-                    conn.send(codec.encode(SyncWireMessage.Error(
+                    sendSecure(conn, client, SyncWireMessage.Error(
                         "clock_skew",
                         "Remote catch-up clock is more than 5 minutes ahead",
-                    )))
+                    ))
                     conn.close(1002, "clock skew")
                     return
                 }
-                val name = hello.deviceName.ifBlank { "Phone ${hello.deviceId.take(8)}" }
-                val auth = authenticate(client.nonce, hello.auth, hello.deviceId, name)
-                if (auth == null) {
-                    conn.send(codec.encode(SyncWireMessage.Error("auth_failed", "Invalid or already-claimed pairing code")))
-                    conn.close(1002, "auth failed")
+                if (hello.deviceId == identity.deviceId) {
+                    sendSecure(conn, client, SyncWireMessage.Error(
+                        "identity_collision",
+                        "Remote device is using this phone's device ID",
+                    ))
+                    conn.close(1008, "identity collision")
                     return
                 }
-                client.deviceId = hello.deviceId
+                val collision = claimClientIdentity(client, hello.deviceId)
+                if (collision != null) {
+                    sendSecure(conn, client, SyncWireMessage.Error("identity_collision", collision))
+                    conn.close(1008, "identity collision")
+                    return
+                }
                 client.deviceName = name
                 recordHostedPeer(
                     id = hello.deviceId,
@@ -292,11 +322,11 @@ class PhoneSyncServer @Inject constructor(
                 if (auth.claimedInvitation) {
                     refreshPairingPayload()
                 }
-                conn.send(codec.encode(SyncWireMessage.Welcome(identity.deviceId, android.os.Build.MODEL ?: "Android phone")))
+                sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, android.os.Build.MODEL ?: "Android phone"))
                 scope.launch {
                     snapshot.eventsSince(hello.sinceHlc).forEach { event ->
                         if (event.originDevice != hello.deviceId && conn.isOpen) {
-                            conn.send(codec.encode(SyncWireMessage.Event(event)))
+                            sendSecure(conn, client, SyncWireMessage.Event(event))
                         }
                     }
                 }
@@ -304,7 +334,7 @@ class PhoneSyncServer @Inject constructor(
             }
             when (msg) {
                 is SyncWireMessage.Event -> scope.launch { receiveEvent(conn, client, msg.event) }
-                is SyncWireMessage.BlobRequest -> scope.launch { serveBlob(conn, msg.hash, msg.mediaType) }
+                is SyncWireMessage.BlobRequest -> scope.launch { serveBlob(conn, client, msg.hash, msg.mediaType) }
                 is SyncWireMessage.BlobChunk -> scope.launch {
                     client.blobMutex.withLock { receiveChunk(client, msg) }
                 }
@@ -332,10 +362,19 @@ class PhoneSyncServer @Inject constructor(
         fun broadcastEvent(event: ChatEvent) {
             clients.forEach { (socket, client) ->
                 if (socket.isOpen && client.deviceId != null && event.originDevice != client.deviceId) {
-                    socket.send(codec.encode(SyncWireMessage.Event(event)))
+                    sendSecure(socket, client, SyncWireMessage.Event(event))
                 }
             }
         }
+
+        private fun sendSecure(conn: WebSocket, client: Client, message: SyncWireMessage): Boolean =
+            synchronized(client) {
+                val channel = client.secure ?: return@synchronized false
+                runCatching {
+                    conn.send(codec.encode(channel.seal(message)))
+                    true
+                }.getOrDefault(false)
+            }
 
         fun closeClient(deviceId: String) = clients.entries
             .filter { it.value.deviceId == deviceId }
@@ -343,6 +382,18 @@ class PhoneSyncServer @Inject constructor(
 
         fun closeAll(reason: String) = clients.keys.forEach {
             it.close(CLOSE_GOING_AWAY, reason)
+        }
+
+        @Synchronized
+        private fun claimClientIdentity(client: Client, deviceId: String): String? {
+            if (deviceId == identity.deviceId) {
+                return "Remote device is using this phone's device ID"
+            }
+            if (clients.values.any { it !== client && it.deviceId == deviceId }) {
+                return "Another live connection is already using this device ID"
+            }
+            client.deviceId = deviceId
+            return null
         }
 
         suspend fun expireStalledTransfers() {
@@ -361,7 +412,7 @@ class PhoneSyncServer @Inject constructor(
 
         private suspend fun receiveEvent(conn: WebSocket, client: Client, event: ChatEvent) {
             if (event.originDevice == identity.deviceId) {
-                conn.send(codec.encode(SyncWireMessage.Ack(event.hlc)))
+                sendSecure(conn, client, SyncWireMessage.Ack(event.hlc))
                 return
             }
             if (!com.ncy.notechaty.data.sync.event.HlcTimestamp.isAcceptableRemote(
@@ -369,22 +420,23 @@ class PhoneSyncServer @Inject constructor(
                     System.currentTimeMillis(),
                 )
             ) {
-                conn.send(codec.encode(SyncWireMessage.Error(
+                sendSecure(conn, client, SyncWireMessage.Error(
                     "clock_skew",
                     "Remote event clock is more than 5 minutes ahead",
-                )))
+                ))
                 conn.close(1002, "clock skew")
                 return
             }
-            repository.applyExternalEvent(event)
-            conn.send(codec.encode(SyncWireMessage.Ack(event.hlc)))
+            val newlyApplied = repository.applyExternalEvent(event)
+            sendSecure(conn, client, SyncWireMessage.Ack(event.hlc))
+            if (!newlyApplied) return
             mediaRefs(event).forEach { (hash, mediaType) ->
                 if (client.pending.size < SyncLimits.MAX_PENDING_BLOBS &&
-                    repository.mediaFileForHash(hash, mediaType) == null
+                    repository.mediaFileForHash(hash, mediaType, event.profileId) == null
                 ) {
-                    val candidate = newPending(event.chatId, mediaType)
+                    val candidate = newPending(event.chatId, event.profileId, mediaType)
                     if (client.pending.putIfAbsent(hash, candidate) == null) {
-                        conn.send(codec.encode(SyncWireMessage.BlobRequest(hash, mediaType)))
+                        sendSecure(conn, client, SyncWireMessage.BlobRequest(hash, mediaType))
                     } else {
                         candidate.discard()
                     }
@@ -392,19 +444,19 @@ class PhoneSyncServer @Inject constructor(
             }
         }
 
-        private suspend fun serveBlob(conn: WebSocket, hash: String, mediaType: String) {
+        private suspend fun serveBlob(conn: WebSocket, client: Client, hash: String, mediaType: String) {
             val file = repository.mediaFileForHash(hash, mediaType)
             if (file == null || !file.isFile) {
-                conn.send(codec.encode(SyncWireMessage.BlobMissing(hash)))
+                sendSecure(conn, client, SyncWireMessage.BlobMissing(hash))
                 return
             }
             if (file.length() > SyncLimits.MAX_BLOB_BYTES) {
-                conn.send(codec.encode(SyncWireMessage.BlobMissing(hash)))
+                sendSecure(conn, client, SyncWireMessage.BlobMissing(hash))
                 return
             }
             val total = file.length().toInt()
             if (total == 0) {
-                conn.send(codec.encode(SyncWireMessage.BlobChunk(hash, mediaType, 0, 0, "", true)))
+                sendSecure(conn, client, SyncWireMessage.BlobChunk(hash, mediaType, 0, 0, "", true))
                 return
             }
             file.inputStream().buffered().use { input ->
@@ -417,7 +469,7 @@ class PhoneSyncServer @Inject constructor(
                         if (n == buffer.size) buffer else buffer.copyOf(n),
                         Base64.NO_WRAP,
                     )
-                    conn.send(codec.encode(SyncWireMessage.BlobChunk(hash, mediaType, offset, total, encoded, offset + n >= total)))
+                    sendSecure(conn, client, SyncWireMessage.BlobChunk(hash, mediaType, offset, total, encoded, offset + n >= total))
                     offset += n
                 }
             }
@@ -454,7 +506,13 @@ class PhoneSyncServer @Inject constructor(
             client.pending.remove(chunk.hash)
             pending.output.close()
             if (pending.received == chunk.totalSize && MediaHash.ofFile(pending.tempFile) == chunk.hash) {
-                repository.saveMediaBlobFromFile(pending.chatId, chunk.hash, pending.mediaType, pending.tempFile)
+                repository.saveMediaBlobFromFile(
+                    pending.chatId,
+                    chunk.hash,
+                    pending.mediaType,
+                    pending.tempFile,
+                    pending.profileId,
+                )
                 eventBus.notifyMediaArrived(pending.chatId)
             } else {
                 pending.tempFile.delete()
@@ -464,6 +522,7 @@ class PhoneSyncServer @Inject constructor(
 
     private data class Client(
         val nonce: String,
+        @Volatile var secure: TransportCrypto? = null,
         @Volatile var deviceId: String? = null,
         @Volatile var deviceName: String? = null,
         val pending: java.util.concurrent.ConcurrentHashMap<String, Pending> = java.util.concurrent.ConcurrentHashMap(),
@@ -471,6 +530,7 @@ class PhoneSyncServer @Inject constructor(
     )
     private data class Pending(
         val chatId: String,
+        val profileId: String,
         val mediaType: String,
         val tempFile: File,
         val output: BufferedOutputStream,
@@ -483,9 +543,9 @@ class PhoneSyncServer @Inject constructor(
         }
     }
 
-    private fun newPending(chatId: String, mediaType: String): Pending {
+    private fun newPending(chatId: String, profileId: String, mediaType: String): Pending {
         val temp = SyncLimits.newBlobTempFile(repository.getBaseDir())
-        return Pending(chatId, mediaType, temp, BufferedOutputStream(temp.outputStream()))
+        return Pending(chatId, profileId, mediaType, temp, BufferedOutputStream(temp.outputStream()))
     }
 
     private fun discardPending(client: Client, hash: String) {
@@ -501,16 +561,17 @@ class PhoneSyncServer @Inject constructor(
     @Synchronized
     private fun authenticate(
         nonce64: String,
+        clientNonce64: String,
         auth64: String,
         deviceId: String,
         deviceName: String,
     ): AuthResult? {
         val existing = _hostedPeers.value.firstOrNull { it.id == deviceId }
-        if (existing != null && validAuth(existing.credential, nonce64, auth64)) {
+        if (existing != null && validAuth(existing.credential, nonce64, clientNonce64, deviceId, auth64)) {
             return AuthResult(existing.credential, false, existing.legacySharedCredential)
         }
         val invitation = pairingIdentity.secret
-        if (!validAuth(invitation, nonce64, auth64)) return null
+        if (!validAuth(invitation, nonce64, clientNonce64, deviceId, auth64)) return null
 
         // Claim the current invitation for this device. Rotation happens before
         // another Hello can claim it because this method is synchronized.
@@ -519,13 +580,8 @@ class PhoneSyncServer @Inject constructor(
         return AuthResult(invitation, true, false)
     }
 
-    private fun validAuth(secret: String, nonce64: String, auth64: String): Boolean = runCatching {
-        val mac = Mac.getInstance("HmacSHA256").apply {
-            init(SecretKeySpec(Base64.decode(secret, Base64.NO_WRAP), "HmacSHA256"))
-        }
-        val expected = mac.doFinal(Base64.decode(nonce64, Base64.NO_WRAP))
-        MessageDigest.isEqual(expected, Base64.decode(auth64, Base64.NO_WRAP))
-    }.getOrDefault(false)
+    private fun validAuth(secret: String, nonce64: String, clientNonce64: String, deviceId: String, auth64: String): Boolean =
+        TransportCrypto.verify(secret, nonce64, clientNonce64, deviceId, auth64)
 
     @Synchronized
     private fun recordHostedPeer(
@@ -875,6 +931,7 @@ class PhoneSyncServer @Inject constructor(
         const val CLOSE_REASON_FOREGROUND = "phone_host_left_foreground"
         const val CLOSE_REASON_DISABLED = "phone_host_disabled"
         const val CLOSE_REASON_NETWORK_CHANGED = "phone_host_network_changed"
+        const val CLOSE_REASON_RESTORE = "phone_host_restore"
         const val PREFS = "ncy_phone_sync_server"
         const val KEY_ENABLED = "enabled"
         const val KEY_HOSTED_PEERS = "hosted_peers"

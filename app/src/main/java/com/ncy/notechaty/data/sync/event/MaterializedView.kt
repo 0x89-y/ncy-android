@@ -21,10 +21,19 @@ import com.ncy.notechaty.data.model.RichTextSpan
 object MaterializedView {
 
     /** Fold the events into a ChatData, or null if the chat is tombstoned / has no metadata. */
-    fun fold(events: List<ChatEvent>): ChatData? {
+    fun fold(
+        events: List<ChatEvent>,
+        trustedDecryptedEventIds: Set<String> = emptySet(),
+    ): ChatData? {
         if (events.isEmpty()) return null
 
         val ordered = events.sortedBy { it.hlc }
+        // Safety invariant shared with Core: if the final metadata is protected,
+        // never materialize a plaintext body from an older/concurrent event.
+        val finalProtected = ordered
+            .lastOrNull { it.op is ChatEventOp.ChatMetadataChanged }
+            ?.let { (it.op as ChatEventOp.ChatMetadataChanged).metadata.isProtected }
+            ?: false
 
         var metadata: ChatMetadata? = null
         val messages = LinkedHashMap<String, Message>()
@@ -41,12 +50,20 @@ object MaterializedView {
                 }
                 is ChatEventOp.MessageCreated -> {
                     if (op.message.id !in tombstonedMessages) {
-                        messages[op.message.id] = op.message
+                        messages[op.message.id] = if (
+                            finalProtected && event.eventId !in trustedDecryptedEventIds
+                        ) {
+                            lockedPlaceholder(op.message.id, event)
+                        } else op.message
                     }
                 }
                 is ChatEventOp.MessageEdited -> {
                     if (op.message.id !in tombstonedMessages) {
-                        messages[op.message.id] = op.message
+                        messages[op.message.id] = if (
+                            finalProtected && event.eventId !in trustedDecryptedEventIds
+                        ) {
+                            lockedPlaceholder(op.message.id, event)
+                        } else op.message
                     }
                 }
                 is ChatEventOp.EncryptedMessage -> {
@@ -54,7 +71,7 @@ object MaterializedView {
                     // so without a key we synthesize a placeholder keyed by eventId. The
                     // decrypted view (FileChatRepository.getMessages with cached key)
                     // re-materializes from raw events and replaces this with the real message.
-                    val placeholderId = "locked_${event.eventId}"
+                    val placeholderId = op.messageId ?: "locked_${event.eventId}"
                     if (placeholderId !in tombstonedMessages) {
                         messages[placeholderId] = lockedPlaceholder(placeholderId, event)
                     }

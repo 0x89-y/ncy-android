@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,11 @@ import com.ncy.notechaty.data.sync.transport.SyncEndpoint
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import android.graphics.Bitmap
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
+import kotlinx.coroutines.delay
 import java.text.DateFormat
 import java.util.Date
 
@@ -49,6 +55,13 @@ fun SyncScreen(
     onNavigateBack: () -> Unit,
     viewModel: SyncViewModel = hiltViewModel()
 ) {
+    val secureView = LocalView.current
+    DisposableEffect(secureView) {
+        val window = secureView.context.findActivity()?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+    }
+    val clipboard = LocalClipboardManager.current
     val peers by viewModel.peers.collectAsState()
     val states by viewModel.states.collectAsState()
     val discovered by viewModel.discovered.collectAsState()
@@ -149,6 +162,14 @@ fun SyncScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 6.dp)
             )
+            Text(
+                "Changes merge automatically: the latest simultaneous edit wins, deletes " +
+                    "stay deleted, and protection never exposes an unresolved plaintext copy. " +
+                    "Profile names remain local labels on each phone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp),
+            )
 
             NcySettingsSection("Share this phone") {
                 Column(
@@ -222,6 +243,11 @@ fun SyncScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        "Pairing JSON contains a credential. It is cleared from the clipboard after a successful pair.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                     OutlinedTextField(
                         value = pairingText,
                         onValueChange = {
@@ -243,11 +269,15 @@ fun SyncScreen(
                     }
                     OutlinedButton(
                         onClick = {
+                            val submitted = pairingText
                             val error = viewModel.pair(pairingText)
                             if (error == null) {
                                 pairingText = ""
                                 pairingSuccess = "Paired. Ncy will connect when in foreground."
                                 pairingError = null
+                                if (clipboard.getText()?.text == submitted) {
+                                    clipboard.setText(AnnotatedString(""))
+                                }
                             } else {
                                 pairingError = error
                                 pairingSuccess = null
@@ -322,6 +352,15 @@ private fun PairingDialog(
     onRegenerate: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
+    var copiedPayload by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(copiedPayload) {
+        val payload = copiedPayload ?: return@LaunchedEffect
+        delay(PAIRING_CLIPBOARD_TTL_MS)
+        if (clipboard.getText()?.text == payload) {
+            clipboard.setText(AnnotatedString(""))
+        }
+        copiedPayload = null
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Pair with this phone") },
@@ -358,6 +397,11 @@ private fun PairingDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
+                        "This QR and JSON contain a pairing credential. Share them only with the device you intend to pair; copied JSON clears after 60 seconds if unchanged.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
                         if (state.usedFallbackPort) {
                             "Available at ${SyncEndpoint.display(state.host, state.port)}. Port 8765 was busy, so Ncy selected a temporary fallback port and included it in this code."
                         } else {
@@ -367,7 +411,10 @@ private fun PairingDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     OutlinedButton(
-                        onClick = { clipboard.setText(AnnotatedString(state.pairingJson)) },
+                        onClick = {
+                            clipboard.setText(AnnotatedString(state.pairingJson))
+                            copiedPayload = state.pairingJson
+                        },
                         shape = NcyButtonShape,
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("Copy pairing JSON") }
@@ -381,6 +428,14 @@ private fun PairingDialog(
             TextButton(onClick = onDismiss) { Text("Done") }
         },
     )
+}
+
+private const val PAIRING_CLIPBOARD_TTL_MS = 60_000L
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private fun pairingQrBitmap(text: String, size: Int = 768): Bitmap? = runCatching {

@@ -56,16 +56,23 @@ interface ChatRepository {
     /**
      * Locate a content-addressed media blob by its SHA-256 hash. `mediaType` is `"voice"`
      * or `"image"`. Returns null if no matching file exists in any chat under the active
-     * profile.
+     * profile. When [profileId] is null, all local profiles are searched so a peer
+     * can request media for a background profile.
      */
-    suspend fun mediaFileForHash(hash: String, mediaType: String): File?
+    suspend fun mediaFileForHash(hash: String, mediaType: String, profileId: String? = null): File?
 
     /**
      * Persist a freshly-downloaded media blob into the given chat. The file is named
      * `<hash>.<ext>` under the appropriate subdirectory (`voice/` or `images/`).
      */
     /** Move/copy a verified temporary blob into its canonical content-addressed path. */
-    suspend fun saveMediaBlobFromFile(chatId: String, hash: String, mediaType: String, sourceFile: File)
+    suspend fun saveMediaBlobFromFile(
+        chatId: String,
+        hash: String,
+        mediaType: String,
+        sourceFile: File,
+        profileId: String? = null,
+    )
 
     fun getBaseDir(): File
 }

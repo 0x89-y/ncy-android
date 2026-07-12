@@ -5,6 +5,7 @@ import java.io.File
 /** Resource ceilings shared by Android's sync client and phone-host server. */
 object SyncLimits {
     const val MAX_TEXT_FRAME_CHARS = 1024 * 1024
+    const val MAX_WIRE_FRAME_CHARS = 1400 * 1024
     const val MAX_BLOB_BYTES = 100 * 1024 * 1024
     const val MAX_CHUNK_BYTES = 64 * 1024
     const val MAX_BASE64_CHARS = 90 * 1024

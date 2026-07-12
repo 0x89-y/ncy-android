@@ -21,12 +21,15 @@ class SyncWireCodec(
             is SyncWireMessage.Challenge -> {
                 obj.addProperty("type", T_CHALLENGE)
                 obj.addProperty("nonce", message.nonce)
+                if (message.transport.isNotEmpty()) obj.addProperty("transport", message.transport)
             }
             is SyncWireMessage.Hello -> {
                 obj.addProperty("type", T_HELLO)
                 obj.addProperty("deviceId", message.deviceId)
                 if (message.deviceName.isNotBlank()) obj.addProperty("deviceName", message.deviceName)
                 obj.addProperty("auth", message.auth)
+                if (message.transport.isNotEmpty()) obj.addProperty("transport", message.transport)
+                if (message.clientNonce.isNotEmpty()) obj.addProperty("clientNonce", message.clientNonce)
                 if (message.sinceHlc != null) {
                     obj.add("sinceHlc", gson.toJsonTree(message.sinceHlc))
                 } else {
@@ -50,6 +53,11 @@ class SyncWireCodec(
                 obj.addProperty("type", T_ERROR)
                 obj.addProperty("code", message.code)
                 obj.addProperty("message", message.message)
+            }
+            is SyncWireMessage.Secure -> {
+                obj.addProperty("type", T_SECURE)
+                obj.addProperty("seq", message.seq)
+                obj.addProperty("data", message.data)
             }
             is SyncWireMessage.BlobRequest -> {
                 obj.addProperty("type", T_BLOB_REQUEST)
@@ -76,7 +84,10 @@ class SyncWireCodec(
     fun decode(text: String): SyncWireMessage {
         val obj = JsonParser.parseString(text).asJsonObject
         return when (val type = obj["type"].asString) {
-            T_CHALLENGE -> SyncWireMessage.Challenge(obj["nonce"].asString)
+            T_CHALLENGE -> SyncWireMessage.Challenge(
+                obj["nonce"].asString,
+                obj["transport"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
+            )
             T_HELLO -> SyncWireMessage.Hello(
                 deviceId = obj["deviceId"].asString,
                 auth = obj["auth"].asString,
@@ -84,6 +95,8 @@ class SyncWireCodec(
                     gson.fromJson(it, HlcTimestamp::class.java)
                 },
                 deviceName = obj["deviceName"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
+                transport = obj["transport"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
+                clientNonce = obj["clientNonce"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
             )
             T_WELCOME -> SyncWireMessage.Welcome(
                 deviceId = obj["deviceId"].asString,
@@ -99,6 +112,7 @@ class SyncWireCodec(
                 code = obj["code"].asString,
                 message = obj["message"].asString
             )
+            T_SECURE -> SyncWireMessage.Secure(obj["seq"].asLong, obj["data"].asString)
             T_BLOB_REQUEST -> SyncWireMessage.BlobRequest(
                 hash = obj["hash"].asString,
                 mediaType = obj["mediaType"].asString
@@ -123,6 +137,7 @@ class SyncWireCodec(
         const val T_EVENT = "Event"
         const val T_ACK = "Ack"
         const val T_ERROR = "Error"
+        const val T_SECURE = "Secure"
         const val T_BLOB_REQUEST = "BlobRequest"
         const val T_BLOB_CHUNK = "BlobChunk"
         const val T_BLOB_MISSING = "BlobMissing"

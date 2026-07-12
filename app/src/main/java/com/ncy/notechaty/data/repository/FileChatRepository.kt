@@ -276,27 +276,29 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun mediaFileForHash(
         hash: String,
-        mediaType: String
+        mediaType: String,
+        profileId: String?,
     ): File? = withContext(Dispatchers.IO) {
         val subdirs = mediaSearchSubdirs(mediaType) ?: return@withContext null
         val ext = mediaExt(mediaType) ?: return@withContext null
         val needle = "$hash.$ext"
-        profileDir.listFiles()
-            ?.asSequence()
-            ?.filter { it.isDirectory && it.name.startsWith("chat_") }
-            ?.mapNotNull { chatDir ->
+        mediaProfileDirs(profileId)
+            .flatMap { dir -> dir.listFiles()?.asSequence() ?: emptySequence() }
+            .filter { it.isDirectory && it.name.startsWith("chat_") }
+            .mapNotNull { chatDir ->
                 subdirs.asSequence()
                     .map { sub -> File(File(chatDir, sub), needle) }
                     .firstOrNull { it.isFile }
             }
-            ?.firstOrNull()
+            .firstOrNull()
     }
 
     override suspend fun saveMediaBlobFromFile(
         chatId: String,
         hash: String,
         mediaType: String,
-        sourceFile: File
+        sourceFile: File,
+        profileId: String?,
     ): Unit = withContext(Dispatchers.IO) {
         val ext = mediaExt(mediaType) ?: run {
             sourceFile.delete()
@@ -306,7 +308,8 @@ class FileChatRepository @Inject constructor(
             sourceFile.delete()
             return@withContext
         }
-        val dir = File(File(profileDir, "chat_$chatId"), subdir).apply { mkdirs() }
+        val targetProfile = safeProfileId(profileId)?.let { File(rootDir, "profile_$it") } ?: profileDir
+        val dir = File(File(targetProfile, "chat_$chatId"), subdir).apply { mkdirs() }
         val target = File(dir, "$hash.$ext")
         if (target.exists()) {
             sourceFile.delete()
@@ -477,6 +480,24 @@ class FileChatRepository @Inject constructor(
 
             if (chatFiles.isEmpty()) {
                 throw IllegalArgumentException("No chats found in backup")
+            }
+
+            // Validate every event log before modifying any destination directory.
+            // Restore is allowed to replay old events, but it must not bypass the
+            // same remote-clock policy enforced by live sync.
+            val importNow = System.currentTimeMillis()
+            chatFiles.forEach { chatFile ->
+                val eventsFile = File(chatFile.parentFile, "events.ndjson")
+                if (eventsFile.exists()) {
+                    val invalid = EventLog(eventsFile, eventCodec).readAll().firstOrNull {
+                        !HlcTimestamp.isAcceptableRemote(it.hlc, importNow)
+                    }
+                    if (invalid != null) {
+                        throw IllegalArgumentException(
+                            "Backup contains an invalid or future-skewed event clock"
+                        )
+                    }
+                }
             }
 
             for (chatFile in chatFiles) {
@@ -677,16 +698,16 @@ class FileChatRepository @Inject constructor(
 
     @Synchronized
     private fun applyExternalEventLocked(event: ChatEvent): Boolean {
-        val chatDir = File(profileDir, "chat_${event.chatId}")
+        val chatDir = File(profileDirForInbound(event), "chat_${event.chatId}")
         chatDir.mkdirs()
         val chatFile = File(chatDir, "chat.json")
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
 
         val priorEvents = eventLog.readAll()
         if (priorEvents.any { it.eventId == event.eventId }) {
-            // Idempotency — already applied. Still considered a "received" event; the caller
-            // should ack so the peer can advance its lastSentHlc and not resend forever.
-            return true
+            // Idempotency — already applied. The caller still acks it, but `false`
+            // prevents duplicate UI work and duplicate media fetches during handoff.
+            return false
         }
 
         eventLog.append(event)
@@ -699,6 +720,31 @@ class FileChatRepository @Inject constructor(
         eventBus.publish(event)
         scope.launch { refreshChats() }
         return true
+    }
+
+    /** Route a stamped event independently of the profile currently open in the UI. */
+    private fun profileDirForInbound(event: ChatEvent): File {
+        val id = safeProfileId(event.profileId) ?: return profileDir
+        profileRepository.ensureProfileExists(
+            id,
+            event.profileName.ifBlank { "Synced profile ${id.take(8)}" },
+        )
+        return File(rootDir, "profile_$id").also { it.mkdirs() }
+    }
+
+    private fun safeProfileId(id: String?): String? = id?.takeIf { value ->
+        value.isNotEmpty() && value.length <= 128 &&
+            value.all { it.isLetterOrDigit() || it == '-' || it == '_' }
+    }
+
+    private fun mediaProfileDirs(profileId: String?): Sequence<File> {
+        val id = safeProfileId(profileId)
+        if (id != null) return sequenceOf(File(rootDir, "profile_$id"))
+        val profiles = rootDir.listFiles()
+            ?.asSequence()
+            ?.filter { it.isDirectory && it.name.startsWith("profile_") }
+            ?: emptySequence()
+        return sequenceOf(rootDir) + profiles
     }
 
     /**
@@ -771,7 +817,8 @@ class FileChatRepository @Inject constructor(
         return ChatEventOp.EncryptedMessage(
             innerType = innerType,
             nonce = sealed.nonce,
-            ciphertext = sealed.ciphertext
+            ciphertext = sealed.ciphertext,
+            messageId = message.id,
         )
     }
 
@@ -794,8 +841,17 @@ class FileChatRepository @Inject constructor(
             return@withContext serializer.readFromFile(chatFile).messages
         }
         val key = keyStore.keyFor(chatId)
-        val events = eventLog.readAll().map { decryptOpIfPossible(it, key) }
-        MaterializedView.fold(events)?.messages ?: emptyList()
+        val trustedDecrypted = HashSet<String>()
+        val events = eventLog.readAll().map { original ->
+            val transformed = decryptOpIfPossible(original, key)
+            if (original.op is ChatEventOp.EncryptedMessage &&
+                transformed.op !is ChatEventOp.EncryptedMessage
+            ) {
+                trustedDecrypted += original.eventId
+            }
+            transformed
+        }
+        MaterializedView.fold(events, trustedDecrypted)?.messages ?: emptyList()
     }
 
     override suspend fun migrateProtectedChat(chatId: String): Unit = withContext(Dispatchers.IO) {
@@ -851,6 +907,7 @@ class FileChatRepository @Inject constructor(
                     innerType = innerType,
                     nonce = sealed.nonce,
                     ciphertext = sealed.ciphertext,
+                    messageId = message.id,
                     supersedes = ev.eventId
                 ),
                 profileId = ev.profileId,

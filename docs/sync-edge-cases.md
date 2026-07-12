@@ -1,6 +1,6 @@
 # Sync edge cases and hardening backlog
 
-Last reviewed: 2026-07-11
+Last reviewed: 2026-07-12
 
 This document tracks reliability, security, privacy, and resource edge cases
 across Ncy Android, `ncy-core`, `ncy-desktop`, and `ncy-server`.
@@ -32,8 +32,8 @@ Priority meanings:
   cloud backup and device transfer now exclude the install device ID, outbound
   peer secrets/watermarks, host invitation identity, and hosted-client credentials.
   Chats, profiles, and ordinary settings remain transferable. This prevents new
-  clones; devices already cloned by an older build still require identity-collision
-  detection and manual re-pairing.
+  clones. Devices already cloned by an older build are now rejected explicitly and
+  must regenerate identity by reinstalling/clearing app data, then pair again.
 - [x] **Stream media with explicit limits.** Android and Core use bounded streaming
   disk I/O, clean interrupted/stale temporary files, and expire transfers after
   60 seconds without an incoming chunk.
@@ -96,24 +96,54 @@ Priority meanings:
   Legacy poisoned peer watermarks are cleared on session/load. Historical event-log
   repair remains deliberately separate because silently rewriting HLC order would
   break deterministic convergence.
-- [ ] **Make backup/restore watermarks atomic with event state.** Restoring peer
-  watermarks without the corresponding events can suppress required catch-up.
-- [ ] **Test identity collisions explicitly.** Two live devices with one device ID
-  must be detected and rejected rather than silently triggering loop guards.
-- [ ] **Exercise catch-up/live overlap.** Duplicate events are idempotent, but tests
-  should verify no event loss and avoid duplicate media fetches during the handoff.
-- [ ] **Define conflict UX.** Document and test concurrent edits, deletes, profile
-  renames, and protected-chat changes across three or more devices.
+- [x] **Make backup/restore watermarks atomic with event state.** Portable backups
+  exclude installation-local identity, trust, and progress state. Before importing
+  events, Android and Desktop stop live sync and durably clear all local progress
+  watermarks; imported clocks are validated before event mutation and the previous
+  sync services are restored on success or failure. If import or process execution
+  is interrupted, stable event IDs make the resulting full replay idempotent rather
+  than allowing a stale watermark to suppress catch-up.
+- [x] **Test identity collisions explicitly.** Android and Core hosts reject their
+  own ID and atomically allow only one authenticated live session per remote ID.
+  Clients verify that `Welcome.deviceId` is both distinct from their local identity
+  and equal to the paired identity. Claimed one-device credentials cannot switch
+  IDs, collision/mismatch errors are visible, and automatic retry pauses until peer
+  state changes instead of repeatedly reconnecting. Core covers claim lifetime and
+  all client identity outcomes with regression tests.
+- [x] **Exercise catch-up/live overlap.** Core client and server roles subscribe to
+  live broadcasts before reading the event snapshot, then use the session watermark
+  to suppress snapshot/queue overlap and advance it after every live send. Android
+  installs its live collector synchronously, queues events during snapshot reading,
+  and drains them afterward. Receivers still acknowledge duplicate event IDs but no
+  longer re-materialize them or start duplicate media fetches. Deterministic Core
+  tests cover both a post-snapshot live event and an event present in both sources.
+- [x] **Define conflict UX.** Simultaneous edits resolve automatically by total HLC
+  order (`physicalMs`, `logical`, `nodeId`) with no conflict dialog/history; permanent
+  message/chat tombstones dominate edits at any HLC. Chat metadata is whole-record
+  LWW. Android profile labels remain device-local, while Core uses the highest-HLC
+  advisory name stamp; stamped events/media route to the correct profile regardless
+  of the profile currently open. Final protected metadata forces every unresolved
+  plaintext body to a locked placeholder. New encrypted envelopes expose only the
+  message UUID so locked edits compact by identity and tombstones still work. Android
+  and Core include three-device ordering, delete, protection, and compaction tests.
 
 ## P1/P2 — pairing-secret handling
 
-- [ ] **Reduce pairing-secret exposure.** Warn that QR images and JSON contain a
-  credential; avoid unnecessary clipboard lifetime, screenshots, logs, and cloud
-  backup. Consider short-lived invitation credentials exchanged for per-client
-  secrets.
-- [ ] **Encrypt unprotected LAN traffic.** HMAC authenticates peers but does not hide
-  plaintext messages from network observers. Define a TLS/Noise migration with
-  certificate/key pinning tied to the pairing identity.
+- [x] **Reduce pairing-secret exposure.** Android marks the entire Sync devices
+  screen secure against screenshots, warns beside every QR/JSON entry point, clears
+  unchanged copied invitations after 60 seconds, and clears successfully pasted JSON
+  immediately. Desktop gives equivalent warnings and conditional timed/immediate
+  clipboard cleanup; claimed QR data remains hidden by default. Android OS backup
+  excludes every identity/credential store, normal logs contain no secrets, Android
+  phone invitations rotate after one claim, Server CLI output carries an explicit
+  handling warning, and Core creates secret-bearing JSON with Unix owner-only `0600`
+  permissions (Windows relies on the user's inherited app-data ACL).
+- [x] **Encrypt unprotected LAN traffic.** Every authenticated session now binds a
+  mandatory `psk-aead-v1` negotiation into the pairing-secret HMAC, derives separate
+  client→server and server→client AES-256-GCM keys with HKDF-SHA256, and encrypts
+  `Welcome` plus every event, acknowledgement, error, and media frame. Directional
+  sequence numbers reject replay, gaps, and reordering. Missing/legacy transport
+  negotiation fails with `upgrade_required`; there is no plaintext downgrade.
 - [ ] **Define secret rotation behavior.** Rotation should clearly identify which
   devices are revoked, what remains visible in the UI, and how reconnect errors
   differ from temporary network failures.

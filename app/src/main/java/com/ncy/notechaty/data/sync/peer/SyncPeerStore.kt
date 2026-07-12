@@ -108,6 +108,27 @@ class SyncPeerStore @Inject constructor(
         return true
     }
 
+    /** Durably reset progress before restore so every restored event is replayed idempotently. */
+    fun resetAllWatermarks(): Boolean {
+        val previous = _peers.value
+        val reset = previous.map { peer ->
+            if (peer.lastSentHlcMs == null && peer.lastReceivedHlcMs == null) return@map peer
+            peer.copy(
+                lastSentHlcMs = null,
+                lastSentHlcLogical = null,
+                lastSentHlcNode = null,
+                lastReceivedHlcMs = null,
+                lastReceivedHlcLogical = null,
+                lastReceivedHlcNode = null,
+            )
+        }
+        if (reset == previous) return true
+        _peers.value = reset
+        val committed = prefs.edit().putString(KEY_PEERS, gson.toJson(reset)).commit()
+        if (!committed) _peers.value = previous
+        return committed
+    }
+
     /**
      * Update the high-water-mark HLC after a successful ack from the peer. Refuses to
      * regress — out-of-order acks for older HLCs are ignored so the watermark only ever

@@ -13,7 +13,7 @@ import com.ncy.notechaty.data.sync.event.HlcTimestamp
 sealed class SyncWireMessage {
 
     /** Server → client. First frame after connect. Contains the auth nonce to sign. */
-    data class Challenge(val nonce: String) : SyncWireMessage()
+    data class Challenge(val nonce: String, val transport: String = "") : SyncWireMessage()
 
     /**
      * Client → server. Authenticates the client and announces its catch-up watermark.
@@ -25,6 +25,8 @@ sealed class SyncWireMessage {
         val sinceHlc: HlcTimestamp?,
         /** Optional for compatibility with older clients. */
         val deviceName: String = "",
+        val transport: String = "",
+        val clientNonce: String = "",
     ) : SyncWireMessage()
 
     /** Server → client. Authentication accepted; client may begin streaming. */
@@ -41,6 +43,9 @@ sealed class SyncWireMessage {
 
     /** Either side. Aborts the session with a human-readable reason. */
     data class Error(val code: String, val message: String) : SyncWireMessage()
+
+    /** AES-256-GCM authenticated envelope used for every post-Hello message. */
+    data class Secure(val seq: Long, val data: String) : SyncWireMessage()
 
     // ----- Phase 2b: media blob transfer -----
 

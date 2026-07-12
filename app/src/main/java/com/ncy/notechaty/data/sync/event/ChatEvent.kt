@@ -42,6 +42,8 @@ sealed class ChatEventOp {
         val innerType: String,
         val nonce: ByteArray,
         val ciphertext: ByteArray,
+        /** Stable UUID exposed so locked peers can resolve edits and tombstones. */
+        val messageId: String? = null,
         /**
          * Protected-chat catch-up: the `eventId` of a *plaintext* message event this
          * sealed event replaces. Set when a chat is protected after it had already
@@ -58,12 +60,14 @@ sealed class ChatEventOp {
             return innerType == other.innerType &&
                 nonce.contentEquals(other.nonce) &&
                 ciphertext.contentEquals(other.ciphertext) &&
+                messageId == other.messageId &&
                 supersedes == other.supersedes
         }
         override fun hashCode(): Int {
             var r = innerType.hashCode()
             r = 31 * r + nonce.contentHashCode()
             r = 31 * r + ciphertext.contentHashCode()
+            r = 31 * r + (messageId?.hashCode() ?: 0)
             r = 31 * r + (supersedes?.hashCode() ?: 0)
             return r
         }

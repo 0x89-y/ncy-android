@@ -1,12 +1,12 @@
 package com.ncy.notechaty.data.sync.event
 
-import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.ncy.notechaty.data.model.ChatMetadata
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.sync.protection.ProtectionCrypto
+import java.util.Base64
 
 /**
  * Encodes and decodes [ChatEvent] as one JSON object per line (NDJSON). Format is portable
@@ -47,8 +47,10 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
                     val po = payload.asJsonObject
                     ChatEventOp.EncryptedMessage(
                         innerType = type,
-                        nonce = Base64.decode(po["nonce"].asString, Base64.NO_WRAP),
-                        ciphertext = Base64.decode(po["ct"].asString, Base64.NO_WRAP),
+                        nonce = Base64.getDecoder().decode(po["nonce"].asString),
+                        ciphertext = Base64.getDecoder().decode(po["ct"].asString),
+                        messageId = po["messageId"]
+                            ?.takeIf { !it.isJsonNull }?.asString,
                         supersedes = po["supersedes"]
                             ?.takeIf { !it.isJsonNull }?.asString
                     )
@@ -97,8 +99,9 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
         is ChatEventOp.EncryptedMessage -> JsonObject().apply {
             addProperty("v", ProtectionCrypto.ENVELOPE_VERSION)
             addProperty("enc", "AES-256-GCM")
-            addProperty("nonce", Base64.encodeToString(op.nonce, Base64.NO_WRAP))
-            addProperty("ct", Base64.encodeToString(op.ciphertext, Base64.NO_WRAP))
+            addProperty("nonce", Base64.getEncoder().encodeToString(op.nonce))
+            addProperty("ct", Base64.getEncoder().encodeToString(op.ciphertext))
+            op.messageId?.let { addProperty("messageId", it) }
             op.supersedes?.let { addProperty("supersedes", it) }
         }
     }

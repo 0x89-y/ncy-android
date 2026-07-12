@@ -14,19 +14,23 @@ import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.SyncClient
 import com.ncy.notechaty.data.sync.transport.SyncLimits
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.BufferedOutputStream
 import java.io.File
+import java.util.ArrayDeque
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -199,6 +203,7 @@ class SyncManager @Inject constructor(
      */
     private data class PendingFetch(
         val chatId: String,
+        val profileId: String,
         val mediaType: String,
         val tempFile: File,
         val output: BufferedOutputStream,
@@ -213,6 +218,7 @@ class SyncManager @Inject constructor(
         private var transferCleanupJob: Job? = null
         private var reconnectAttempt = 0
         @Volatile private var canceled = false
+        @Volatile private var identityFailure = false
         private var sentCount = 0
         private var receivedCount = 0
         private var peerName: String = peer.name
@@ -237,13 +243,11 @@ class SyncManager @Inject constructor(
                         updateState(peer.id, PeerState.Connecting)
                     }
                     is SyncClient.Event.Authenticated -> {
+                        identityFailure = false
                         peerName = event.peerName
                         reconnectAttempt = 0 // healthy session — reset backoff
                         updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
-                        // Subscribe to live events BEFORE reading the catchup snapshot so
-                        // events appended during snapshot read don't fall through the gap.
-                        startLiveForwarding(checkNotNull(session))
-                        scope.launch { pushCatchup() }
+                        startCatchupAndLiveForwarding(checkNotNull(session))
                     }
                     is SyncClient.Event.Acked -> {
                         val now = System.currentTimeMillis()
@@ -280,13 +284,14 @@ class SyncManager @Inject constructor(
                     }
                     is SyncClient.Event.Failed -> {
                         Log.w(tag, "Peer ${peer.id} failed: ${event.reason}")
+                        identityFailure = isIdentityFailure(event.reason)
                         updateState(
                             peer.id,
                             if (peer.foregroundOnly && isTemporaryTransportFailure(event.reason)) {
                                 PeerState.Unavailable("Open Ncy and enable phone sync on ${peer.name}")
                             } else PeerState.Failed(event.reason)
                         )
-                        scheduleReconnect()
+                        if (!identityFailure) scheduleReconnect()
                     }
                     is SyncClient.Event.Disconnected -> {
                         liveJob?.cancel()
@@ -301,7 +306,7 @@ class SyncManager @Inject constructor(
                                 } else PeerState.Idle
                             )
                         }
-                        scheduleReconnect()
+                        if (!identityFailure) scheduleReconnect()
                     }
                 }
             }
@@ -324,11 +329,12 @@ class SyncManager @Inject constructor(
                 rejectClockSkew("event")
                 return
             }
-            chatRepository.applyExternalEvent(event)
+            val newlyApplied = chatRepository.applyExternalEvent(event)
             session?.ack(event.hlc)
             peerStore.updateLastReceived(peer.id, event.hlc)
             val cur = lastReceivedHlc
             if (cur == null || event.hlc > cur) lastReceivedHlc = event.hlc
+            if (!newlyApplied) return
             receivedCount++
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
 
@@ -339,13 +345,14 @@ class SyncManager @Inject constructor(
         private suspend fun fetchMissingMedia(event: ChatEvent) {
             val s = session ?: return
             for ((hash, mediaType) in extractMediaRefs(event)) {
-                if (chatRepository.mediaFileForHash(hash, mediaType) != null) continue
+                if (chatRepository.mediaFileForHash(hash, mediaType, event.profileId) != null) continue
                 val newlyPending = synchronized(this@PeerSession) {
                     if (pendingFetches.containsKey(hash) || pendingFetches.size >= SyncLimits.MAX_PENDING_BLOBS) false
                     else {
                         val temp = SyncLimits.newBlobTempFile(chatRepository.getBaseDir())
                         pendingFetches[hash] = PendingFetch(
                             chatId = event.chatId,
+                            profileId = event.profileId,
                             mediaType = mediaType,
                             tempFile = temp,
                             output = BufferedOutputStream(temp.outputStream())
@@ -445,7 +452,13 @@ class SyncManager @Inject constructor(
                 pending.tempFile.delete()
                 return
             }
-            chatRepository.saveMediaBlobFromFile(pending.chatId, hash, pending.mediaType, pending.tempFile)
+            chatRepository.saveMediaBlobFromFile(
+                pending.chatId,
+                hash,
+                pending.mediaType,
+                pending.tempFile,
+                pending.profileId,
+            )
             // Tell any open ChatScreen to re-render — the materialized message hasn't
             // changed but the file it references now exists on disk.
             eventBus.notifyMediaArrived(pending.chatId)
@@ -460,11 +473,37 @@ class SyncManager @Inject constructor(
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
         }
 
-        private fun startLiveForwarding(s: SyncClient.Session) {
+        private fun startCatchupAndLiveForwarding(s: SyncClient.Session) {
             liveJob?.cancel()
-            liveJob = scope.launch {
-                eventBus.events.collect { event: ChatEvent ->
-                    sendEvent(s, event)
+            liveJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                coroutineScope {
+                    // Subscribe synchronously before reading the snapshot. Local events
+                    // queue only for the finite handoff, then forwarding becomes direct.
+                    val handoffLock = Mutex()
+                    val queuedLive = ArrayDeque<ChatEvent>()
+                    var handoffComplete = false
+                    val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+                        eventBus.events.collect { event ->
+                            handoffLock.withLock {
+                                if (handoffComplete) sendEvent(s, event)
+                                else queuedLive.addLast(event)
+                            }
+                        }
+                    }
+                    try {
+                        yield()
+                        pushCatchup()
+                        handoffLock.withLock {
+                            handoffComplete = true
+                            while (queuedLive.isNotEmpty()) {
+                                if (!sendEvent(s, queuedLive.removeFirst())) break
+                            }
+                        }
+                        collector.join()
+                    } finally {
+                        collector.cancel()
+                        queuedLive.clear()
+                    }
                 }
             }
         }
@@ -491,7 +530,7 @@ class SyncManager @Inject constructor(
          * by `shutdown()`.
          */
         private fun scheduleReconnect() {
-            if (canceled) return
+            if (canceled || identityFailure) return
             if (!lanNetworkMonitor.available.value) {
                 reconnectJob?.cancel()
                 reconnectJob = null
@@ -541,6 +580,11 @@ class SyncManager @Inject constructor(
                 !lower.contains("protocol") &&
                 !lower.contains("malformed") &&
                 !lower.contains("rejected")
+        }
+
+        private fun isIdentityFailure(reason: String): Boolean {
+            val lower = reason.lowercase()
+            return lower.contains("identity_collision") || lower.contains("identity_mismatch")
         }
 
         private fun rejectClockSkew(kind: String) {

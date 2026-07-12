@@ -1,4 +1,4 @@
-# Ncy Sync Protocol — v1 (Phases 1, 2a, and 2b)
+# Ncy Sync Protocol — v2 (authenticated transport, phases 1, 2a, and 2b)
 
 This document specifies the wire protocol and behavioral semantics for syncing chat
 data between the Ncy Android app and a desktop (or any other) client. It is the
@@ -15,8 +15,8 @@ is described here.
 > - Phase 2b: content-addressed media blob transfer over the same socket (see §10.8
 >   and the `Blob*` frames in §6.7–6.9). Voice and image only; avatars/backgrounds/
 >   inline rich-text images are deferred to a 2b polish step.
-> - Off-LAN relay, TLS (phase 3), and protected-chat encryption (phase 3) are still
->   deferred.
+> - Authenticated LAN payload encryption is mandatory. Off-LAN relay and TLS metadata
+>   privacy are still deferred; protected-chat encryption remains the at-rest layer.
 
 ## 1. Architecture
 
@@ -69,6 +69,16 @@ A new pairing payload **must** generate a fresh `secret`. The phone treats the Q
 as trust-on-first-use: it stores the (`deviceId`, `secret`) pair and uses them for
 every subsequent connection. Removing a peer on the phone fully forgets the secret.
 
+Pairing QR codes and JSON are bearer credentials. Implementations must label them as
+sensitive, keep claimed credentials hidden by default, avoid logging them, exclude
+them from OS/cloud backup, and minimize clipboard lifetime. Reference clients clear
+an unchanged copied payload after 60 seconds and clear a successfully consumed paste
+immediately; they first compare clipboard contents so newer user data is never erased.
+Android blocks screenshots on its Sync devices surface. Secret-bearing Core state
+files are created with owner-only `0600` mode on Unix; Windows deployments rely on
+the per-user application-data ACL. Headless CLI output must warn operators before
+rendering a credential, especially when stdout may be redirected to a file.
+
 Device IDs, peer secrets, and sync watermarks are **installation-local state** and
 must be excluded from operating-system backup and device-transfer facilities. Chat
 events may be transferred, retaining their original `originDevice` stamps, but the
@@ -77,6 +87,13 @@ Hosts should treat a displayed payload as a one-device invitation: once a new
 `deviceId` authenticates with its secret, bind that credential to the device and
 rotate the displayed invitation. A credential already bound to one device must not
 authenticate a different device ID.
+After authentication, a host must reject `Hello.deviceId` with
+`identity_collision` when it equals the host's own ID or another live authenticated
+session already claims it. The live claim is released when that session ends. A
+client must likewise reject `Welcome.deviceId` when it equals its local ID, and use
+`identity_mismatch` when it differs from the stable ID in the pairing record. These
+errors are persistent configuration/identity failures, so automatic timed retries
+should pause until pairing or peer state changes.
 The stored `host` and `port` are last-known endpoints rather than identity. A peer may
 advertise `_ncy-sync._tcp` with its stable `deviceId`; an already-paired client may then
 refresh only the endpoint when DHCP changes it. Discovery never replaces the stored
@@ -117,9 +134,15 @@ advertised stable `deviceId`, but discovery still cannot change credentials.
   stopping. Clients retry with capped backoff; resolving the trusted stable device ID
   over mDNS wakes that delay immediately, even when host and port are unchanged.
 
-Phase 1 is plaintext over LAN. The phone manifest declares
-`android:usesCleartextTraffic="true"`. Desktop clients should accept any client
-hostname; identity is established via the HMAC handshake, not by network address.
+The outer WebSocket remains `ws://`, so network addresses, timing, frame sizes, and
+the initial `Challenge`/`Hello` metadata remain observable. Message content, events,
+acknowledgements, errors, and media are protected by mandatory PSK-derived
+AES-256-GCM envelopes. Identity and transport negotiation are authenticated by the
+pairing-secret HMAC, not by the network address or a Web PKI certificate.
+The discovery-initiated flow is the only pre-PSK exception: `PairRequest` and
+`PairChallenge` expose device labels and ephemeral P-256 public keys, while the
+credential-bearing `PairAccept` payload is already protected by its ECDH-derived
+AES-GCM key. Normal sync never falls back to plaintext application frames.
 
 **Roles are symmetric.** The protocol only defines a *client* (connects out,
 signs the challenge, sends `Hello`) and a *server* (listens, issues `Challenge`,
@@ -135,47 +158,60 @@ server's catch-up stream (§7) on (re)connect rather than via server-side relay.
 
 ```
 T0  C ───── (TCP/WebSocket connect) ─────▶ S
-T1  C ◀──── Challenge { nonce }            S
-T2  C ───── Hello { deviceId, auth, sinceHlc } ─▶ S
-T3  C ◀──── Welcome { deviceId, name }     S      (or: Error → close)
+T1  C ◀──── Challenge { nonce, transport }  S
+T2  C ───── Hello { deviceId, clientNonce, transport, auth, sinceHlc } ─▶ S
+T3  C ◀──── Secure(seq=0, Welcome { deviceId, name }) S
 
 then, repeating in any order:
-    C ───── Event { event } ─────▶ S
-    C ◀──── Ack { upToHlc }       S
+    C ───── Secure(seq=n, Event { event }) ─────▶ S
+    C ◀──── Secure(seq=n, Ack { upToHlc })       S
 ```
 
 - The server **must** send `Challenge` as the first frame.
-- The client **must** reply with `Hello` containing a valid HMAC.
-- The server **must** send `Welcome` to confirm authentication, or `Error` and close.
+- The client **must** require `transport="psk-aead-v1"` and reply with a transcript-
+  authenticated `Hello`. A missing/different transport is an upgrade error.
+- The server **must** send `Welcome` as encrypted sequence zero. Every subsequent
+  application message is a `Secure` envelope; plaintext is a protocol error.
 - Once authenticated, the client streams `Event` frames. The server sends `Ack` frames
   back as it durably receives each event.
-- Either side may send `Error` and close at any time.
+- Either side may send `Error` and close at any time; after authenticated key
+  derivation the error is itself carried inside `Secure`.
 
 ## 5. Authentication
 
-Pre-shared-key challenge/response with HMAC-SHA256.
+Pre-shared-key challenge/response with HMAC-SHA256, followed by directional AEAD.
 
 1. Server generates 16 random bytes, base64-encodes them: `nonce`.
-2. Server sends `Challenge { nonce }`.
+2. Server sends `Challenge { nonce, transport:"psk-aead-v1" }`.
 3. Client computes:
    ```
    secretBytes  = base64decode(secret)         // from pairing payload
    nonceBytes   = base64decode(nonce)
-   signature    = HMAC-SHA256(secretBytes, nonceBytes)
+   clientNonce  = 32 fresh random bytes
+   transcript   = "ncy-sync-auth-v2\0" || nonceBytes || clientNonce ||
+                  UTF8(deviceId) || 0x00 || UTF8("psk-aead-v1")
+   signature    = HMAC-SHA256(secretBytes, transcript)
    auth         = base64encode(signature)
    ```
-4. Client sends `Hello { deviceId, auth, sinceHlc }`.
-5. Server recomputes `expected = HMAC-SHA256(secretBytes, nonceBytes)` and verifies
+4. Client sends `Hello { deviceId, clientNonce, transport, auth, sinceHlc }`.
+5. Server recomputes the transcript HMAC and verifies
    `expected == base64decode(auth)` using a constant-time comparison.
-6. On match, server sends `Welcome`. On mismatch, server sends
+6. On match, both sides derive 64 bytes with HKDF-SHA256 using `salt=nonceBytes`,
+   `IKM=secretBytes`, and `info="ncy-sync-transport-v1\0" || clientNonce`.
+   Bytes 0–31 are the client→server key; bytes 32–63 are the server→client key.
+7. The server encrypts `Welcome` as its sequence-zero frame. On mismatch it sends
    `Error { code:"bad_auth", message:"..." }` and closes with code `1002`.
 
-Each connection generates a fresh `nonce`. Replays are useless because the server
-discards used nonces with the connection lifetime.
+Each direction starts at sequence zero and accepts exactly the next sequence. The
+AES-GCM nonce is four zero bytes followed by the big-endian `u64` sequence; AAD is
+`"ncy-sync-secure-v1\0" || bigEndian(seq)`. Directional keys prevent nonce reuse
+across directions. Replays, gaps, reordering, nested `Secure` frames, and plaintext
+post-Hello frames are rejected.
 
 ### Bytestring conventions
 
-- All `secret`, `nonce`, and `auth` values on the wire are **standard base64**
+- All `secret`, `nonce`, `clientNonce`, `auth`, and `Secure.data` values are
+  **standard base64**
   (RFC 4648 §4, no URL-safe alphabet). The Kotlin client encodes with `Base64.NO_WRAP`;
   decoders should accept padded strings without trailing newlines.
 
@@ -188,7 +224,7 @@ be treated as a protocol error.
 ### 6.1 `Challenge` (server → client)
 
 ```json
-{ "type": "Challenge", "nonce": "<base64-16>" }
+{ "type": "Challenge", "nonce": "<base64-16>", "transport": "psk-aead-v1" }
 ```
 
 ### 6.2 `Hello` (client → server)
@@ -198,7 +234,9 @@ be treated as a protocol error.
   "type": "Hello",
   "deviceId": "<phone uuid>",
   "deviceName": "Pixel 9",
-  "auth": "<base64 of HMAC-SHA256(secret, base64decode(nonce))>",
+  "transport": "psk-aead-v1",
+  "clientNonce": "<base64-32>",
+  "auth": "<base64 transcript HMAC>",
   "sinceHlc": { "physicalMs": 1714000000000, "logical": 3, "nodeId": "<phone uuid>" }
 }
 ```
@@ -216,13 +254,22 @@ compatibility with older clients.
 > watermark, which is the spec-correct value. Phase 2 servers should treat this as
 > "send me everything past this HLC."
 
-### 6.3 `Welcome` (server → client)
+### 6.2a `Secure` (either direction after `Hello`)
+
+```json
+{ "type": "Secure", "seq": 0, "data": "<base64 AES-256-GCM ciphertext+tag>" }
+```
+
+`data` decrypts to one complete serialized inner wire message. `Welcome` is the
+server's first inner message. Inner messages may not themselves be `Secure`.
+
+### 6.3 `Welcome` (server → client, inside `Secure`)
 
 ```json
 { "type": "Welcome", "deviceId": "<desktop uuid>", "name": "My Laptop" }
 ```
 
-### 6.4 `Event` (client → server)
+### 6.4 `Event` (either direction, inside `Secure`)
 
 ```json
 { "type": "Event", "event": { /* see §7 */ } }
@@ -429,13 +476,20 @@ profile, matching the phone.
 - `profileName` is **advisory** — a human label captured at author time. The
   authoritative key is `profileId`; a receiver may re-resolve the name locally
   and SHOULD tolerate it being empty.
+- Android treats profile names as local labels: an incoming advisory rename never
+  overwrites a locally chosen label. Core clients without a local profile registry
+  display the name from the highest-HLC event stamp. Concurrent phone renames may
+  therefore remain different labels while identity/content converge by `profileId`.
+- A receiver must route a non-empty valid `profileId` independently of its currently
+  selected profile, including downloaded media. An unknown ID creates a local profile
+  using `profileName` only as its initial fallback label.
 - A chat's effective profile is the stamp on its **highest-HLC** event carrying
   a non-empty `profileId`. Desktop-authored events for an existing chat inherit
   that same profile so a round-trip to the phone groups correctly.
 - Profiles themselves are **not** a synced entity — there is no profile
   create/rename/delete op. Profile identity travels only as these per-event
-  stamps; renaming a profile on the phone propagates lazily as new events carry
-  the updated `profileName`.
+  stamps. Renaming a profile changes later advisory stamps for Core/fallback display,
+  but does not overwrite another phone's locally chosen label.
 
 ## 8. Hybrid Logical Clock (HLC)
 
@@ -667,10 +721,19 @@ def materialize(events):
 
 Conflict rules summary:
 - **Concurrent edits** to the same message: HLC wins, lexicographic `nodeId` breaks
-  ties. Loser-side is silently overwritten.
+  ties. The losing version remains in the append-only log until compaction but is not
+  shown as a separate user-visible conflict.
 - **Delete vs. edit**: tombstone always wins (regardless of HLC).
 - **Chat metadata**: whole-record LWW — never per-field merge. A late stale
   `ChatMetadataChanged` simply doesn't get applied (its HLC is older).
+- **Protection metadata**: whole-record LWW selects the effective protected state
+  and salt. If the winner is protected, plaintext events and ciphertext that cannot
+  be opened with the winning key render only as locked placeholders; content must
+  never be exposed as a conflict fallback.
+
+The reference UX resolves these automatically without a merge dialog. The Sync
+devices screen explains the rules. A permanent delete cannot be undone by an edit
+from an offline device; recreating content requires a new UUID.
 
 ### 10.5 Idempotency
 
@@ -715,9 +778,27 @@ A server **must** advance `lastSentToPhoneHlc` only on `Ack` (never on send) and
 `max(Hello.sinceHlc, lastSentToPhoneHlc)` so a phone that wiped local state still
 gets a fresh full replay if it sends `sinceHlc: null`.
 
+The sender must subscribe to its live event source **before** reading the catch-up
+snapshot. Events published during that read remain queued and are processed after
+the sorted snapshot. A session-local sent watermark suppresses an event present in
+both sources and advances after each successful live send. Receivers must acknowledge
+duplicate event IDs, but must not re-materialize them or start another media fetch.
+This ordering turns every overlap into either one delivery or harmless wire-level
+replay; it never creates a gap between snapshot and live forwarding.
+
 The asymmetry — phone tracks two watermarks, server tracks one — is because the
 phone is always the WebSocket *client* in phase 2. If a future deployment lets a
 device act as both client and server, it will need both watermarks per peer.
+
+#### Restore invariant
+
+Sync watermarks are installation-local progress markers and must never be included
+in a portable user-data backup. A manual restore must stop live sync, durably clear
+all local sent and received watermarks before mutating event state, validate the
+entire imported event stream, apply events idempotently, and then restore the prior
+sync-service state on both success and failure. If the process stops after the
+watermark reset, the next connection performs extra catch-up; it must never skip
+events because of progress recorded for the pre-restore event set.
 
 ### 10.8 Media blob transfer (phase 2b)
 
@@ -825,13 +906,16 @@ envelope instead of the plaintext message:
   "hlc": {...},
   "originDevice": "...",
   "chatId": "...",
-  "payload": { "v": 1, "enc": "AES-256-GCM", "nonce": "<base64-12>", "ct": "<base64>" }
+  "payload": { "v": 1, "enc": "AES-256-GCM", "nonce": "<base64-12>", "ct": "<base64>", "messageId": "<uuid>" }
 }
 ```
 
 - `nonce`: 12 random bytes per encryption, base64-encoded.
 - `ct`: AES-256-GCM ciphertext **with the 128-bit tag appended** (the standard
   format both Kotlin's `javax.crypto.Cipher` and Rust's `aes-gcm` crate produce).
+- `messageId`: stable message UUID in the cleartext envelope. It reveals no body,
+  but lets a locked receiver apply LWW edits, compaction, and permanent tombstones.
+  Optional only for backward compatibility with envelopes from older builds.
 - `supersedes` *(optional, string)*: the `eventId` of a **plaintext** message
   event this sealed event replaces. Present only when a chat is protected *after*
   it already synced in plaintext to a peer — see §11.7. Absent for
@@ -942,9 +1026,9 @@ Minimum viable receiver:
 - [ ] Generate a stable `deviceId` (UUID) once; reuse forever.
 - [ ] Generate a fresh 32-byte `secret` for each pairing; render as base64 in the QR/JSON.
 - [ ] On connect: send `Challenge` with 16 fresh random bytes (base64).
-- [ ] Receive `Hello`; verify HMAC-SHA256(secret, nonceBytes) == base64decode(auth) in
-      constant time. On failure: `Error{code:"bad_auth"}` and close.
-- [ ] On success: send `Welcome { deviceId, name }`.
+- [ ] Require `psk-aead-v1`; verify the v2 transcript HMAC in constant time.
+- [ ] Derive directional HKDF keys and enforce exact per-direction sequence numbers.
+- [ ] On success: send encrypted `Welcome { deviceId, name }` as sequence zero.
 - [ ] Receive `Event` frames; for each:
   - Append to a local event log (one JSON object per line, NDJSON), keyed by `chatId`
     if you want the same on-disk layout as the phone, or one global log if you don't.

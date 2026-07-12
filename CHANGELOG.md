@@ -20,8 +20,12 @@
 - [x] Explain foreground-only phone hosts and reconnect immediately on return.
 - [x] Stop wasteful retries with per-peer controls and LAN-aware suspension.
 - [x] Reject future-skewed remote clocks before they affect events or watermarks.
-- [ ] Add identity-collision and backup-convergence safeguards.
-- [ ] Harden pairing-secret handling and encrypt unprotected LAN traffic.
+- [x] Keep backup restoration and sync watermarks safely convergent.
+- [x] Detect cloned and mismatched live device identities explicitly.
+- [x] Close the catch-up/live-event handoff without duplicate media work.
+- [x] Define and test deterministic three-device conflict behavior.
+- [x] Reduce pairing-secret exposure in UI, clipboards, backups, and local files.
+- [x] Encrypt authenticated LAN sync traffic without plaintext downgrade.
 
 The complete prioritized backlog and completion criteria are maintained in
 [`docs/sync-edge-cases.md`](docs/sync-edge-cases.md).
@@ -89,9 +93,45 @@ The complete prioritized backlog and completion criteria are maintained in
   materialization, acknowledgement, or watermark advancement.
 - Android surfaces clock mismatch as a real sync error and clears legacy future-
   skewed peer watermarks on upgrade so a corrected clock can catch up again.
+- Manual backup import now pauses live client and phone-host sync, durably clears
+  installation-local progress watermarks before changing event state, validates
+  all imported event clocks, and resumes the prior sync services even after an
+  import error. A crash can therefore cause harmless replay, not missed catch-up.
+- Portable Android backups continue to contain user data only; device identity,
+  trust credentials, host authorizations, and sync watermarks are never restored.
+- Android client and phone-host roles now reject a remote using the local device
+  ID, a second simultaneous connection using an already-active ID, and a server
+  whose authenticated identity differs from the paired ID. These failures remain
+  visible and suspend automatic retries until peer state changes.
+- Android outbound sync now subscribes synchronously and queues live local events
+  before reading its catch-up snapshot, so an event authored during the handoff is
+  delivered afterward. Duplicate events are acknowledged without re-materializing
+  state or launching another media download.
+- Added explicit conflict guidance to Sync devices: simultaneous message edits use
+  total HLC order, tombstones remain permanent, protected conflicts never expose
+  unresolved plaintext, and profile names remain local labels on each phone.
+- Incoming Android events and downloaded media now route by their stamped profile ID
+  instead of whichever profile is currently open; unstamped legacy events retain the
+  existing active/default-profile behavior.
+- Protected message envelopes now expose only the stable message UUID alongside the
+  ciphertext. Locked peers can collapse concurrent edits and apply deletes without
+  learning message content; legacy envelopes remain compatible.
+- Android now applies the same safety rule as Core: if final chat metadata is protected,
+  older or concurrent plaintext bodies materialize only as locked placeholders.
+- Android's Sync devices screen is now screenshot-protected. QR/JSON views warn that
+  they contain a credential, unchanged copied invitations clear after 60 seconds, and
+  successfully pasted pairing JSON is removed from the clipboard immediately.
 - Added mDNS pairing capabilities so discovered phone/headless hosts direct the
   user to QR scanning instead of offering an unsupported confirmation request.
 - Added the Java-WebSocket dependency for hosting the Android sync endpoint.
+- Added mandatory `psk-aead-v1` transport encryption. The pairing secret now
+  authenticates both handshake nonces, device identity, and transport version;
+  HKDF-SHA256 derives directional AES-256-GCM keys for every session.
+- Welcome, events, acknowledgements, errors, and media frames now travel only inside
+  strictly sequenced authenticated envelopes. Replay, gaps, reordering, tampering,
+  nested envelopes, and post-handshake plaintext are rejected.
+- Added a deterministic Core/Android encryption vector and Android round-trip/replay
+  regression tests. Older plaintext builds fail with an explicit upgrade error.
 
 ### Changed
 
@@ -125,6 +165,16 @@ The complete prioritized backlog and completion criteria are maintained in
 - Passed compatibility tests for pairing payloads with and without availability.
 - Verified legacy peer records default to automatic sync enabled.
 - Added HLC boundary and malformed-component tests.
+- Added a shared watermark-reset regression test that preserves pairing trust.
+- Added Core regression tests for cloned, mismatched, and valid peer identities.
+- Added deterministic Core tests for events created during snapshot handoff and
+  events present in both the snapshot and queued live stream.
+- Passed six Android conflict/envelope tests covering three-device edit ordering,
+  delete dominance, protected plaintext safety, locked edit/delete convergence,
+  trusted in-memory decryption, wire compatibility, and compaction.
+- Passed all 12 Android unit tests after a forced rebuild.
+- Passed all 14 Android unit tests, including Core-compatible transport encryption.
+- Rebuilt Android after the screenshot and clipboard hardening changes.
 - Successfully compiled the Kotlin sources.
 - Successfully built the debug APK with `:app:assembleDebug`.
 - Passed `git diff --check`.

@@ -516,6 +516,9 @@ fun ChatScreen(
                                 isSelected = message.id in selectedIds,
                                 isSearchResult = message.id in uiState.searchResultIds,
                                 isCurrentSearchResult = message.id == currentSearchMessageId,
+                                isRemote = uiState.chat?.remoteMessagesOnLeft == true &&
+                                    !message.authorDeviceId.isNullOrBlank() &&
+                                    message.authorDeviceId != uiState.localDeviceId,
                                 onToggleSelect = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     selectedIds = if (message.id in selectedIds) {

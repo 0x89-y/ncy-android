@@ -37,10 +37,26 @@ object EventLogCompactor {
         if (!eventsFile.exists()) return
         val log = EventLog(eventsFile)
         val all = log.readAll()
+        all.filter { it.op is ChatEventOp.ChatTombstoned }.maxByOrNull { it.hlc }?.let { tombstone ->
+            try {
+                ChatTombstoneGraveyard.archive(requireNotNull(chatDir.parentFile), tombstone)
+                chatDir.deleteRecursively()
+                Log.i(TAG, "archived ${chatDir.name} in compact graveyard")
+            } catch (e: Exception) {
+                Log.w(TAG, "graveyard archive failed for ${chatDir.name}", e)
+            }
+            return
+        }
         if (all.size < THRESHOLD) return
         val compacted = compact(all)
         if (compacted.size >= all.size) return // nothing to gain
         try {
+            if (compacted.size == 1 && compacted.single().op is ChatEventOp.ChatTombstoned) {
+                ChatTombstoneGraveyard.archive(requireNotNull(chatDir.parentFile), compacted.single())
+                chatDir.deleteRecursively()
+                Log.i(TAG, "archived ${chatDir.name} in compact graveyard")
+                return
+            }
             log.replaceAll(compacted)
             Log.i(TAG, "compacted ${chatDir.name}: ${all.size} → ${compacted.size} events")
         } catch (e: Exception) {
@@ -58,6 +74,7 @@ object EventLogCompactor {
         var latestMetadata: ChatEvent? = null
         val tombstones = LinkedHashMap<String, ChatEvent>()
         val latestPerMessage = LinkedHashMap<String, ChatEvent>()
+        val authorSeeds = LinkedHashMap<String, ChatEvent>()
 
         for (event in sorted) {
             when (val op = event.op) {
@@ -69,9 +86,11 @@ object EventLogCompactor {
                 is ChatEventOp.MessageTombstoned -> {
                     tombstones[op.messageId] = event
                     latestPerMessage.remove(op.messageId)
+                    authorSeeds.remove(op.messageId)
                 }
                 is ChatEventOp.MessageCreated -> {
                     if (op.message.id in tombstones) continue
+                    authorSeeds.putIfAbsent(op.message.id, event)
                     latestPerMessage[op.message.id] = event
                 }
                 is ChatEventOp.MessageEdited -> {
@@ -84,6 +103,9 @@ object EventLogCompactor {
                         // Legacy envelopes did not expose the UUID, so retain each one.
                         latestPerMessage["enc_${event.eventId}"] = event
                     } else if (id !in tombstones) {
+                        if (op.innerType == ChatEventCodec.TYPE_MESSAGE_CREATED) {
+                            authorSeeds.putIfAbsent(id, event)
+                        }
                         latestPerMessage[id] = event
                     }
                 }
@@ -94,7 +116,17 @@ object EventLogCompactor {
             (if (latestMetadata != null) 1 else 0) + tombstones.size + latestPerMessage.size
         )
         latestMetadata?.let { result += it }
-        result += latestPerMessage.values
+        latestPerMessage.forEach { (id, latest) ->
+            val message = when (val op = latest.op) {
+                is ChatEventOp.MessageCreated -> op.message
+                is ChatEventOp.MessageEdited -> op.message
+                else -> null
+            }
+            if (message?.authorDeviceId.isNullOrBlank()) {
+                authorSeeds[id]?.takeIf { it.eventId != latest.eventId }?.let { result += it }
+            }
+            result += latest
+        }
         result += tombstones.values
         result.sortBy { it.hlc }
         return result

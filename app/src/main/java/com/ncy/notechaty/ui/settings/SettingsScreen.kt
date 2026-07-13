@@ -57,6 +57,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.DeleteForever
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -73,6 +74,7 @@ fun SettingsScreen(
     var showChangelog by remember { mutableStateOf(false) }
     var showPinSetup by remember { mutableStateOf(false) }
     var showRemovePinConfirm by remember { mutableStateOf(false) }
+    var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
     val settings by viewModel.settings.collectAsState()
 
     // Export all launcher
@@ -212,6 +214,13 @@ fun SettingsScreen(
                         }
                     }
                 }
+                NcyRowDivider()
+                NcySettingsRow(
+                    icon = Icons.Default.DeleteForever,
+                    title = "Forget deleted-chat records",
+                    subtitle = "Advanced: stale backups may restore deleted chats afterward",
+                    onClick = { showPurgeTombstonesConfirm = true },
+                )
             }
 
             // ---- Sync ----
@@ -479,6 +488,38 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showRemovePinConfirm = false }) { Text("Cancel") }
             }
+        )
+    }
+
+    if (showPurgeTombstonesConfirm) {
+        NcyAlertDialog(
+            onDismissRequest = { showPurgeTombstonesConfirm = false },
+            title = { Text("Forget deletion records?") },
+            text = {
+                Text(
+                    "Only continue if every old device and backup containing deleted chats is gone. " +
+                        "A stale device paired later can restore those chats. This cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPurgeTombstonesConfirm = false
+                        scope.launch {
+                            val removed = viewModel.purgeChatTombstones()
+                            Toast.makeText(
+                                context,
+                                "Forgot $removed deleted-chat record${if (removed == 1) "" else "s"}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Forget permanently") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPurgeTombstonesConfirm = false }) { Text("Cancel") }
+            },
         )
     }
 }

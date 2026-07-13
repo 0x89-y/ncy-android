@@ -29,6 +29,8 @@ interface ChatRepository {
     suspend fun exportAllChats(outputFile: File)
     suspend fun exportEveryProfile(outputFile: File)
     suspend fun importChat(zipFile: File)
+    /** Dangerous: forget exact whole-chat deletion records, allowing stale resurrection. */
+    suspend fun purgeChatTombstones(): Int
     suspend fun scanForNewChats()
 
     /**

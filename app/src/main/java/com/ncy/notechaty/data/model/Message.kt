@@ -68,7 +68,9 @@ data class Message(
      */
     val replyToType: MessageType? = null,
     /** [createdAt] of the replied-to message, for the quote's timestamp line. */
-    val replyToCreatedAt: Long? = null
+    val replyToCreatedAt: Long? = null,
+    /** Installation that originally created this message; edits never replace it. */
+    val authorDeviceId: String? = null,
 ) {
     fun plainTextPreview(): String {
         if (type == MessageType.FILE) {

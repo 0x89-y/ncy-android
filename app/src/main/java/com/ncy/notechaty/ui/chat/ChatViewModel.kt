@@ -8,6 +8,7 @@ import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.ChatEventBus
+import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
 import com.ncy.notechaty.notifications.ReminderScheduler
@@ -33,7 +34,8 @@ data class ChatUiState(
     val searchQuery: String = "",
     val searchResultIds: Set<String> = emptySet(),
     val searchResultIndex: Int = -1,
-    val unlockRequired: Boolean = false
+    val unlockRequired: Boolean = false,
+    val localDeviceId: String = "",
 )
 
 @HiltViewModel
@@ -45,6 +47,7 @@ class ChatViewModel @Inject constructor(
     private val pinManager: PinManager,
     private val eventBus: ChatEventBus,
     private val keyStore: ProtectionKeyStore,
+    private val deviceIdentity: DeviceIdentity,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -71,7 +74,7 @@ class ChatViewModel @Inject constructor(
 
     val settings = settingsRepository.settings
 
-    private val _uiState = MutableStateFlow(ChatUiState())
+    private val _uiState = MutableStateFlow(ChatUiState(localDeviceId = deviceIdentity.deviceId))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     init {

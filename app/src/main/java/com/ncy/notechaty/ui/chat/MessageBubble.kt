@@ -70,6 +70,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+private fun remoteDeviceColor(deviceId: String): Color {
+    val hue = (deviceId.hashCode().toUInt() % 360u).toFloat()
+    return Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.65f, 0.85f)))
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MessageBubble(
@@ -95,6 +100,7 @@ fun MessageBubble(
     useGradient: Boolean = false,
     isSearchResult: Boolean = false,
     isCurrentSearchResult: Boolean = false,
+    isRemote: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -133,7 +139,7 @@ fun MessageBubble(
                 }
             )
             .padding(horizontal = 12.dp, vertical = 3.dp),
-        contentAlignment = Alignment.CenterEnd
+        contentAlignment = if (isRemote) Alignment.CenterStart else Alignment.CenterEnd
     ) {
         if (swipeProgress > 0f) {
             Icon(
@@ -148,8 +154,15 @@ fun MessageBubble(
         // Desktop identity: every note is "yours", so the default bubble is the
         // accent (--bubble-mine) with white-ish text. A per-chat custom colour
         // still wins when set.
-        val resolvedBubbleColor = bubbleColor ?: MaterialTheme.colorScheme.primary
-        val contentColor = if (bubbleColor != null) {
+        val resolvedBubbleColor = if (isRemote) {
+            val seed = remember(message.authorDeviceId) {
+                remoteDeviceColor(message.authorDeviceId.orEmpty())
+            }
+            lerp(MaterialTheme.colorScheme.surface, seed, 0.24f)
+        } else bubbleColor ?: MaterialTheme.colorScheme.primary
+        val contentColor = if (isRemote) {
+            MaterialTheme.colorScheme.onSurface
+        } else if (bubbleColor != null) {
             if (resolvedBubbleColor.luminance() > 0.4f) Color.Black else Color.White
         } else {
             MaterialTheme.colorScheme.onPrimary
@@ -157,7 +170,9 @@ fun MessageBubble(
         val subtleColor = contentColor.copy(alpha = 0.7f)
 
         // Desktop tail geometry: 18 18 4 18 (rounded except bottom-right).
-        val bubbleShape = RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
+        val bubbleShape = if (isRemote) {
+            RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)
+        } else RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
         Surface(
             modifier = Modifier
                 .widthIn(max = 300.dp)

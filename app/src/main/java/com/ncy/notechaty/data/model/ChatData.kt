@@ -29,5 +29,6 @@ data class ChatMetadata(
      * desktops can derive the same key once the user enters the PIN. `null` for
      * pre-phase-3 chats and for non-protected chats.
      */
-    val protectionSalt: String? = null
+    val protectionSalt: String? = null,
+    val remoteMessagesOnLeft: Boolean = false,
 )

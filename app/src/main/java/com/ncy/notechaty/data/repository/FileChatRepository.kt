@@ -13,6 +13,7 @@ import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventCodec
 import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.EventLog
+import com.ncy.notechaty.data.sync.event.ChatTombstoneGraveyard
 import com.ncy.notechaty.data.sync.event.EventLogMigrator
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.event.MaterializedView
@@ -174,7 +175,8 @@ class FileChatRepository @Inject constructor(
             tags = chat.tags,
             isProtected = chat.isProtected,
             hideName = chat.hideName,
-            protectionSalt = nextSalt
+            protectionSalt = nextSalt,
+            remoteMessagesOnLeft = chat.remoteMessagesOnLeft,
         )
         appendAndMaterialize(chat.id, ChatEventOp.ChatMetadataChanged(updated))
         refreshChats()
@@ -199,7 +201,10 @@ class FileChatRepository @Inject constructor(
         }
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
         val tombstoneOnly = eventLog.readAll().filter { it.op is ChatEventOp.ChatTombstoned }
-        if (tombstoneOnly.isNotEmpty()) eventLog.replaceAll(tombstoneOnly)
+        if (tombstoneOnly.isNotEmpty()) {
+            ChatTombstoneGraveyard.archive(profileDir, tombstoneOnly.last())
+            chatDir.deleteRecursively()
+        }
 
         refreshChats()
     }
@@ -384,6 +389,11 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun exportAllChats(outputFile: File): Unit = withContext(Dispatchers.IO) {
         ZipOutputStream(FileOutputStream(outputFile)).use { zos ->
+            File(profileDir, ChatTombstoneGraveyard.FILE_NAME).takeIf { it.isFile }?.let { graveyard ->
+                zos.putNextEntry(ZipEntry(ChatTombstoneGraveyard.FILE_NAME))
+                graveyard.inputStream().use { it.copyTo(zos) }
+                zos.closeEntry()
+            }
             profileDir.listFiles()
                 ?.filter { it.isDirectory && it.name.startsWith("chat_") }
                 ?.forEach { chatDir ->
@@ -418,9 +428,20 @@ class FileChatRepository @Inject constructor(
             zos.write(gson.toJson(manifest).toByteArray(Charsets.UTF_8))
             zos.closeEntry()
 
+            File(rootDir, ChatTombstoneGraveyard.FILE_NAME).takeIf { it.isFile }?.let { graveyard ->
+                zos.putNextEntry(ZipEntry(ChatTombstoneGraveyard.FILE_NAME))
+                graveyard.inputStream().use { it.copyTo(zos) }
+                zos.closeEntry()
+            }
+
             rootDir.listFiles()
                 ?.filter { it.isDirectory && it.name.startsWith("profile_") }
                 ?.forEach { pDir ->
+                    File(pDir, ChatTombstoneGraveyard.FILE_NAME).takeIf { it.isFile }?.let { graveyard ->
+                        zos.putNextEntry(ZipEntry("${pDir.name}/${ChatTombstoneGraveyard.FILE_NAME}"))
+                        graveyard.inputStream().use { it.copyTo(zos) }
+                        zos.closeEntry()
+                    }
                     pDir.listFiles()
                         ?.filter { it.isDirectory && it.name.startsWith("chat_") }
                         ?.forEach { chatDir ->
@@ -483,6 +504,26 @@ class FileChatRepository @Inject constructor(
             }
             val restoredProfileIds = HashSet<String>()
 
+            val graveyardFiles = tempDir.walkTopDown()
+                .filter { it.isFile && it.name == ChatTombstoneGraveyard.FILE_NAME }
+                .toList()
+            val importNow = System.currentTimeMillis()
+            graveyardFiles.forEach { file ->
+                val events = EventLog(file, eventCodec).readAll()
+                if (events.any {
+                        it.op !is ChatEventOp.ChatTombstoned ||
+                            !HlcTimestamp.isAcceptableRemote(it.hlc, importNow)
+                    }
+                ) throw IllegalArgumentException("Backup contains an invalid tombstone graveyard")
+                val relParts = file.relativeTo(tempDir).path.replace("\\", "/").split("/")
+                val profileSeg = relParts.firstOrNull { it.startsWith("profile_") }
+                val targetParent = if (profileSeg != null) {
+                    restoredProfileIds += profileSeg.removePrefix("profile_")
+                    File(rootDir, profileSeg).also { it.mkdirs() }
+                } else profileDir
+                ChatTombstoneGraveyard.merge(targetParent, events)
+            }
+
             // Locate every chat directory, including tombstone-only histories that
             // intentionally have no chat.json. Single-chat backups place files at
             // the root; exportAllChats nests under chat_<id>/; exportEveryProfile
@@ -494,14 +535,13 @@ class FileChatRepository @Inject constructor(
                 }
                 .toList()
 
-            if (chatDirs.isEmpty()) {
+            if (chatDirs.isEmpty() && graveyardFiles.isEmpty()) {
                 throw IllegalArgumentException("No chats found in backup")
             }
 
             // Validate every event log before modifying any destination directory.
             // Restore is allowed to replay old events, but it must not bypass the
             // same remote-clock policy enforced by live sync.
-            val importNow = System.currentTimeMillis()
             chatDirs.forEach { chatDir ->
                 val eventsFile = File(chatDir, "events.ndjson")
                 if (eventsFile.exists()) {
@@ -545,6 +585,8 @@ class FileChatRepository @Inject constructor(
                 } else {
                     profileDir
                 }
+
+                if (ChatTombstoneGraveyard.contains(rootDir, chatId)) continue
 
                 val targetDir = File(targetParent, "chat_$chatId")
                 if (!targetDir.exists()) {
@@ -694,6 +736,10 @@ class FileChatRepository @Inject constructor(
     }
 
 
+    override suspend fun purgeChatTombstones(): Int = withContext(Dispatchers.IO) {
+        ChatTombstoneGraveyard.purge(rootDir)
+    }
+
     override suspend fun scanForNewChats(): Unit = withContext(Dispatchers.IO) {
         refreshChats()
     }
@@ -737,6 +783,7 @@ class FileChatRepository @Inject constructor(
 
     @Synchronized
     private fun applyExternalEventLocked(event: ChatEvent): Boolean {
+        if (ChatTombstoneGraveyard.contains(rootDir, event.chatId)) return false
         val targetProfileDir = profileDirForInbound(event)
         consolidateChatCopies(event.chatId, targetProfileDir)
         val chatDir = File(targetProfileDir, "chat_${event.chatId}")
@@ -1108,7 +1155,8 @@ class FileChatRepository @Inject constructor(
             tags = chat.tags,
             isProtected = chat.isProtected,
             hideName = chat.hideName,
-            protectionSalt = chat.protectionSalt
+            protectionSalt = chat.protectionSalt,
+            remoteMessagesOnLeft = chat.remoteMessagesOnLeft,
         )
     }
 }

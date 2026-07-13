@@ -127,4 +127,6 @@ class SettingsViewModel @Inject constructor(
     suspend fun exportEverything(outputFile: File) {
         repository.exportEveryProfile(outputFile)
     }
+
+    suspend fun purgeChatTombstones(): Int = repository.purgeChatTombstones()
 }

@@ -50,20 +50,28 @@ object MaterializedView {
                 }
                 is ChatEventOp.MessageCreated -> {
                     if (op.message.id !in tombstonedMessages) {
+                        val resolved = op.message.copy(
+                            authorDeviceId = op.message.authorDeviceId ?: event.originDevice,
+                        )
                         messages[op.message.id] = if (
                             finalProtected && event.eventId !in trustedDecryptedEventIds
                         ) {
                             lockedPlaceholder(op.message.id, event)
-                        } else op.message
+                        } else resolved
                     }
                 }
                 is ChatEventOp.MessageEdited -> {
                     if (op.message.id !in tombstonedMessages) {
+                        val resolved = op.message.copy(
+                            authorDeviceId = op.message.authorDeviceId
+                                ?: messages[op.message.id]?.authorDeviceId
+                                ?: event.originDevice,
+                        )
                         messages[op.message.id] = if (
                             finalProtected && event.eventId !in trustedDecryptedEventIds
                         ) {
                             lockedPlaceholder(op.message.id, event)
-                        } else op.message
+                        } else resolved
                     }
                 }
                 is ChatEventOp.EncryptedMessage -> {
@@ -100,6 +108,7 @@ object MaterializedView {
             )
         ),
         createdAt = event.hlc.physicalMs,
-        type = MessageType.TEXT
+        type = MessageType.TEXT,
+        authorDeviceId = event.originDevice,
     )
 }

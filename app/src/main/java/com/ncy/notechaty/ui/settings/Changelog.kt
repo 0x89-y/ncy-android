@@ -14,6 +14,16 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.6.5",
+        date = "2026-07-11",
+        changes = listOf(
+            "Compacted deletion records now have additional stale-restore protection.",
+            "Deleted chats now use compact backup-safe records with an optional warned purge.",
+            "Chats can show messages created on other devices as incoming bubbles on the left.",
+            "Incoming messages use a stable, theme-aware color for each originating device.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.6.4",
         date = "2026-07-11",
         changes = listOf(

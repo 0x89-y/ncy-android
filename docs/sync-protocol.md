@@ -451,6 +451,21 @@ same way for storage and transport.
 | `chatId`       | string  | UUID of the chat the event belongs to.                          |
 | `profileId`    | string  | Profile sync. Phone profile this chat belongs to. **Optional**; absent/empty ⇒ the legacy "default" bucket. See §7.3. |
 | `profileName`  | string  | Profile sync. Display name for `profileId` at author time. Optional; advisory (the receiver may re-resolve). |
+
+`MessageCreated` materialization stamps `message.authorDeviceId` from the surrounding
+event's authenticated `originDevice` when the payload omits it. `MessageEdited` must
+preserve the existing author and must never replace it with the editing device. New
+payloads carry `authorDeviceId` so compaction can discard superseded content; when a
+legacy latest edit lacks it, compaction retains the original creation as a minimal
+author seed. This field identifies an installation, not a person.
+
+`ChatMetadata.remoteMessagesOnLeft` is an optional, default-false presentation setting.
+When enabled, clients may derive a stable theme-aware bubble tint from `authorDeviceId`;
+the tint is presentation-only and does not add synchronized per-device color state.
+When enabled, a client renders messages whose nonblank `authorDeviceId` differs from
+its local installation ID as incoming/left-aligned bubbles. Unknown legacy authors
+remain on the default right side. The setting affects presentation only and does not
+change sync, ownership, editing permissions, or conflict resolution.
 | `payload`      | object  | Op-specific. Shape depends on `type`. See §7.2.                 |
 
 ### 7.1 Op types
@@ -766,7 +781,14 @@ A correct phase-1 desktop client **should**:
 
 - Respect tombstones (§7.2). A `MessageTombstoned` for id `X` means: drop the
   current message `X` if any, and ignore any later `MessageCreated`/`MessageEdited`
-  bearing id `X`. Persist the tombstone — it's load-bearing across restarts.
+bearing id `X`. Persist the tombstone — it's load-bearing across restarts.
+Whole-chat tombstones may be moved from per-chat event logs into a compact exact
+graveyard. Graveyard entries remain ordinary original `ChatTombstoned` events during
+catch-up and backup; receivers must consult the graveyard before accepting any event
+for that chat ID. Automatic age-based deletion is forbidden. A user may explicitly
+purge graveyard entries only after a warning that stale devices/backups can then
+resurrect those chats; this action is local, irreversible, and never implied by
+compaction or peer acknowledgement.
 - Apply events in HLC order when materializing the visible state, regardless of
   arrival order. The reference algorithm is in §10.4.
 - Persist the `events.ndjson` log as the source of truth, and treat any rendered

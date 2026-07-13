@@ -17,5 +17,7 @@ data class Chat(
     val hideName: Boolean = false,
     /** Phase 3: per-chat PBKDF2 salt for protected-chat encryption. Mirrors the
      *  field on [ChatMetadata]; null for unprotected or pre-phase-3 chats. */
-    val protectionSalt: String? = null
+    val protectionSalt: String? = null,
+    /** Display messages authored on other installations as incoming bubbles. */
+    val remoteMessagesOnLeft: Boolean = false,
 )

@@ -204,6 +204,14 @@ Priority meanings:
   live session or *possibly blocked* after failure, explicitly noting that an offline
   peer is indistinguishable. Core persists the same secret-free fields and Server
   exposes them through `ncy-server peers`. No subnet scan or extra probe is added.
+- [ ] **Add selective profile/chat sync.** Defer this until after the current
+  hardening work. Start with a local per-device policy: profiles provide the default
+  and chats may override it; disabled content and attachments are neither uploaded
+  nor downloaded, existing copies are not implicitly deleted, and re-enabling must
+  perform a complete catch-up without skipped-watermark gaps. Exact chat/message
+  tombstones and compact graveyards must always bypass content filters so stale
+  devices and backups still converge on deletions. A later per-peer destination
+  matrix is a separate, substantially more complex feature.
 
 ## Suggested order
 
@@ -215,3 +223,9 @@ Priority meanings:
 6. Clock and backup convergence safeguards.
 7. Transport encryption and invitation-secret hardening.
 8. Remaining discovery, diagnostics, and UX work.
+9. Selective per-profile/per-chat sync after its filtering and watermark design is
+   specified and regression-tested.
+
+The completed original backlog is followed by a second-pass growth project in
+[`sync-growth-hardening.md`](sync-growth-hardening.md). Its first compaction-safety
+stage is complete; compact graveyard storage and explicit history generations remain.

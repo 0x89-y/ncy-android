@@ -2,7 +2,28 @@
 
 ## Unreleased — 2026-07-11
 
+### Added
+
+- Incoming bubbles now use a stable, theme-aware color derived from their originating
+  device. Messages from the same device keep the same color without syncing additional
+  configuration, while local and unknown legacy messages retain the normal bubble style.
+
 ### Sync hardening progress
+
+- Deferred selective per-profile/per-chat sync to the hardening backlog. Its design
+  requires deletion graveyards to bypass content filters, complete catch-up after
+  re-enabling, and no implicit deletion of copies already present on another device.
+
+- Started the second-pass event-log growth project. Compaction is now regression-
+  tested against a later-HLC stale restore: exact chat tombstones remain dominant
+  and cannot be aged away merely because current peers acknowledged them.
+- Added a staged compact-graveyard/history-generation design in
+  `docs/sync-growth-hardening.md`; time-only tombstone deletion is explicitly forbidden.
+- Deleted chats now move into one exact per-profile graveyard instead of retaining a
+  directory and event log each. Graveyards sync normally, survive full backup/restore,
+  use a cached ID index to reject stale history, and remain permanent by default.
+- Added an advanced **Forget deleted-chat records** action with an irreversible warning
+  that stale devices or backups may restore those chats afterward.
 
 - [x] Recover paired devices after LAN IP-address changes using stable device IDs
   and mDNS endpoint refresh.
@@ -42,6 +63,14 @@ The complete prioritized backlog and completion criteria are maintained in
 [`docs/sync-edge-cases.md`](docs/sync-edge-cases.md).
 
 ### Added
+
+- Added a per-chat **Other devices on the left** appearance setting. Messages created
+  on another Ncy installation use an incoming left-aligned bubble, while messages
+  created locally stay on the right. The setting is off by default and syncs with chat
+  metadata.
+- Messages now retain the creating installation's stable ID as presentation metadata.
+  Remote edits, stars, reactions, transcription, encryption, and compaction preserve
+  the original author; legacy compaction keeps a minimal creation seed when necessary.
 
 - Added generic file attachments from Android's system document picker. Any file
   type up to the existing 100 MB blob limit can be sent without a preview; messages
@@ -257,6 +286,12 @@ The complete prioritized backlog and completion criteria are maintained in
   detection and stable device-ID fingerprint formatting, then rebuilt the debug APK.
 - Passed all 34 Android unit tests, including authenticated rename normalization,
   blank-name preservation, and length bounds, then rebuilt the debug APK.
+- Passed all 35 Android unit tests, including stale-history resurrection protection
+  after chat-tombstone compaction, then rebuilt the debug APK.
+- Passed all 36 Android unit tests, including exact graveyard persistence, deduplication,
+  lookup, and explicit purge behavior, then rebuilt the debug APK.
+- Passed all 37 Android unit tests, including original-author preservation across a
+  different device's edit and event-log compaction, then rebuilt the debug APK.
 - Rebuilt Android after the screenshot and clipboard hardening changes.
 - Successfully compiled the Kotlin sources.
 - Successfully built the debug APK with `:app:assembleDebug`.

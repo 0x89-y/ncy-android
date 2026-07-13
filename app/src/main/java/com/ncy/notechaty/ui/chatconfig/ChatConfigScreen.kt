@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Unarchive
@@ -241,6 +242,17 @@ fun ChatConfigScreen(
 
             // Appearance — background image, bubble color, bubble gradient
             NcySettingsSection("Appearance") {
+                NcySettingsToggleRow(
+                    icon = Icons.AutoMirrored.Filled.CompareArrows,
+                    title = "Other devices on the left",
+                    subtitle = "Show messages created on another Ncy installation as incoming",
+                    checked = chat?.remoteMessagesOnLeft == true,
+                    onCheckedChange = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.setRemoteMessagesOnLeft(it)
+                    },
+                )
+                NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.Wallpaper,
                     title = "Background image",

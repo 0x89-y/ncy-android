@@ -52,6 +52,13 @@ class SyncSnapshot @Inject constructor(
         since: HlcTimestamp?,
         out: MutableList<ChatEvent>
     ) {
+        ChatTombstoneGraveyard.events(dir)
+            .filter { since == null || it.hlc > since }
+            .forEach { ev ->
+                out += if (profileId.isNotEmpty()) {
+                    ev.copy(profileId = profileId, profileName = profileName)
+                } else ev
+            }
         dir.listFiles()
             ?.filter { it.isDirectory && it.name.startsWith("chat_") }
             ?.forEach { chatDir ->

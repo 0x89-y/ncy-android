@@ -70,6 +70,18 @@ class MaterializedViewConflictTest {
     }
 
     @Test
+    fun originalAuthorSurvivesRemoteEditAndCompaction() {
+        val base = event("meta", 1, "local", ChatEventOp.ChatMetadataChanged(metadata()))
+        val created = event("create", 2, "author-phone", ChatEventOp.MessageCreated(message(false)))
+        val edited = event("edit", 3, "editing-desktop", ChatEventOp.MessageEdited(message(true)))
+
+        val compacted = EventLogCompactor.compact(listOf(base, created, edited))
+        val result = MaterializedView.fold(compacted)!!
+        assertEquals("author-phone", result.messages.single().authorDeviceId)
+        assertTrue(result.messages.single().isStarred)
+    }
+
+    @Test
     fun fullReplayTombstoneRemovesChatRestoredFromStaleBackup() {
         val staleBackup = listOf(
             event("meta", 1, "phone", ChatEventOp.ChatMetadataChanged(metadata())),
@@ -82,6 +94,27 @@ class MaterializedViewConflictTest {
             ChatEventOp.ChatTombstoned("chat"),
         )
         assertNull(MaterializedView.fold(staleBackup + desktopTombstone))
+    }
+
+    @Test
+    fun chatTombstoneSurvivesCompactionWithLaterStaleHistory() {
+        val tombstone = event("delete", 3, "desktop", ChatEventOp.ChatTombstoned("chat"))
+        val staleAfterDelete = event(
+            "stale-message",
+            4,
+            "restored-phone",
+            ChatEventOp.MessageCreated(message(false)),
+        )
+        val compacted = EventLogCompactor.compact(
+            listOf(
+                event("meta", 1, "phone", ChatEventOp.ChatMetadataChanged(metadata())),
+                tombstone,
+                staleAfterDelete,
+            )
+        )
+
+        assertEquals(listOf(tombstone), compacted)
+        assertNull(MaterializedView.fold(compacted + staleAfterDelete))
     }
 
     @Test

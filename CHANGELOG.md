@@ -30,6 +30,13 @@
 - [x] Make reinstall/full-restore catch-up replay all chats and deletion tombstones.
 - [x] Consolidate reinstall-generated duplicate profiles and preserve tombstones
   during backup restoration.
+- [x] Explain guest-network client isolation and multicast-blocked discovery.
+- [x] Define the discoverability/address-recovery tradeoff consistently.
+- [x] Remove phone models and friendly device names from mDNS service labels.
+- [x] Define pairing-secret rotation, revocation, and retry behavior.
+- [x] Disambiguate identically named paired devices with stable short ID fingerprints.
+- [x] Refresh renamed peers only from authenticated handshakes while preserving user labels.
+- [x] Expose passive, secret-free connection diagnostics without adding network probes.
 
 The complete prioritized backlog and completion criteria are maintained in
 [`docs/sync-edge-cases.md`](docs/sync-edge-cases.md).
@@ -41,6 +48,27 @@ The complete prioritized backlog and completion criteria are maintained in
   preserve the original filename, MIME type, and size, sync the bytes through the
   encrypted content-addressed blob protocol, and open through an installed Android
   app after download.
+- Sync devices now explains that public/guest Wi-Fi can isolate clients or block
+  multicast despite a matching SSID. Offline/error cards recommend a private LAN
+  or hotspot and clarify that Ncy never scans the subnet.
+- Defined discovery-off behavior across clients: explicit-address pairing continues,
+  but a stale host address requires mDNS to recover automatically or manual re-pairing.
+- Android phone hosting now advertises a privacy-preserving label derived from its
+  random installation ID instead of broadcasting the phone model. Discovered-device
+  cards explain that the friendly name appears after pairing.
+- Android now distinguishes replacing an unused one-device invitation from revoking
+  a claimed device. Revocation names the affected peer, preserves chats, sends an
+  authenticated `pairing_revoked`, and makes rejected-credential clients stop retrying
+  with a clear remove-and-pair-again action.
+- Paired-device cards now append an eight-character stable device-ID fingerprint
+  when two incoming or outgoing peers have the same name, ignoring case and outer
+  whitespace. Unique names stay uncluttered, and secrets/IP addresses are not used.
+- Android now persists changed peer names received in an encrypted authenticated
+  handshake. Blank or failed-handshake names are ignored, names are capped at 80
+  characters, and host-side claimed device names follow the same rule.
+- Paired-device cards now offer expandable diagnostics showing last passive discovery,
+  last authenticated endpoint/time, retry scheduling, and the bounded last error.
+  LAN failures are correctly labelled as possibly blocked rather than definitive.
 
 - Added direct phone-to-phone synchronization over the same local Wi-Fi network.
 - Added an Android WebSocket sync server that uses Ncy's existing authentication,
@@ -221,6 +249,14 @@ The complete prioritized backlog and completion criteria are maintained in
   compatibility with null or absent message fields.
 - Passed all 27 Android unit tests, including portable generic-file message
   metadata, then rebuilt the debug APK.
+- Passed all 28 Android unit tests, including deterministic privacy-preserving
+  mDNS labels, then rebuilt the debug APK.
+- Passed all 30 Android unit tests, including permanent revoked-credential handling
+  versus retryable network failures, then rebuilt the debug APK.
+- Passed all 32 Android unit tests, including case-insensitive duplicate-name
+  detection and stable device-ID fingerprint formatting, then rebuilt the debug APK.
+- Passed all 34 Android unit tests, including authenticated rename normalization,
+  blank-name preservation, and length bounds, then rebuilt the debug APK.
 - Rebuilt Android after the screenshot and clipboard hardening changes.
 - Successfully compiled the Kotlin sources.
 - Successfully built the debug APK with `:app:assembleDebug`.

@@ -3,6 +3,7 @@ package com.ncy.notechaty.data.sync.peer
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +75,51 @@ class SyncPeerStore @Inject constructor(
     }
 
     fun byId(peerId: String): SyncPeer? = _peers.value.firstOrNull { it.id == peerId }
+
+    /** Refresh system-derived display metadata only after the stable peer ID authenticated. */
+    fun updateAuthenticatedName(peerId: String, receivedName: String): Boolean {
+        val existing = byId(peerId) ?: return false
+        val refreshed = AuthenticatedDeviceName.refresh(existing.name, receivedName)
+        if (refreshed == existing.name) return false
+        _peers.value = _peers.value.map {
+            if (it.id == peerId) it.copy(name = refreshed) else it
+        }
+        persist()
+        return true
+    }
+
+    fun recordDiscovery(peerId: String, at: Long = System.currentTimeMillis()) = updatePeer(peerId) {
+        if (it.lastDiscoveredAt != null && at - it.lastDiscoveredAt < DIAGNOSTIC_WRITE_THROTTLE_MS) it
+        else it.copy(lastDiscoveredAt = at)
+    }
+
+    fun recordAuthenticated(peerId: String, host: String, port: Int, at: Long = System.currentTimeMillis()) =
+        updatePeer(peerId) {
+            it.copy(
+                lastAuthenticatedAt = at,
+                lastAuthenticatedHost = host,
+                lastAuthenticatedPort = port,
+                lastError = null,
+                nextRetryAt = null,
+            )
+        }
+
+    fun recordError(peerId: String, error: String) = updatePeer(peerId) {
+        it.copy(lastError = error.take(MAX_DIAGNOSTIC_ERROR_CHARS))
+    }
+
+    fun recordRetry(peerId: String, nextRetryAt: Long?) = updatePeer(peerId) {
+        it.copy(nextRetryAt = nextRetryAt)
+    }
+
+    private fun updatePeer(peerId: String, transform: (SyncPeer) -> SyncPeer): Boolean {
+        val before = byId(peerId) ?: return false
+        val after = transform(before)
+        if (after == before) return false
+        _peers.value = _peers.value.map { if (it.id == peerId) after else it }
+        persist()
+        return true
+    }
 
     /** Persist discovery metadata only after this exact endpoint authenticated. */
     fun promoteAuthenticatedEndpoint(
@@ -188,5 +234,7 @@ class SyncPeerStore @Inject constructor(
     private companion object {
         const val PREFS = "ncy_sync_peers"
         const val KEY_PEERS = "peers"
+        const val DIAGNOSTIC_WRITE_THROTTLE_MS = 60_000L
+        const val MAX_DIAGNOSTIC_ERROR_CHARS = 240
     }
 }

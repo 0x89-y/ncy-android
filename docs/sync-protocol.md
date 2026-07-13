@@ -87,6 +87,19 @@ Hosts should treat a displayed payload as a one-device invitation: once a new
 `deviceId` authenticates with its secret, bind that credential to the device and
 rotate the displayed invitation. A credential already bound to one device must not
 authenticate a different device ID.
+Replacing an **unclaimed invitation** invalidates only copies of that invitation;
+it must not revoke independently claimed device credentials. Rotating a claimed
+pairing slot replaces its secret, clears its bound device and sync watermark, keeps
+the visible slot/label and all chat/event data, and requires that one device to pair
+again. Removing a slot revokes it and removes the host-side record, still without
+deleting chat data. Hosts should send authenticated `pairing_revoked` before closing
+an active rotated/revoked session; headless implementations that manage credentials
+offline must state exactly when a restart/reload makes the change effective.
+Clients must treat `pairing_revoked`, `bad_auth`/`auth_failed`, or an HMAC mismatch as
+a persistent trust failure: stop timed retries, show **Pairing revoked or changed —
+remove and pair again**, and retain local chats until the user explicitly removes the
+peer. Connection refused, timeouts, foreground-host absence, and blocked LAN traffic
+remain temporary failures with capped retry.
 After authentication, a host must reject `Hello.deviceId` with
 `identity_collision` when it equals the host's own ID or another live authenticated
 session already claims it. The live claim is released when that session ends. A
@@ -94,6 +107,17 @@ client must likewise reject `Welcome.deviceId` when it equals its local ID, and 
 `identity_mismatch` when it differs from the stable ID in the pairing record. These
 errors are persistent configuration/identity failures, so automatic timed retries
 should pause until pairing or peer state changes.
+`Hello.deviceName` and `Welcome.name` are mutable presentation metadata, not trust
+identity. After the secret and expected stable device ID authenticate, receivers
+should trim a nonblank name, cap it at 80 Unicode characters, and persist it as the
+latest advertised device name. Unauthenticated discovery, pairing requests, failed
+handshakes, and blank names must not rename a stored peer. User-assigned pairing-slot
+or operator labels are separate metadata and must never be overwritten by a remote
+name. A system-derived outbound label may follow the authenticated name only while it
+equals the previously stored authenticated name; once it differs, it is an alias and
+must remain unchanged. For legacy records with no prior authenticated-name field,
+store the first authenticated name separately instead of guessing that the existing
+label is safe to replace.
 The stored `host` and `port` are the last **authenticated** endpoint rather than
 identity. A peer may advertise `_ncy-sync._tcp` with its stable `deviceId`, but a
 differing result is only an in-memory candidate. Clients try the authenticated
@@ -106,6 +130,20 @@ transmitted and does not revoke the pairing: it suppresses that client's outboun
 connection/retry task while retaining the secret and sync watermarks. Missing legacy
 values mean enabled. Network-aware clients should similarly suspend retry timers when
 no usable LAN exists and resume enabled peers immediately when connectivity returns.
+Clients do not scan address ranges. On a usable LAN, each enabled pairing may try its
+single last-authenticated endpoint while mDNS passively resolves that stable device
+ID. Public/guest Wi-Fi, enterprise VLANs, and access points with client isolation may
+block peer TCP or multicast even when devices show the same SSID. Implementations
+should explain this ambiguity, recommend a private LAN/hotspot, and retain capped
+backoff rather than multiplying probes. A failed stale endpoint must never be treated
+as proof that the saved peer or pairing is invalid.
+Clients may persist local, secret-free diagnostics alongside a peer: last passive
+discovery time, last successful authenticated endpoint/time, bounded last error, and
+next retry time. These fields never affect identity or watermarks. A live authenticated
+session proves direct LAN reachability; a connection failure does **not** prove client
+isolation because an offline app, firewall, stale endpoint, and blocked LAN look alike.
+User interfaces must say *possibly blocked* and must not add subnet scans or diagnostic
+probes merely to classify that ambiguity. Repeated discovery writes should be throttled.
 An active host must refresh both its pairing payload and mDNS registration when its
 reachable LAN address changes. Android selects active Wi-Fi/Ethernet before hotspot
 fallbacks and excludes cellular/VPN candidates. Core prefers physical Wi-Fi/Ethernet
@@ -127,6 +165,18 @@ For compatibility, an absent value is treated as `request`. A phone host also se
 `availability=foreground`. Paired clients retain lifecycle capability from their
 credential-bearing pairing payload; unauthenticated mDNS TXT data may guide the
 unpaired discovery UI but must not overwrite persisted paired-peer capabilities.
+The DNS-SD instance name is multicast-visible metadata and must not contain the
+configured device name, OS hostname, phone model, account name, or profile name.
+Reference implementations advertise `Ncy <short installation-id>` where the ID is
+random and installation-local. The TXT `deviceId` remains the full random stable ID
+required for authenticated endpoint recovery; friendly names travel only in explicit
+pairing data or direct peer handshakes. Discovery UI should identify the instance as
+a privacy label so users do not mistake it for a lost friendly name.
+Disabling host advertising does not invalidate credentials or prevent QR/JSON
+pairing at the payload's explicit endpoint. It does remove automatic recovery when
+that endpoint becomes stale: clients must not scan for a replacement. Every setting
+or configuration surface that disables discoverability should state this tradeoff
+and recommend stable DNS/IP or manual endpoint repair where mDNS is unsuitable.
 
 ## 3. Connection & transport
 

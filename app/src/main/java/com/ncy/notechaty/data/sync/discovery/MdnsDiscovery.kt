@@ -138,7 +138,9 @@ class MdnsDiscovery @Inject constructor(
             pairingMode = pairingMode,
             availability = availability,
         )
-        _peers.value = (_peers.value.filterNot { it.name == peer.name } + peer)
+        _peers.value = (_peers.value.filterNot {
+            (peer.deviceId != null && it.deviceId == peer.deviceId) || it.name == peer.name
+        } + peer)
             .sortedBy { it.name.lowercase() }
     }
 }

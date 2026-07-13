@@ -99,7 +99,7 @@ class SyncManager @Inject constructor(
                     }
                 } else if (!wasAvailable) {
                     peerStore.peers.value.forEach { peer ->
-                        if (!peer.disabled) syncNow(peer.id)
+                        if (!peer.disabled && shouldAutomaticallyRetry(peer.id)) syncNow(peer.id)
                     }
                 }
                 wasAvailable = available
@@ -110,16 +110,19 @@ class SyncManager @Inject constructor(
                 discovered.forEach { found ->
                     val id = found.deviceId ?: return@forEach
                     val trusted = peerStore.byId(id) ?: return@forEach
+                    peerStore.recordDiscovery(id)
                     val state = _states.value[id]
                     if (trusted.host == found.host && trusted.port == found.port) {
-                        if (state is PeerState.Unavailable || state is PeerState.Failed || state is PeerState.Idle) {
+                        if (shouldAutomaticallyRetry(id) &&
+                            (state is PeerState.Unavailable || state is PeerState.Failed || state is PeerState.Idle)
+                        ) {
                             syncNow(id)
                         }
                         return@forEach
                     }
                     val accepted = endpointCandidates.observe(
                         id, found.host, found.port)
-                    if (accepted) {
+                    if (accepted && shouldAutomaticallyRetry(id)) {
                         Log.i(tag, "Recorded untrusted mDNS candidate for $id at ${found.host}:${found.port}")
                     } else {
                         Log.d(tag, "Ignored duplicate or rapidly flapping mDNS endpoint for $id")
@@ -143,6 +146,9 @@ class SyncManager @Inject constructor(
             }
         }
     }
+
+    private fun shouldAutomaticallyRetry(peerId: String): Boolean =
+        (_states.value[peerId] as? PeerState.Failed)?.reason != SyncFailurePolicy.REPAIR_MESSAGE
 
     @Synchronized
     fun stop() {
@@ -266,6 +272,7 @@ class SyncManager @Inject constructor(
         @Volatile private var lastReceivedHlc: HlcTimestamp? = peerStore.lastReceivedHlc(peer)
 
         fun run() {
+            peerStore.recordRetry(peer.id, null)
             startTransferCleanup()
             session = syncClient.connect(
                 peer = peer,
@@ -288,7 +295,9 @@ class SyncManager @Inject constructor(
                             candidateMode = false
                             Log.i(tag, "Promoted authenticated endpoint for ${peer.id}")
                         }
-                        peerName = event.peerName
+                        peerName = AuthenticatedDeviceName.refresh(peer.name, event.peerName)
+                        peerStore.updateAuthenticatedName(peer.id, peerName)
+                        peerStore.recordAuthenticated(peer.id, peer.host, peer.port)
                         reconnectAttempt = 0 // healthy session — reset backoff
                         updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
                         startCatchupAndLiveForwarding(checkNotNull(session))
@@ -328,12 +337,14 @@ class SyncManager @Inject constructor(
                     }
                     is SyncClient.Event.Failed -> {
                         Log.w(tag, "Peer ${peer.id} failed: ${event.reason}")
-                        identityFailure = isIdentityFailure(event.reason)
+                        identityFailure = SyncFailurePolicy.stopsAutomaticRetry(event.reason)
+                        val displayReason = SyncFailurePolicy.userFacingReason(event.reason)
+                        peerStore.recordError(peer.id, displayReason)
                         updateState(
                             peer.id,
                             if (peer.foregroundOnly && isTemporaryTransportFailure(event.reason)) {
                                 PeerState.Unavailable("Open Ncy and enable phone sync on ${peer.name}")
-                            } else PeerState.Failed(event.reason)
+                            } else PeerState.Failed(displayReason)
                         )
                         if (!switchToAlternativeEndpoint() && !identityFailure) scheduleReconnect()
                     }
@@ -589,6 +600,7 @@ class SyncManager @Inject constructor(
             val attempt = reconnectAttempt
             reconnectAttempt = attempt + 1
             val delayMs = (1_000L shl attempt.coerceAtMost(6)).coerceAtMost(60_000L)
+            peerStore.recordRetry(peer.id, System.currentTimeMillis() + delayMs)
             Log.i(tag, "Reconnecting peer ${peer.id} in ${delayMs}ms (attempt ${attempt + 1})")
             reconnectJob = scope.launch {
                 delay(delayMs)
@@ -660,11 +672,6 @@ class SyncManager @Inject constructor(
                 !lower.contains("protocol") &&
                 !lower.contains("malformed") &&
                 !lower.contains("rejected")
-        }
-
-        private fun isIdentityFailure(reason: String): Boolean {
-            val lower = reason.lowercase()
-            return lower.contains("identity_collision") || lower.contains("identity_mismatch")
         }
 
         private fun rejectClockSkew(kind: String) {

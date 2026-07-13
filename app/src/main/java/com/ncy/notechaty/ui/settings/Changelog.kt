@@ -14,6 +14,19 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.6.4",
+        date = "2026-07-11",
+        changes = listOf(
+            "Device settings now explain guest-network isolation and blocked discovery.",
+            "The discoverability switch now explains its effect on IP-address recovery.",
+            "Local discovery no longer broadcasts the phone's friendly name or hostname.",
+            "Pairing credentials can now be rotated or revoked with clear re-pairing behavior.",
+            "Identically named paired devices now show a stable short ID fingerprint.",
+            "Renamed devices now refresh after authenticating without changing pairing labels.",
+            "Device cards now show connection, discovery, retry, and LAN diagnostics.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.6.3",
         date = "2026-07-11",
         changes = listOf(

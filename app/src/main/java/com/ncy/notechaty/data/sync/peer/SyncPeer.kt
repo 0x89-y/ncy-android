@@ -29,6 +29,12 @@ data class SyncPeer(
     val availability: String? = null,
     /** User-controlled outbound connection switch. Missing legacy values default to enabled. */
     val disabled: Boolean = false,
+    val lastDiscoveredAt: Long? = null,
+    val lastAuthenticatedAt: Long? = null,
+    val lastAuthenticatedHost: String? = null,
+    val lastAuthenticatedPort: Int? = null,
+    val lastError: String? = null,
+    val nextRetryAt: Long? = null,
 ) {
     val foregroundOnly: Boolean
         get() = availability == PairingPayload.AVAILABILITY_FOREGROUND

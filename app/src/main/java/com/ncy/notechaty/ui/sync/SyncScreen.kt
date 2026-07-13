@@ -29,7 +29,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.ncy.notechaty.data.sync.SyncManager
+import com.ncy.notechaty.data.sync.DeviceNameDisambiguation
+import com.ncy.notechaty.data.sync.SyncFailurePolicy
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
+import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
 import com.ncy.notechaty.ui.desktoptheme.NcySectionLabel
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
@@ -161,6 +164,14 @@ fun SyncScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 6.dp)
+            )
+            Text(
+                "Public and guest Wi-Fi may isolate devices or block multicast discovery even " +
+                    "when both show the same network name. Ncy never scans the subnet; if devices " +
+                    "stay offline, use a private LAN or one phone's hotspot.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp),
             )
             Text(
                 "Changes merge automatically: the latest simultaneous edit wins, deletes " +
@@ -322,6 +333,11 @@ fun SyncScreen(
                     modifier = Modifier.padding(start = 6.dp)
                 )
             } else {
+                val duplicateDeviceNames = remember(peers, hostedPeers) {
+                    DeviceNameDisambiguation.duplicateNameKeys(
+                        peers.map { it.name to it.id } + hostedPeers.map { it.name to it.id }
+                    )
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     NcySectionLabel("Paired devices")
                     peers.forEach { peer ->
@@ -332,11 +348,20 @@ fun SyncScreen(
                             } else SyncManager.PeerState.Idle,
                             onSyncNow = { viewModel.syncNow(peer.id) },
                             onEnabledChange = { viewModel.setPeerEnabled(peer.id, it) },
-                            onUnpair = { viewModel.unpair(peer.id) }
+                            onUnpair = { viewModel.unpair(peer.id) },
+                            showFingerprint = DeviceNameDisambiguation.isDuplicate(
+                                peer.name, duplicateDeviceNames
+                            ),
                         )
                     }
                     hostedPeers.forEach { peer ->
-                        HostedPeerCard(peer, onRemove = { viewModel.revokeHostedPeer(peer.id) })
+                        HostedPeerCard(
+                            peer,
+                            showFingerprint = DeviceNameDisambiguation.isDuplicate(
+                                peer.name, duplicateDeviceNames
+                            ),
+                            onRemove = { viewModel.revokeHostedPeer(peer.id) },
+                        )
                     }
                 }
             }
@@ -419,8 +444,13 @@ private fun PairingDialog(
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("Copy pairing JSON") }
                     TextButton(onClick = onRegenerate) {
-                        Text("Make a fresh invitation code")
+                        Text("Replace unused invitation")
                     }
+                    Text(
+                        "This replaces only the unclaimed QR/JSON above. Already paired devices keep their individual credentials; revoke those from Paired devices.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         },
@@ -452,13 +482,25 @@ private fun pairingQrBitmap(text: String, size: Int = 768): Bitmap? = runCatchin
 }.getOrNull()
 
 @Composable
-private fun HostedPeerCard(peer: PhoneSyncServer.HostedPeer, onRemove: () -> Unit) {
+private fun HostedPeerCard(
+    peer: PhoneSyncServer.HostedPeer,
+    showFingerprint: Boolean,
+    onRemove: () -> Unit,
+) {
+    var confirmRevoke by remember { mutableStateOf(false) }
     NcyDividedCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(peer.name, style = MaterialTheme.typography.titleMedium)
+            if (showFingerprint) {
+                Text(
+                    "Device ID ${DeviceNameDisambiguation.shortFingerprint(peer.id)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 "Paired to this phone · incoming connection",
                 style = MaterialTheme.typography.bodySmall,
@@ -480,7 +522,7 @@ private fun HostedPeerCard(peer: PhoneSyncServer.HostedPeer, onRemove: () -> Uni
             }
             Spacer(Modifier.height(4.dp))
             OutlinedButton(
-                onClick = onRemove,
+                onClick = { confirmRevoke = true },
                 shape = NcyButtonShape,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
@@ -488,9 +530,32 @@ private fun HostedPeerCard(peer: PhoneSyncServer.HostedPeer, onRemove: () -> Uni
             ) {
                 Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Revoke")
+                Text("Revoke & require re-pair")
             }
         }
+    }
+    if (confirmRevoke) {
+        NcyAlertDialog(
+            onDismissRequest = { confirmRevoke = false },
+            title = { Text("Revoke ${peer.name}?") },
+            text = {
+                Text(
+                    "This device disconnects and its credential stops working. Chats remain unchanged, but the device must pair again."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRevoke = false
+                        onRemove()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Revoke") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRevoke = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 
@@ -500,8 +565,10 @@ private fun PeerCard(
     state: SyncManager.PeerState,
     onSyncNow: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
-    onUnpair: () -> Unit
+    onUnpair: () -> Unit,
+    showFingerprint: Boolean,
 ) {
+    var showDiagnostics by remember { mutableStateOf(false) }
     NcyDividedCard {
         Column(
             modifier = Modifier
@@ -510,6 +577,13 @@ private fun PeerCard(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(peer.name, style = MaterialTheme.typography.titleMedium)
+            if (showFingerprint) {
+                Text(
+                    "Device ID ${DeviceNameDisambiguation.shortFingerprint(peer.id)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 SyncEndpoint.display(peer.host, peer.port),
                 style = MaterialTheme.typography.bodySmall,
@@ -520,6 +594,64 @@ private fun PeerCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = statusColor(state)
             )
+            TextButton(onClick = { showDiagnostics = !showDiagnostics }) {
+                Text(if (showDiagnostics) "Hide diagnostics" else "Show diagnostics")
+            }
+            if (showDiagnostics) {
+                val formatter = DateFormat.getDateTimeInstance()
+                val discovered = peer.lastDiscoveredAt?.let { formatter.format(Date(it)) } ?: "Never"
+                val authenticated = peer.lastAuthenticatedAt?.let { formatter.format(Date(it)) } ?: "Never"
+                val authenticatedEndpoint = if (
+                    peer.lastAuthenticatedHost != null && peer.lastAuthenticatedPort != null
+                ) SyncEndpoint.display(peer.lastAuthenticatedHost, peer.lastAuthenticatedPort) else "None"
+                val retry = when {
+                    peer.disabled -> "Paused by user"
+                    state is SyncManager.PeerState.Connected -> "Not retrying"
+                    state is SyncManager.PeerState.WaitingForNetwork -> "Waiting for a usable LAN"
+                    peer.nextRetryAt != null -> "Scheduled ${formatter.format(Date(peer.nextRetryAt))}"
+                    state is SyncManager.PeerState.Failed &&
+                        state.reason == SyncFailurePolicy.REPAIR_MESSAGE -> "Stopped until re-pairing"
+                    else -> "No retry scheduled"
+                }
+                val lan = when {
+                    state is SyncManager.PeerState.Connected -> "Reachable"
+                    state is SyncManager.PeerState.Failed || state is SyncManager.PeerState.Unavailable ->
+                        "Possibly blocked; an offline peer looks the same"
+                    else -> "Not currently tested"
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Last discovery: $discovered", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Last authenticated: $authenticated at $authenticatedEndpoint",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text("Retry: $retry", style = MaterialTheme.typography.bodySmall)
+                    Text("Direct LAN: $lan", style = MaterialTheme.typography.bodySmall)
+                    peer.lastError?.let {
+                        Text(
+                            "Last error: $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+            if (state is SyncManager.PeerState.Failed &&
+                state.reason == SyncFailurePolicy.REPAIR_MESSAGE
+            ) {
+                Text(
+                    "Automatic retries are stopped because this is a trust failure, not a network outage.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            } else if (state is SyncManager.PeerState.Unavailable || state is SyncManager.PeerState.Failed) {
+                Text(
+                    "If both devices are open, this network may block direct device traffic. " +
+                        "Try a private Wi-Fi network or hotspot.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -586,6 +718,11 @@ private fun DiscoveredCard(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(peer.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Private discovery label · the friendly device name appears after pairing",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 SyncEndpoint.display(peer.host, peer.port),
                 style = MaterialTheme.typography.bodySmall,

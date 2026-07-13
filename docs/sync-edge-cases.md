@@ -75,20 +75,28 @@ Priority meanings:
 
 ## P2 — discovery behavior
 
-- [ ] **Explain client-isolated and multicast-blocked networks.** Guest Wi-Fi,
-  enterprise VLANs, and access-point isolation can block direct traffic or mDNS
-  even when devices show the same SSID.
+- [x] **Explain client-isolated and multicast-blocked networks.** Android and
+  Desktop now explain that equal SSIDs do not prove reachability, that Ncy tries
+  only saved paired endpoints and passive mDNS rather than scanning, and recommend
+  a private LAN/hotspot when direct traffic is blocked. Server/operator and protocol
+  documentation describe client isolation, multicast filtering, capped retry, and
+  the discoverability tradeoff.
 - [x] **Handle mDNS spoofing and endpoint flapping.** Android and Core retain the
   last authenticated endpoint as the first choice. A differing mDNS result becomes
   an in-memory candidate for five minutes, changes at most once per 30 seconds, and
   receives one attempt only after the trusted endpoint fails. Host/port promotion
   occurs only after encrypted authentication and identity verification; a failed
   candidate is discarded. Unauthenticated TXT capabilities are never persisted.
-- [ ] **Define discoverability requirements consistently.** Desktop/server peers
-  with advertising disabled cannot recover from a stale LAN address. Surface this
-  tradeoff wherever discoverability is toggled.
-- [ ] **Avoid unnecessary device-name exposure.** Document that mDNS service names
-  are visible to the LAN and consider a privacy-preserving label or setting.
+- [x] **Define discoverability requirements consistently.** Desktop now states both
+  sides of its toggle: QR/JSON pairing works while off, but DHCP/IP recovery does
+  not. Server config comments, startup logs, pairing output, and operator docs carry
+  the same rule and recommend stable DNS/IP or manual repair when mDNS is unsuitable.
+  The protocol forbids subnet scanning as an implicit fallback.
+- [x] **Avoid unnecessary device-name exposure.** Android, Desktop, and Server now
+  advertise `Ncy <short random installation ID>` rather than a model, hostname, or
+  configured friendly name. Android labels this as a privacy identifier in discovery
+  UI. The protocol reserves human names for explicit pairing data/direct handshakes;
+  mDNS still exposes Ncy's presence and the random stable ID needed for recovery.
 
 ## P0/P1 — data convergence
 
@@ -163,21 +171,39 @@ Priority meanings:
   `Welcome` plus every event, acknowledgement, error, and media frame. Directional
   sequence numbers reject replay, gaps, and reordering. Missing/legacy transport
   negotiation fails with `upgrade_required`; there is no plaintext downgrade.
-- [ ] **Define secret rotation behavior.** Rotation should clearly identify which
-  devices are revoked, what remains visible in the UI, and how reconnect errors
-  differ from temporary network failures.
+- [x] **Define secret rotation behavior.** Android distinguishes replacing an
+  unclaimed invitation from revoking an individually paired device and confirms the
+  affected name. Desktop can rotate a claimed slot in place (slot/label and chats
+  remain; owner/watermark clear) or revoke/remove it; active Core sessions receive
+  `pairing_revoked` within 500 ms. Android/Core clients stop automatic retry for
+  rejected credentials and request re-pairing, while transport outages remain
+  retryable. Server provides secret-free listing plus offline rotate/revoke commands
+  and explicitly requires a daemon restart for file changes to take effect.
 
 ## P2/P3 — product behavior
 
-- [ ] **Disambiguate duplicate device names.** Show a stable short fingerprint when
-  multiple peers share the same model or configured name.
-- [ ] **Refresh renamed peers.** Decide when an authenticated device-name change
-  updates the stored label and whether user-assigned labels always win.
+- [x] **Disambiguate duplicate device names.** Android and Desktop compare every
+  visible paired-device name after trimming and case-folding, then show an
+  eight-character fingerprint from the stable device ID only when names collide.
+  Server's `pairings` output applies the same rule to claimed phone names. The
+  fingerprint is presentation-only: it never uses or replaces the pairing secret,
+  full authenticated identity, user label, or current network address.
+- [x] **Refresh renamed peers.** Android and Core now persist a changed, nonblank
+  name from the encrypted `Welcome` only after the expected stable device ID is
+  validated. Android/Core hosts likewise refresh claimed-device names only after
+  `Hello` authentication. Names are trimmed and capped at 80 characters. Core stores
+  the authenticated name separately: a label follows it only when it matched the
+  previous authenticated name, while a differing Desktop/Server user or operator
+  alias always wins. Pairing-slot labels are never overwritten.
 - [x] **Improve reconnect latency.** Android restarts unavailable/failed sessions
   and Core wakes a reconnecting peer task when a trusted stable device ID is
   resolved over mDNS, even if its endpoint is unchanged.
-- [ ] **Expose useful diagnostics.** Show last discovery, last authenticated endpoint,
-  retry state, protocol error, and whether direct LAN traffic is blocked.
+- [x] **Expose useful diagnostics.** Android and Desktop peer cards now reveal the
+  last passive discovery, last successful authenticated endpoint/time, next retry or
+  stopped state, and bounded last error. Direct LAN is reported as reachable after a
+  live session or *possibly blocked* after failure, explicitly noting that an offline
+  peer is indistinguishable. Core persists the same secret-free fields and Server
+  exposes them through `ncy-server peers`. No subnet scan or extra probe is added.
 
 ## Suggested order
 

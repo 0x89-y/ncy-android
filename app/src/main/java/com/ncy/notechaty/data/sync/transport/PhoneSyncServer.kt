@@ -8,7 +8,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
-import android.os.Build
 import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
@@ -17,6 +16,8 @@ import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.DeviceIdentity
+import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
+import com.ncy.notechaty.data.sync.discovery.MdnsPrivacyLabel
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
@@ -270,7 +271,10 @@ class PhoneSyncServer @Inject constructor(
                     conn.close(1002, "encrypted transport required")
                     return
                 }
-                val name = hello.deviceName.ifBlank { "Phone ${hello.deviceId.take(8)}" }
+                val name = AuthenticatedDeviceName.refresh(
+                    "Phone ${hello.deviceId.take(8)}",
+                    hello.deviceName,
+                )
                 val auth = authenticate(client.nonce, hello.clientNonce, hello.auth, hello.deviceId, name)
                 if (auth == null) {
                     conn.send(codec.encode(SyncWireMessage.Error("auth_failed", "Invalid or already-claimed pairing code")))
@@ -429,7 +433,17 @@ class PhoneSyncServer @Inject constructor(
 
         fun closeClient(deviceId: String) = clients.entries
             .filter { it.value.deviceId == deviceId }
-            .forEach { it.key.close(1000, "pairing revoked") }
+            .forEach { (connection, client) ->
+                sendSecure(
+                    connection,
+                    client,
+                    SyncWireMessage.Error(
+                        "pairing_revoked",
+                        "Pairing credential was revoked; pair again",
+                    ),
+                )
+                connection.close(1000, "pairing revoked")
+            }
 
         fun closeAll(reason: String) = clients.keys.forEach {
             it.close(CLOSE_GOING_AWAY, reason)
@@ -924,7 +938,7 @@ class PhoneSyncServer @Inject constructor(
             }
         }
         val info = NsdServiceInfo().apply {
-            serviceName = "Ncy ${Build.MODEL ?: "Android"}"
+            serviceName = MdnsPrivacyLabel.fromDeviceId(identity.deviceId)
             serviceType = SERVICE_TYPE
             this.port = port
             setAttribute("deviceId", identity.deviceId)

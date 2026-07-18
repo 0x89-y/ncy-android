@@ -4,12 +4,6 @@ import android.os.Build
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.peer.SyncPeer
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,14 +17,11 @@ import javax.inject.Singleton
  * are protected by the mandatory PSK-derived AEAD transport.
  */
 @Singleton
-class SyncClient @Inject constructor() {
+class SyncClient @Inject constructor(
+    private val frameTransport: ClientSyncTransport,
+) {
 
     private val codec = SyncWireCodec()
-
-    private val httpClient = OkHttpClient.Builder()
-        .pingInterval(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS) // long-lived stream
-        .build()
 
     sealed class Event {
         object Connecting : Event()
@@ -78,27 +69,23 @@ class SyncClient @Inject constructor() {
     ): Session {
         onEvent(Event.Connecting)
 
-        val request = Request.Builder()
-            .url(SyncEndpoint.webSocketUrl(peer.host, peer.port, "sync"))
-            .build()
-
         var authenticated = false
         var closed = false
         var secure: TransportCrypto? = null
-        lateinit var webSocket: WebSocket
+        lateinit var connection: ClientSyncTransport.Connection
 
-        webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onMessage(webSocket: WebSocket, text: String) {
+        connection = frameTransport.connect(peer.host, peer.port, "sync", object : ClientSyncTransport.Listener {
+            override fun onFrame(text: String) {
                 if (text.length > SyncLimits.MAX_WIRE_FRAME_CHARS) {
                     onEvent(Event.Failed("Wire frame exceeds the encrypted transport limit"))
-                    webSocket.close(CLOSE_PROTOCOL_ERROR, "frame too large")
+                    connection.close(CLOSE_PROTOCOL_ERROR, "frame too large")
                     return
                 }
                 val outer = try {
                     codec.decode(text)
                 } catch (e: Exception) {
                     onEvent(Event.Failed("Malformed wire frame: ${e.message}"))
-                    webSocket.close(CLOSE_PROTOCOL_ERROR, "decode failed")
+                    connection.close(CLOSE_PROTOCOL_ERROR, "decode failed")
                     return
                 }
                 val msg = try {
@@ -116,25 +103,25 @@ class SyncClient @Inject constructor() {
                     }
                 } catch (e: Exception) {
                     onEvent(Event.Failed("Encrypted transport rejected frame: ${e.message}"))
-                    webSocket.close(CLOSE_PROTOCOL_ERROR, "secure frame rejected")
+                    connection.close(CLOSE_PROTOCOL_ERROR, "secure frame rejected")
                     return
                 }
                 when (msg) {
                     is SyncWireMessage.Challenge -> {
                         if (msg.transport != TransportCrypto.TRANSPORT) {
                             onEvent(Event.Failed("Peer requires an incompatible or plaintext sync transport; upgrade required"))
-                            webSocket.close(CLOSE_PROTOCOL_ERROR, "encrypted transport required")
+                            connection.close(CLOSE_PROTOCOL_ERROR, "encrypted transport required")
                             return
                         }
                         val clientNonce = TransportCrypto.randomClientNonce()
                         val signed = TransportCrypto.sign(peer.secret, msg.nonce, clientNonce, localDeviceId)
                         if (signed == null) {
                             onEvent(Event.Failed("Could not sign challenge"))
-                            webSocket.close(CLOSE_PROTOCOL_ERROR, "auth failed")
+                            connection.close(CLOSE_PROTOCOL_ERROR, "auth failed")
                             return
                         }
                         secure = TransportCrypto.forClient(peer.secret, msg.nonce, clientNonce, codec)
-                        webSocket.send(codec.encode(
+                        connection.send(codec.encode(
                             SyncWireMessage.Hello(
                                 deviceId = localDeviceId,
                                 auth = signed,
@@ -150,14 +137,14 @@ class SyncClient @Inject constructor() {
                             onEvent(Event.Failed(
                                 "identity_collision: Peer is using this installation's device ID"
                             ))
-                            webSocket.close(CLOSE_PROTOCOL_ERROR, "identity collision")
+                            connection.close(CLOSE_PROTOCOL_ERROR, "identity collision")
                             return
                         }
                         if (msg.deviceId != peer.id) {
                             onEvent(Event.Failed(
                                 "identity_mismatch: Expected ${peer.id}, received ${msg.deviceId}"
                             ))
-                            webSocket.close(CLOSE_PROTOCOL_ERROR, "identity mismatch")
+                            connection.close(CLOSE_PROTOCOL_ERROR, "identity mismatch")
                             return
                         }
                         authenticated = true
@@ -179,7 +166,7 @@ class SyncClient @Inject constructor() {
                     is SyncWireMessage.BlobMissing -> onEvent(Event.BlobMissingReceived(msg.hash))
                     is SyncWireMessage.Error -> {
                         onEvent(Event.Failed("${msg.code}: ${msg.message}"))
-                        webSocket.close(CLOSE_PROTOCOL_ERROR, msg.code)
+                        connection.close(CLOSE_PROTOCOL_ERROR, msg.code)
                     }
                     is SyncWireMessage.Hello -> {
                         // Server doesn't send Hello — that's the client's frame. Ignore.
@@ -188,14 +175,14 @@ class SyncClient @Inject constructor() {
                 }
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            override fun onFailure(cause: Throwable) {
                 if (closed) return
                 closed = true
-                onEvent(Event.Failed(t.message ?: t.javaClass.simpleName))
-                onEvent(Event.Disconnected(t.message.orEmpty()))
+                onEvent(Event.Failed(cause.message ?: cause.javaClass.simpleName))
+                onEvent(Event.Disconnected(cause.message.orEmpty()))
             }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            override fun onClosed(code: Int, reason: String) {
                 if (closed) return
                 closed = true
                 onEvent(Event.Disconnected(reason))
@@ -207,7 +194,7 @@ class SyncClient @Inject constructor() {
                 if (closed) return false
                 val channel = secure ?: return false
                 return synchronized(channel) {
-                    runCatching { webSocket.send(codec.encode(channel.seal(message))) }.getOrDefault(false)
+                    runCatching { connection.send(codec.encode(channel.seal(message))) }.getOrDefault(false)
                 }
             }
 
@@ -260,7 +247,7 @@ class SyncClient @Inject constructor() {
             override fun close() {
                 if (closed) return
                 closed = true
-                webSocket.close(CLOSE_NORMAL, "client closing")
+                connection.close(CLOSE_NORMAL, "client closing")
                 onEvent(Event.Disconnected("client closing"))
             }
         }

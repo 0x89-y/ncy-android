@@ -1,0 +1,3 @@
+[submodule "third_party/bare-kit"]
+	path = third_party/bare-kit
+	url = https://github.com/holepunchto/bare-kit.git

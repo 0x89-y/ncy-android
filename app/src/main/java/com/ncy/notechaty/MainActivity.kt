@@ -18,6 +18,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.Lifecycle
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.rememberNavController
 import com.ncy.notechaty.data.repository.SettingsRepository
@@ -26,10 +29,14 @@ import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
+import com.ncy.notechaty.data.sync.pear.PearRuntimeController
 import com.ncy.notechaty.ui.desktoptheme.NcyDesktopTheme
 import com.ncy.notechaty.ui.navigation.NcyNavGraph
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -49,6 +56,9 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var phoneSyncServer: PhoneSyncServer
 
+    @Inject
+    lateinit var pearRuntimeController: PearRuntimeController
+
     override fun onStart() {
         super.onStart()
         phoneSyncServer.start()
@@ -56,6 +66,7 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onStop() {
+        pearRuntimeController.stop()
         syncManager.stop()
         phoneSyncServer.stop()
         super.onStop()
@@ -64,6 +75,16 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                settingsRepository.settings
+                    .map { it.pearSyncEnabled }
+                    .distinctUntilChanged()
+                    .collect { enabled ->
+                        if (enabled) pearRuntimeController.start() else pearRuntimeController.stop()
+                    }
+            }
+        }
         setContent {
             val settings by settingsRepository.settings.collectAsState()
             NcyDesktopTheme(

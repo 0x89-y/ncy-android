@@ -26,6 +26,22 @@ android {
         }
     }
 
+    flavorDimensions += "channel"
+    productFlavors {
+        create("production") {
+            dimension = "channel"
+            resValue("string", "app_name", "Ncy")
+            buildConfigField("String", "BUILD_CHANNEL", "\"production\"")
+        }
+        create("dev") {
+            dimension = "channel"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Ncy Dev")
+            buildConfigField("String", "BUILD_CHANNEL", "\"dev\"")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -50,6 +66,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {

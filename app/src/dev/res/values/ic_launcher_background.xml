@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keep experimental installs visually distinct from the production app. -->
+    <color name="ic_launcher_background">#4A145E</color>
+</resources>

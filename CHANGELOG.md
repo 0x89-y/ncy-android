@@ -10,6 +10,11 @@
 
 ### Sync hardening progress
 
+- [x] Compacted active-chat message deletions into exact per-chat ledgers. Catch-up
+  and backups reconstruct their original tombstone events, restart-safe lookup rejects
+  stale bodies before storage/media fetch, and the warned purge now covers deleted
+  chats and messages.
+
 - Deferred selective per-profile/per-chat sync to the hardening backlog. Its design
   requires deletion graveyards to bypass content filters, complete catch-up after
   re-enabling, and no implicit deletion of copies already present on another device.
@@ -22,8 +27,8 @@
 - Deleted chats now move into one exact per-profile graveyard instead of retaining a
   directory and event log each. Graveyards sync normally, survive full backup/restore,
   use a cached ID index to reject stale history, and remain permanent by default.
-- Added an advanced **Forget deleted-chat records** action with an irreversible warning
-  that stale devices or backups may restore those chats afterward.
+- Added an advanced **Forget deletion records** action with an irreversible warning
+  that stale devices or backups may restore deleted chats or messages afterward.
 
 - [x] Recover paired devices after LAN IP-address changes using stable device IDs
   and mDNS endpoint refresh.
@@ -292,6 +297,9 @@ The complete prioritized backlog and completion criteria are maintained in
   lookup, and explicit purge behavior, then rebuilt the debug APK.
 - Passed all 37 Android unit tests, including original-author preservation across a
   different device's edit and event-log compaction, then rebuilt the debug APK.
+- Passed all 38 Android unit tests, including active-message tombstone compaction,
+  exact wire reconstruction, restart-safe stale-history rejection, and explicit purge;
+  then rebuilt the debug APK.
 - Rebuilt Android after the screenshot and clipboard hardening changes.
 - Successfully compiled the Kotlin sources.
 - Successfully built the debug APK with `:app:assembleDebug`.

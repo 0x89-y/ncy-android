@@ -19,6 +19,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         changes = listOf(
             "Compacted deletion records now have additional stale-restore protection.",
             "Deleted chats now use compact backup-safe records with an optional warned purge.",
+            "Deleted messages now use compact restart-safe records that remain protected from stale restores.",
             "Chats can show messages created on other devices as incoming bubbles on the left.",
             "Incoming messages use a stable, theme-aware color for each originating device.",
         ),

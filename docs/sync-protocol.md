@@ -513,6 +513,11 @@ keeps merging trivial: latest-write-wins.
 
 A tombstone applies forever to that id. Any subsequent `MessageCreated` or
 `MessageEdited` with the same id **must** be ignored by the materializer.
+An implementation may move the tombstone from the active event log into a compact
+exact ledger containing its event ID, HLC, origin, chat/profile identity, and message
+ID. Reads and catch-up must reconstruct the original `MessageTombstoned` wire event;
+inbound create/edit bodies covered by the ledger must be rejected before persistence
+or media fetching.
 
 #### `ChatMetadataChanged`
 
@@ -789,6 +794,10 @@ for that chat ID. Automatic age-based deletion is forbidden. A user may explicit
 purge graveyard entries only after a warning that stale devices/backups can then
 resurrect those chats; this action is local, irreversible, and never implied by
 compaction or peer acknowledgement.
+Message tombstones may likewise live in a compact exact ledger outside the active
+chat log. They remain ordinary original `MessageTombstoned` events during catch-up
+and portable backup. The explicit dangerous purge covers both chat and message
+deletion ledgers and must warn that either kind of deleted content may reappear.
 - Apply events in HLC order when materializing the visible state, regardless of
   arrival order. The reference algorithm is in §10.4.
 - Persist the `events.ndjson` log as the source of truth, and treat any rendered

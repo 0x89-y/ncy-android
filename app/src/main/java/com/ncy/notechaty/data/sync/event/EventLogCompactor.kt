@@ -28,40 +28,58 @@ object EventLogCompactor {
             ?.forEach { profileDir ->
                 profileDir.listFiles()
                     ?.filter { it.isDirectory && it.name.startsWith("chat_") }
-                    ?.forEach { chatDir -> tryCompact(chatDir) }
+                    ?.forEach { chatDir -> compactChatDir(chatDir) }
             }
     }
 
-    private fun tryCompact(chatDir: File) {
+    internal fun compactChatDir(chatDir: File) {
         val eventsFile = File(chatDir, "events.ndjson")
         if (!eventsFile.exists()) return
         val log = EventLog(eventsFile)
-        val all = log.readAll()
+        val active = log.readAll()
+        val all = (active + MessageTombstoneGraveyard.events(chatDir))
+            .distinctBy { it.eventId }
         all.filter { it.op is ChatEventOp.ChatTombstoned }.maxByOrNull { it.hlc }?.let { tombstone ->
             try {
                 ChatTombstoneGraveyard.archive(requireNotNull(chatDir.parentFile), tombstone)
                 chatDir.deleteRecursively()
-                Log.i(TAG, "archived ${chatDir.name} in compact graveyard")
+                logInfo("archived ${chatDir.name} in compact graveyard")
             } catch (e: Exception) {
-                Log.w(TAG, "graveyard archive failed for ${chatDir.name}", e)
+                logWarning("graveyard archive failed for ${chatDir.name}", e)
             }
             return
         }
         if (all.size < THRESHOLD) return
         val compacted = compact(all)
-        if (compacted.size >= all.size) return // nothing to gain
+        val messageTombstones = compacted.filter { it.op is ChatEventOp.MessageTombstoned }
+        val compactedActive = compacted.filterNot { it.op is ChatEventOp.MessageTombstoned }
+        if (compactedActive.size >= active.size &&
+            active.none { it.op is ChatEventOp.MessageTombstoned }
+        ) return // nothing to gain
         try {
+            messageTombstones.forEach { MessageTombstoneGraveyard.archive(chatDir, it) }
             if (compacted.size == 1 && compacted.single().op is ChatEventOp.ChatTombstoned) {
                 ChatTombstoneGraveyard.archive(requireNotNull(chatDir.parentFile), compacted.single())
                 chatDir.deleteRecursively()
-                Log.i(TAG, "archived ${chatDir.name} in compact graveyard")
+                logInfo("archived ${chatDir.name} in compact graveyard")
                 return
             }
-            log.replaceAll(compacted)
-            Log.i(TAG, "compacted ${chatDir.name}: ${all.size} → ${compacted.size} events")
+            log.replaceAll(compactedActive)
+            logInfo(
+                "compacted ${chatDir.name}: ${active.size} → ${compactedActive.size} active events " +
+                    "+ ${messageTombstones.size} exact message tombstones"
+            )
         } catch (e: Exception) {
-            Log.w(TAG, "compaction failed for ${chatDir.name}", e)
+            logWarning("compaction failed for ${chatDir.name}", e)
         }
+    }
+
+    private fun logInfo(message: String) {
+        runCatching { Log.i(TAG, message) }
+    }
+
+    private fun logWarning(message: String, error: Exception) {
+        runCatching { Log.w(TAG, message, error) }
     }
 
     /**

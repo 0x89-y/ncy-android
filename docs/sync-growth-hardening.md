@@ -27,9 +27,10 @@ false negatives resurrect data and false positives hide legitimate new data.
 - [x] **Offer explicit dangerous purge.** Android and Desktop settings require a
   strong resurrection warning; Server requires `purge-tombstones --yes-i-understand`.
   Purge is never automatic and reports the number of exact records forgotten.
-- [ ] **Compact active-chat message tombstones.** Store exact message deletion records
-  separately from bulky event envelopes while reconstructing normal wire tombstones
-  for catch-up.
+- [x] **Compact active-chat message tombstones.** Android stores exact per-chat compact
+  records and Core stores an indexed compact ledger. Both reconstruct the original wire
+  tombstone for catch-up and backup, reject stale message bodies before persistence or
+  media fetch, survive restart, and include the records in the explicit warned purge.
 - [ ] **Add retention observability.** Report event, tombstone, graveyard, and reclaimed
   byte counts; warn before compaction cannot materially reduce a very large live chat.
 - [ ] **Define safe history generations.** A future generation reset can revoke all

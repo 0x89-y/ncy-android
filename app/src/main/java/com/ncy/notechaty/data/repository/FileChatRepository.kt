@@ -10,6 +10,7 @@ import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.protection.ProtectionCrypto
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
 import com.ncy.notechaty.data.sync.event.ChatEvent
+import com.ncy.notechaty.data.sync.event.ChatEventHistory
 import com.ncy.notechaty.data.sync.event.ChatEventCodec
 import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.EventLog
@@ -17,6 +18,7 @@ import com.ncy.notechaty.data.sync.event.ChatTombstoneGraveyard
 import com.ncy.notechaty.data.sync.event.EventLogMigrator
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.event.MaterializedView
+import com.ncy.notechaty.data.sync.event.MessageTombstoneGraveyard
 import com.ncy.notechaty.security.ChatLockState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -507,6 +509,9 @@ class FileChatRepository @Inject constructor(
             val graveyardFiles = tempDir.walkTopDown()
                 .filter { it.isFile && it.name == ChatTombstoneGraveyard.FILE_NAME }
                 .toList()
+            val messageGraveyardFiles = tempDir.walkTopDown()
+                .filter { it.isFile && it.name == MessageTombstoneGraveyard.FILE_NAME }
+                .toList()
             val importNow = System.currentTimeMillis()
             graveyardFiles.forEach { file ->
                 val events = EventLog(file, eventCodec).readAll()
@@ -523,6 +528,14 @@ class FileChatRepository @Inject constructor(
                 } else profileDir
                 ChatTombstoneGraveyard.merge(targetParent, events)
             }
+            messageGraveyardFiles.forEach { file ->
+                val events = MessageTombstoneGraveyard.events(requireNotNull(file.parentFile))
+                if (events.any {
+                        it.op !is ChatEventOp.MessageTombstoned ||
+                            !HlcTimestamp.isAcceptableRemote(it.hlc, importNow)
+                    }
+                ) throw IllegalArgumentException("Backup contains an invalid message tombstone graveyard")
+            }
 
             // Locate every chat directory, including tombstone-only histories that
             // intentionally have no chat.json. Single-chat backups place files at
@@ -535,7 +548,7 @@ class FileChatRepository @Inject constructor(
                 }
                 .toList()
 
-            if (chatDirs.isEmpty() && graveyardFiles.isEmpty()) {
+            if (chatDirs.isEmpty() && graveyardFiles.isEmpty() && messageGraveyardFiles.isEmpty()) {
                 throw IllegalArgumentException("No chats found in backup")
             }
 
@@ -599,7 +612,7 @@ class FileChatRepository @Inject constructor(
                     }
                     val eventsFile = File(targetDir, "events.ndjson")
                     if (eventsFile.exists()) {
-                        val rebuilt = MaterializedView.fold(EventLog(eventsFile, eventCodec).readAll())
+                        val rebuilt = MaterializedView.fold(ChatEventHistory.read(targetDir, eventCodec))
                         if (rebuilt != null) {
                             serializer.writeToFile(File(targetDir, "chat.json"), rebuilt)
                         } else {
@@ -608,7 +621,9 @@ class FileChatRepository @Inject constructor(
                             // here would let a stale peer resurrect the chat later.
                             File(targetDir, "chat.json").delete()
                             targetDir.listFiles()?.forEach { child ->
-                                if (child.name != "events.ndjson") child.deleteRecursively()
+                                if (child.name != "events.ndjson" &&
+                                    child.name != MessageTombstoneGraveyard.FILE_NAME
+                                ) child.deleteRecursively()
                             }
                         }
                     } else {
@@ -627,7 +642,15 @@ class FileChatRepository @Inject constructor(
                     val prior = existingLog.readAll()
                     val seen = prior.mapTo(HashSet()) { it.eventId }
                     val incoming = EventLog(backupEventsFile, eventCodec).readAll()
-                    val added = incoming.filter { it.eventId !in seen }
+                    MessageTombstoneGraveyard.merge(
+                        targetDir,
+                        MessageTombstoneGraveyard.events(srcChatDir) +
+                            incoming.filter { it.op is ChatEventOp.MessageTombstoned },
+                    )
+                    val added = incoming.filter {
+                        it.eventId !in seen && it.op !is ChatEventOp.MessageTombstoned &&
+                            !isSuppressedByMessageGraveyard(targetDir, it)
+                    }
                     if (added.isNotEmpty()) {
                         existingLog.replaceAll(prior + added)
                     }
@@ -641,7 +664,7 @@ class FileChatRepository @Inject constructor(
                             }
                         }
                     }
-                    val rebuilt = MaterializedView.fold(existingLog.readAll())
+                    val rebuilt = MaterializedView.fold(ChatEventHistory.read(targetDir, eventCodec))
                     if (rebuilt != null) {
                         serializer.writeToFile(File(targetDir, "chat.json"), rebuilt)
                     } else {
@@ -737,7 +760,7 @@ class FileChatRepository @Inject constructor(
 
 
     override suspend fun purgeChatTombstones(): Int = withContext(Dispatchers.IO) {
-        ChatTombstoneGraveyard.purge(rootDir)
+        ChatTombstoneGraveyard.purge(rootDir) + MessageTombstoneGraveyard.purge(rootDir)
     }
 
     override suspend fun scanForNewChats(): Unit = withContext(Dispatchers.IO) {
@@ -791,14 +814,21 @@ class FileChatRepository @Inject constructor(
         val chatFile = File(chatDir, "chat.json")
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
 
-        val priorEvents = eventLog.readAll()
+        val priorEvents = ChatEventHistory.read(chatDir, eventCodec)
         if (priorEvents.any { it.eventId == event.eventId }) {
             // Idempotency — already applied. The caller still acks it, but `false`
             // prevents duplicate UI work and duplicate media fetches during handoff.
             return false
         }
 
-        eventLog.append(event)
+        if (isSuppressedByMessageGraveyard(chatDir, event)) return false
+        val persisted = if (event.op is ChatEventOp.MessageTombstoned) {
+            MessageTombstoneGraveyard.archive(chatDir, event)
+        } else {
+            eventLog.append(event)
+            true
+        }
+        if (!persisted) return false
         val materialized = MaterializedView.fold(priorEvents + event)
         if (materialized != null) {
             serializer.writeToFile(chatFile, materialized)
@@ -841,10 +871,22 @@ class FileChatRepository @Inject constructor(
         val combined = targetLog.readAll().toMutableList()
         val seen = combined.mapTo(HashSet()) { it.eventId }
         sources.forEach { source ->
+            MessageTombstoneGraveyard.merge(
+                targetDir,
+                MessageTombstoneGraveyard.events(source) +
+                    EventLog(File(source, "events.ndjson"), eventCodec).readAll()
+                        .filter { it.op is ChatEventOp.MessageTombstoned },
+            )
             val sourceLog = EventLog(File(source, "events.ndjson"), eventCodec)
-            sourceLog.readAll().forEach { if (seen.add(it.eventId)) combined += it }
+            sourceLog.readAll().forEach {
+                if (it.op !is ChatEventOp.MessageTombstoned &&
+                    !isSuppressedByMessageGraveyard(targetDir, it) && seen.add(it.eventId)
+                ) combined += it
+            }
             source.walkTopDown().filter { it.isFile }.forEach { file ->
-                if (file.name == "events.ndjson" || file.name == "chat.json") return@forEach
+                if (file.name == "events.ndjson" || file.name == "chat.json" ||
+                    file.name == MessageTombstoneGraveyard.FILE_NAME
+                ) return@forEach
                 val destination = File(targetDir, file.relativeTo(source).path)
                 if (!destination.exists()) {
                     destination.parentFile?.mkdirs()
@@ -894,7 +936,7 @@ class FileChatRepository @Inject constructor(
                 chatIds.forEach { chatId ->
                     consolidateChatCopies(chatId, targetProfileDir)
                     val chatDir = File(targetProfileDir, "chat_$chatId")
-                    val events = EventLog(File(chatDir, "events.ndjson"), eventCodec).readAll()
+                    val events = ChatEventHistory.read(chatDir, eventCodec)
                     val chatFile = File(chatDir, "chat.json")
                     MaterializedView.fold(events)?.let { serializer.writeToFile(chatFile, it) }
                         ?: chatFile.delete()
@@ -942,7 +984,7 @@ class FileChatRepository @Inject constructor(
         val chatFile = File(chatDir, "chat.json")
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
 
-        val priorEvents = eventLog.readAll()
+        val priorEvents = ChatEventHistory.read(chatDir, eventCodec)
         // Phase 3: if this chat is protected and we have a cached key, encrypt the
         // payload before persisting. Skipped silently if the chat has no salt or no
         // unlocked key in memory — those cases happen before the user has finished
@@ -966,7 +1008,14 @@ class FileChatRepository @Inject constructor(
             profileId = activeProfileId,
             profileName = activeProfileName
         )
-        eventLog.append(newEvent)
+        if (isSuppressedByMessageGraveyard(chatDir, newEvent)) {
+            return MaterializedView.fold(priorEvents)
+        }
+        if (newEvent.op is ChatEventOp.MessageTombstoned) {
+            MessageTombstoneGraveyard.archive(chatDir, newEvent)
+        } else {
+            eventLog.append(newEvent)
+        }
 
         val materialized = MaterializedView.fold(priorEvents + newEvent)
         if (materialized != null) {
@@ -1025,7 +1074,7 @@ class FileChatRepository @Inject constructor(
         }
         val key = keyStore.keyFor(chatId)
         val trustedDecrypted = HashSet<String>()
-        val events = eventLog.readAll().map { original ->
+        val events = ChatEventHistory.read(chatDir, eventCodec).map { original ->
             val transformed = decryptOpIfPossible(original, key)
             if (original.op is ChatEventOp.EncryptedMessage &&
                 transformed.op !is ChatEventOp.EncryptedMessage
@@ -1044,13 +1093,19 @@ class FileChatRepository @Inject constructor(
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
         if (!eventLog.exists()) return@withContext
 
+        val compactTombstones = MessageTombstoneGraveyard.events(chatDir)
+        val tombstonedIds = compactTombstones.mapNotNullTo(HashSet()) {
+            (it.op as? ChatEventOp.MessageTombstoned)?.messageId
+        }
         val events = eventLog.readAll()
         val passthrough = ArrayList<ChatEvent>(events.size)
         val plaintextMsgs = ArrayList<ChatEvent>()
         for (ev in events) {
             when (ev.op) {
-                is ChatEventOp.MessageCreated, is ChatEventOp.MessageEdited ->
-                    plaintextMsgs += ev
+                is ChatEventOp.MessageCreated ->
+                    if (ev.op.message.id !in tombstonedIds) plaintextMsgs += ev
+                is ChatEventOp.MessageEdited ->
+                    if (ev.op.message.id !in tombstonedIds) plaintextMsgs += ev
                 // Tombstones, metadata, and already-encrypted ops pass through —
                 // re-running migration is therefore idempotent (no plaintext left).
                 else -> passthrough += ev
@@ -1100,7 +1155,7 @@ class FileChatRepository @Inject constructor(
 
         val migrated = passthrough + reissued
         eventLog.replaceAll(migrated)
-        val materialized = MaterializedView.fold(migrated)
+        val materialized = MaterializedView.fold(migrated + compactTombstones)
         if (materialized != null) serializer.writeToFile(chatFile, materialized)
 
         // Live peers get the sealed replacements immediately; reconnect catchup
@@ -1128,6 +1183,17 @@ class FileChatRepository @Inject constructor(
             else -> return event
         }
         return event.copy(op = newOp)
+    }
+
+    private fun isSuppressedByMessageGraveyard(chatDir: File, event: ChatEvent): Boolean {
+        val messageId = when (val op = event.op) {
+            is ChatEventOp.MessageCreated -> op.message.id
+            is ChatEventOp.MessageEdited -> op.message.id
+            is ChatEventOp.MessageTombstoned -> op.messageId
+            is ChatEventOp.EncryptedMessage -> op.messageId
+            else -> null
+        } ?: return false
+        return MessageTombstoneGraveyard.contains(chatDir, messageId)
     }
 
     private fun ChatData.toChat(id: String, messages: List<Message>): Chat {

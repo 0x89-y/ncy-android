@@ -217,8 +217,8 @@ fun SettingsScreen(
                 NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.DeleteForever,
-                    title = "Forget deleted-chat records",
-                    subtitle = "Advanced: stale backups may restore deleted chats afterward",
+                    title = "Forget deletion records",
+                    subtitle = "Advanced: stale backups may restore deleted chats or messages",
                     onClick = { showPurgeTombstonesConfirm = true },
                 )
             }
@@ -497,8 +497,8 @@ fun SettingsScreen(
             title = { Text("Forget deletion records?") },
             text = {
                 Text(
-                    "Only continue if every old device and backup containing deleted chats is gone. " +
-                        "A stale device paired later can restore those chats. This cannot be undone."
+                    "Only continue if every old device and backup containing deleted chats or messages " +
+                        "is gone. Stale history paired later can restore them. This cannot be undone."
                 )
             },
             confirmButton = {
@@ -509,7 +509,7 @@ fun SettingsScreen(
                             val removed = viewModel.purgeChatTombstones()
                             Toast.makeText(
                                 context,
-                                "Forgot $removed deleted-chat record${if (removed == 1) "" else "s"}",
+                                "Forgot $removed deletion record${if (removed == 1) "" else "s"}",
                                 Toast.LENGTH_LONG,
                             ).show()
                         }

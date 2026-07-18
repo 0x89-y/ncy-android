@@ -63,8 +63,9 @@ class SyncSnapshot @Inject constructor(
             ?.filter { it.isDirectory && it.name.startsWith("chat_") }
             ?.forEach { chatDir ->
                 val log = EventLog(File(chatDir, "events.ndjson"), codec)
-                if (!log.exists()) return@forEach
-                log.readSince(since).forEach { ev ->
+                val events = log.readSince(since) + MessageTombstoneGraveyard.events(chatDir)
+                    .filter { since == null || it.hlc > since }
+                events.distinctBy { it.eventId }.forEach { ev ->
                     // The physical directory is this installation's canonical profile.
                     // Restored historical events may carry obsolete profile UUIDs;
                     // restamp them on the wire so one chat cannot split across profiles.

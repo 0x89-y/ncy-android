@@ -1,0 +1,18 @@
+{
+  "name": "ncy-pear-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ncy's opt-in Pear transport worker",
+  "license": "MIT",
+  "scripts": {
+    "build": "bare-pack --linked --host android-arm64 --host android-ia32 --host android-arm --host android-x64 --out ../app/src/dev/assets/ncy-pear.bundle index.js",
+    "prepare:android": "powershell -ExecutionPolicy Bypass -File ../scripts/build_pear_worker.ps1"
+  },
+  "dependencies": {
+    "b4a": "^1.7.2",
+    "hyperswarm": "4.17.0"
+  },
+  "devDependencies": {
+    "bare-pack": "2.2.1"
+  }
+}

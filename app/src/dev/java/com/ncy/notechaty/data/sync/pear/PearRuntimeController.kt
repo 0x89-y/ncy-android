@@ -1,10 +1,18 @@
 package com.ncy.notechaty.data.sync.pear
 
+import android.content.Context
 import android.util.Log
+import android.util.Base64
+import com.google.gson.JsonParser
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import to.holepunch.bare.kit.IPC
 import to.holepunch.bare.kit.Worklet
 
@@ -16,13 +24,19 @@ import to.holepunch.bare.kit.Worklet
  * native library is loaded only after the user explicitly enables Pear and [start] is called.
  */
 @Singleton
-class PearRuntimeController @Inject constructor() {
+class PearRuntimeController @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
     private var worklet: Worklet? = null
     private var ipc: IPC? = null
+    private var incoming = ""
+    private val _status = MutableStateFlow<PearRuntimeStatus>(PearRuntimeStatus.Disabled)
+    val status: StateFlow<PearRuntimeStatus> = _status.asStateFlow()
 
     @Synchronized
     fun start() {
         if (worklet != null) return
+        _status.value = PearRuntimeStatus.Starting
 
         runCatching {
             val nextWorklet = Worklet(Worklet.Options().memoryLimit(MEMORY_LIMIT_BYTES))
@@ -30,20 +44,19 @@ class PearRuntimeController @Inject constructor() {
             nextIpc.readable {
                 while (true) {
                     val data = nextIpc.read() ?: break
-                    Log.i(TAG, "Bare IPC: ${data.toUtf8String()}")
+                    receive(data.toUtf8String())
                 }
             }
-            nextWorklet.start(
-                "/ncy-pear-probe.js",
-                WORKLET_SOURCE,
-                StandardCharsets.UTF_8,
-                emptyArray(),
-            )
+            val bundle = context.assets.open(WORKLET_ASSET).use { it.readBytes() }
+            nextWorklet.start("/ncy-pear.bundle", ByteBuffer.wrap(bundle), emptyArray())
             worklet = nextWorklet
             ipc = nextIpc
+            val seed = identitySeed()
+            write(nextIpc, "{\"type\":\"start\",\"seed\":\"$seed\"}\n")
         }.onFailure { error ->
             Log.e(TAG, "Could not start Bare worklet", error)
             stop()
+            _status.value = PearRuntimeStatus.Failed(error.message ?: error.javaClass.simpleName)
         }
     }
 
@@ -53,8 +66,56 @@ class PearRuntimeController @Inject constructor() {
         val activeWorklet = worklet
         ipc = null
         worklet = null
+        incoming = ""
         runCatching { activeIpc?.close() }
         runCatching { activeWorklet?.terminate() }
+        _status.value = PearRuntimeStatus.Disabled
+    }
+
+    @Synchronized
+    private fun receive(chunk: String) {
+        incoming += chunk
+        if (incoming.length > MAX_IPC_CHARS) {
+            incoming = ""
+            _status.value = PearRuntimeStatus.Failed("Pear IPC response exceeded 64 KiB")
+            return
+        }
+        while (true) {
+            val newline = incoming.indexOf('\n')
+            if (newline < 0) return
+            val line = incoming.substring(0, newline)
+            incoming = incoming.substring(newline + 1)
+            if (line.isBlank()) continue
+            Log.i(TAG, "Bare IPC: $line")
+            runCatching { JsonParser.parseString(line).asJsonObject }.onSuccess { message ->
+                when (message["type"]?.asString) {
+                    "ready" -> _status.value = PearRuntimeStatus.Ready(message["publicKey"].asString)
+                    "error", "fatal" -> _status.value = PearRuntimeStatus.Failed(
+                        message["message"]?.asString ?: "Unknown Pear error"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun write(target: IPC, message: String) {
+        target.write(ByteBuffer.wrap(message.toByteArray(StandardCharsets.UTF_8))) { error ->
+            if (error != null) {
+                Log.e(TAG, "Could not write to Bare IPC", error)
+                _status.value = PearRuntimeStatus.Failed(error.message ?: "Pear IPC write failed")
+            }
+        }
+    }
+
+    private fun identitySeed(): String {
+        val prefs = context.getSharedPreferences(IDENTITY_PREFS, Context.MODE_PRIVATE)
+        prefs.getString(IDENTITY_SEED, null)?.let { return it }
+        val bytes = ByteArray(32).also(SecureRandom()::nextBytes)
+        return Base64.encodeToString(bytes, Base64.NO_WRAP).also {
+            check(prefs.edit().putString(IDENTITY_SEED, it).commit()) {
+                "Could not persist Pear identity"
+            }
+        }
     }
 
     private fun ByteBuffer.toUtf8String(): String {
@@ -66,21 +127,9 @@ class PearRuntimeController @Inject constructor() {
     private companion object {
         const val TAG = "NcyPear"
         const val MEMORY_LIMIT_BYTES = 24 * 1024 * 1024
-        val WORKLET_SOURCE = """
-            const { IPC } = BareKit
-
-            Bare.on('uncaughtException', (error) => {
-              console.error(error)
-              IPC.write(Buffer.from(JSON.stringify({ type: 'error', message: error.message })))
-            })
-            Bare.on('unhandledRejection', (error) => {
-              console.error(error)
-              IPC.write(Buffer.from(JSON.stringify({ type: 'error', message: String(error) })))
-            })
-            Bare.on('suspend', () => IPC.unref())
-            Bare.on('resume', () => IPC.ref())
-            IPC.on('data', (data) => IPC.write(data))
-            IPC.write(Buffer.from(JSON.stringify({ type: 'ready' })))
-        """.trimIndent()
+        const val MAX_IPC_CHARS = 64 * 1024
+        const val WORKLET_ASSET = "ncy-pear.bundle"
+        const val IDENTITY_PREFS = "ncy_pear_identity"
+        const val IDENTITY_SEED = "seed"
     }
 }

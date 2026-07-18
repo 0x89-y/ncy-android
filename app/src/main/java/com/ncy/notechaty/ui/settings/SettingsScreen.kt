@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.material.icons.filled.Check
@@ -75,6 +76,7 @@ fun SettingsScreen(
     var showPinSetup by remember { mutableStateOf(false) }
     var showRemovePinConfirm by remember { mutableStateOf(false) }
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
+    var showEnablePearConfirm by remember { mutableStateOf(false) }
     val settings by viewModel.settings.collectAsState()
 
     // Export all launcher
@@ -233,6 +235,22 @@ fun SettingsScreen(
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         onOpenSync()
                     }
+                )
+                NcyRowDivider()
+                NcySettingsToggleRow(
+                    icon = Icons.Default.Public,
+                    title = "Sync outside your local network",
+                    subtitle = if (settings.pearSyncEnabled) {
+                        "Pear discovery is enabled"
+                    } else {
+                        "Off · uses Pear public discovery when enabled"
+                    },
+                    checked = settings.pearSyncEnabled,
+                    onCheckedChange = { enabled ->
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        if (enabled) showEnablePearConfirm = true
+                        else viewModel.setPearSyncEnabled(false)
+                    },
                 )
             }
 
@@ -519,6 +537,32 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showPurgeTombstonesConfirm = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (showEnablePearConfirm) {
+        NcyAlertDialog(
+            onDismissRequest = { showEnablePearConfirm = false },
+            title = { Text("Enable internet sync?") },
+            text = {
+                Text(
+                    "Pear contacts public discovery infrastructure so your paired devices can " +
+                        "find each other outside the local network. Operators may observe IP " +
+                        "addresses, timing, and traffic volume, but Ncy chat data remains " +
+                        "end-to-end encrypted. No chat history is stored there."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.setPearSyncEnabled(true)
+                        showEnablePearConfirm = false
+                    },
+                ) { Text("Enable") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEnablePearConfirm = false }) { Text("Cancel") }
             },
         )
     }

@@ -10,11 +10,13 @@
         <exclude domain="sharedpref" path="ncy_sync_peers.xml" />
         <exclude domain="sharedpref" path="ncy_phone_pairing.xml" />
         <exclude domain="sharedpref" path="ncy_phone_sync_server.xml" />
+        <exclude domain="sharedpref" path="ncy_transport_settings.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="ncy_device.xml" />
         <exclude domain="sharedpref" path="ncy_sync_peers.xml" />
         <exclude domain="sharedpref" path="ncy_phone_pairing.xml" />
         <exclude domain="sharedpref" path="ncy_phone_sync_server.xml" />
+        <exclude domain="sharedpref" path="ncy_transport_settings.xml" />
     </device-transfer>
 </data-extraction-rules>

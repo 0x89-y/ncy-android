@@ -26,6 +26,8 @@ data class AppSettings(
     val autoBackupEnabled: Boolean = false,
     val autoBackupFolder: String? = null,
     val autoBackupIntervalHours: Int = 24,
+    /** Explicit opt-in. When false, no Pear runtime or public DHT activity may start. */
+    val pearSyncEnabled: Boolean = false,
     val topBarGradient: Boolean = false,
     val protectionPinHash: String? = null,
     val protectionPinSalt: String? = null,

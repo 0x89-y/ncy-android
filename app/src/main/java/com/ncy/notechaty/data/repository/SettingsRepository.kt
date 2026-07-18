@@ -19,6 +19,9 @@ class SettingsRepository @Inject constructor(
 ) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("ncy_settings", Context.MODE_PRIVATE)
+    // Network consent is installation-local and deliberately excluded from backup/transfer.
+    private val transportPrefs: SharedPreferences =
+        context.getSharedPreferences("ncy_transport_settings", Context.MODE_PRIVATE)
 
     private val _settings = MutableStateFlow(loadSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -38,6 +41,7 @@ class SettingsRepository @Inject constructor(
                 autoBackupEnabled = prefs.getBoolean("autoBackupEnabled", false),
                 autoBackupFolder = prefs.getString("autoBackupFolder", null),
                 autoBackupIntervalHours = prefs.getInt("autoBackupIntervalHours", 24),
+                pearSyncEnabled = transportPrefs.getBoolean("pearSyncEnabled", false),
                 topBarGradient = prefs.getBoolean("topBarGradient", false),
                 protectionPinHash = prefs.getString("protectionPinHash", null),
                 protectionPinSalt = prefs.getString("protectionPinSalt", null),
@@ -65,6 +69,9 @@ class SettingsRepository @Inject constructor(
             .putBoolean("protectionUseBiometric", settings.protectionUseBiometric)
             .putBoolean("lockOnAppStart", settings.lockOnAppStart)
             .putInt("protectionGracePeriodMinutes", settings.protectionGracePeriodMinutes)
+            .apply()
+        transportPrefs.edit()
+            .putBoolean("pearSyncEnabled", settings.pearSyncEnabled)
             .apply()
     }
 }

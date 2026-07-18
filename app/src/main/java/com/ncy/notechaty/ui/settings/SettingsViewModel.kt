@@ -105,6 +105,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setPearSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings(settings.value.copy(pearSyncEnabled = enabled))
+        }
+    }
+
     fun setTopBarGradient(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateSettings(settings.value.copy(topBarGradient = enabled))

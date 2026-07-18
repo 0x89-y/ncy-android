@@ -30,6 +30,7 @@ import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
 import com.ncy.notechaty.data.sync.pear.PearRuntimeController
+import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import com.ncy.notechaty.ui.desktoptheme.NcyDesktopTheme
 import com.ncy.notechaty.ui.navigation.NcyNavGraph
 import dagger.hilt.android.AndroidEntryPoint
@@ -83,6 +84,15 @@ class MainActivity : FragmentActivity() {
                     .collect { enabled ->
                         if (enabled) pearRuntimeController.start() else pearRuntimeController.stop()
                     }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                pearRuntimeController.status.collect { status ->
+                    if (status is PearRuntimeStatus.Ready) {
+                        phoneSyncServer.refreshPublishedPairing()
+                    }
+                }
             }
         }
         setContent {

@@ -20,6 +20,8 @@ data class PairingPayload(
     val host: String,
     val port: Int,
     val secret: String,
+    /** Optional 32-byte Pear public key encoded as 64 lowercase hex characters. */
+    val pearPublicKey: String? = null,
     /** Optional host lifecycle capability; absent means continuously available. */
     val availability: String? = null,
 ) {
@@ -32,6 +34,7 @@ data class PairingPayload(
         port = port,
         secret = secret,
         pairedAt = now,
+        pearPublicKey = pearPublicKey,
         availability = availability,
     )
 
@@ -45,11 +48,14 @@ data class PairingPayload(
             else if (parsed.deviceId.isBlank() || parsed.host.isBlank() ||
                 parsed.secret.isBlank() || parsed.port !in 1..65535
             ) null
+            else if (parsed.pearPublicKey != null && !PEAR_PUBLIC_KEY.matches(parsed.pearPublicKey)) null
             else parsed
         } catch (e: JsonSyntaxException) {
             null
         } catch (e: Exception) {
             null
         }
+
+        private val PEAR_PUBLIC_KEY = Regex("^[0-9a-f]{64}$")
     }
 }

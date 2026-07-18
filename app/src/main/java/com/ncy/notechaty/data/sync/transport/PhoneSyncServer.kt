@@ -24,6 +24,8 @@ import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.peer.PhonePairingIdentity
 import com.ncy.notechaty.data.sync.peer.PairingPayload
+import com.ncy.notechaty.data.sync.pear.PearRuntimeController
+import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -61,6 +63,7 @@ class PhoneSyncServer @Inject constructor(
     private val snapshot: SyncSnapshot,
     private val repository: ChatRepository,
     private val eventBus: ChatEventBus,
+    private val pearRuntimeController: PearRuntimeController,
 ) {
     data class HostedPeer(
         val id: String,
@@ -209,7 +212,7 @@ class PhoneSyncServer @Inject constructor(
         val host = localLanAddress()
         _state.value = if (current?.listening == true && host != null) {
             HostState.Ready(
-                pairingJson = pairingIdentity.payload(host, current.boundPort).toJson(),
+                pairingJson = pairingPayload(host, current.boundPort).toJson(),
                 host = host,
                 port = current.boundPort,
                 usedFallbackPort = current.boundPort != DEFAULT_PORT,
@@ -871,7 +874,7 @@ class PhoneSyncServer @Inject constructor(
         }
 
         _state.value = HostState.Ready(
-            pairingJson = pairingIdentity.payload(host, current.boundPort).toJson(),
+            pairingJson = pairingPayload(host, current.boundPort).toJson(),
             host = host,
             port = current.boundPort,
             usedFallbackPort = current.boundPort != DEFAULT_PORT,
@@ -879,6 +882,16 @@ class PhoneSyncServer @Inject constructor(
         if (forceAdvertising || advertisedHost != host || advertisedPort != current.boundPort) {
             restartAdvertising(host, current.boundPort)
         }
+    }
+
+    /** Re-publish pairing metadata after an optional transport identity becomes ready. */
+    fun refreshPublishedPairing() {
+        if (_enabled.value) refreshPairingPayload()
+    }
+
+    private fun pairingPayload(host: String, port: Int): PairingPayload {
+        val pearKey = (pearRuntimeController.status.value as? PearRuntimeStatus.Ready)?.publicKey
+        return pairingIdentity.payload(host, port).copy(pearPublicKey = pearKey)
     }
 
     @Synchronized

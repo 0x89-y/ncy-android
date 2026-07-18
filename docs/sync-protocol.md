@@ -182,6 +182,9 @@ and recommend stable DNS/IP or manual endpoint repair where mDNS is unsuitable.
 
 - URL: `ws://<host>:<port>/sync`
 - Frames: WebSocket **text** frames. UTF-8 JSON. One JSON object per frame.
+- Ncy Dev may, after explicit opt-in, carry those same complete UTF-8 frames over a
+  length-prefixed Pear/Hyperswarm Noise stream. LAN WebSocket is always attempted first;
+  Pear is only an initial-connection fallback and never downgrades an established session.
 - The connection is long-lived: phone keeps it open while the app is foregrounded.
 - Closing codes: `1000` (normal), `1001` (host going away), `1002` (protocol error).
   A foreground-only phone host closes with reason `phone_host_left_foreground` before
@@ -197,6 +200,15 @@ The discovery-initiated flow is the only pre-PSK exception: `PairRequest` and
 `PairChallenge` expose device labels and ephemeral P-256 public keys, while the
 credential-bearing `PairAccept` payload is already protected by its ECDH-derived
 AES-GCM key. Normal sync never falls back to plaintext application frames.
+
+Pear is disabled by default and absent from the production flavor. When enabled, public
+DHT bootstrap/discovery infrastructure can observe a device's Pear public key, IP address,
+timing, and connection attempts. Peers connect directly where NAT permits and may use
+Holepunch relay infrastructure where required; Ncy does not send chat plaintext to a
+storage service. Hyperswarm's Noise encryption protects the stream, and the normal Ncy
+pairing-secret handshake plus AES-GCM envelopes remain mandatory inside it. Outgoing Pear
+targets come only from authenticated pairing payloads; unsolicited incoming streams are
+bounded and rejected by the Ncy authentication handshake.
 
 **Roles are symmetric.** The protocol only defines a *client* (connects out,
 signs the challenge, sends `Hello`) and a *server* (listens, issues `Challenge`,

@@ -3,7 +3,7 @@ package com.ncy.notechaty.di
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.FileChatRepository
 import com.ncy.notechaty.data.sync.transport.ClientSyncTransport
-import com.ncy.notechaty.data.sync.transport.LanWebSocketTransport
+import com.ncy.notechaty.data.sync.transport.LanFirstSyncTransport
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -20,5 +20,5 @@ abstract class AppModule {
 
     @Binds
     @Singleton
-    abstract fun bindClientSyncTransport(impl: LanWebSocketTransport): ClientSyncTransport
+    abstract fun bindClientSyncTransport(impl: LanFirstSyncTransport): ClientSyncTransport
 }

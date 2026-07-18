@@ -19,5 +19,11 @@ interface ClientSyncTransport {
         fun onClosed(code: Int, reason: String)
     }
 
-    fun connect(host: String, port: Int, path: String, listener: Listener): Connection
+    fun connect(
+        host: String,
+        port: Int,
+        path: String,
+        pearPublicKey: String?,
+        listener: Listener,
+    ): Connection
 }

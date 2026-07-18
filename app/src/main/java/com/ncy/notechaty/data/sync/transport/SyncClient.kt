@@ -74,7 +74,7 @@ class SyncClient @Inject constructor(
         var secure: TransportCrypto? = null
         lateinit var connection: ClientSyncTransport.Connection
 
-        connection = frameTransport.connect(peer.host, peer.port, "sync", object : ClientSyncTransport.Listener {
+        connection = frameTransport.connect(peer.host, peer.port, "sync", peer.pearPublicKey, object : ClientSyncTransport.Listener {
             override fun onFrame(text: String) {
                 if (text.length > SyncLimits.MAX_WIRE_FRAME_CHARS) {
                     onEvent(Event.Failed("Wire frame exceeds the encrypted transport limit"))

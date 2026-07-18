@@ -13,4 +13,10 @@ class PearRuntimeController @Inject constructor() {
 
     fun start() = Unit
     fun stop() = Unit
+    fun allowPeers(publicKeys: Set<String>) = Unit
+    fun connect(publicKey: String) = Unit
+    fun send(connectionId: String, text: String): Boolean = false
+    fun close(connectionId: String) = Unit
+    fun addListener(listener: PearRuntimeListener) = Unit
+    fun removeListener(listener: PearRuntimeListener) = Unit
 }

@@ -3,11 +3,14 @@ package com.ncy.notechaty.data.sync.pear
 import android.content.Context
 import android.util.Log
 import android.util.Base64
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
+import java.util.concurrent.CopyOnWriteArraySet
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +33,8 @@ class PearRuntimeController @Inject constructor(
     private var worklet: Worklet? = null
     private var ipc: IPC? = null
     private var incoming = ""
+    private val listeners = CopyOnWriteArraySet<PearRuntimeListener>()
+    private var allowedPeers: Set<String> = emptySet()
     private val _status = MutableStateFlow<PearRuntimeStatus>(PearRuntimeStatus.Disabled)
     val status: StateFlow<PearRuntimeStatus> = _status.asStateFlow()
 
@@ -52,7 +57,8 @@ class PearRuntimeController @Inject constructor(
             worklet = nextWorklet
             ipc = nextIpc
             val seed = identitySeed()
-            write(nextIpc, "{\"type\":\"start\",\"seed\":\"$seed\"}\n")
+            command("start", "seed" to seed)
+            sendAllowedPeers()
         }.onFailure { error ->
             Log.e(TAG, "Could not start Bare worklet", error)
             stop()
@@ -73,11 +79,34 @@ class PearRuntimeController @Inject constructor(
     }
 
     @Synchronized
+    fun allowPeers(publicKeys: Set<String>) {
+        allowedPeers = publicKeys
+        sendAllowedPeers()
+    }
+
+    fun connect(publicKey: String) = command("connect", "publicKey" to publicKey)
+
+    fun send(connectionId: String, text: String): Boolean {
+        if (text.length > MAX_FRAME_CHARS || ipc == null) return false
+        command(
+            "send",
+            "id" to connectionId,
+            "data" to Base64.encodeToString(text.toByteArray(StandardCharsets.UTF_8), Base64.NO_WRAP),
+        )
+        return true
+    }
+
+    fun close(connectionId: String) = command("close", "id" to connectionId)
+
+    fun addListener(listener: PearRuntimeListener) { listeners += listener }
+    fun removeListener(listener: PearRuntimeListener) { listeners -= listener }
+
+    @Synchronized
     private fun receive(chunk: String) {
         incoming += chunk
         if (incoming.length > MAX_IPC_CHARS) {
             incoming = ""
-            _status.value = PearRuntimeStatus.Failed("Pear IPC response exceeded 64 KiB")
+            _status.value = PearRuntimeStatus.Failed("Pear IPC response exceeded limit")
             return
         }
         while (true) {
@@ -90,12 +119,50 @@ class PearRuntimeController @Inject constructor(
             runCatching { JsonParser.parseString(line).asJsonObject }.onSuccess { message ->
                 when (message["type"]?.asString) {
                     "ready" -> _status.value = PearRuntimeStatus.Ready(message["publicKey"].asString)
+                    "connected" -> listeners.forEach {
+                        it.onConnected(
+                            message["id"].asString,
+                            message["publicKey"].asString,
+                            message["client"]?.asBoolean == true,
+                        )
+                    }
+                    "frame" -> {
+                        val text = Base64.decode(message["data"].asString, Base64.NO_WRAP)
+                            .toString(StandardCharsets.UTF_8)
+                        listeners.forEach { it.onFrame(message["id"].asString, text) }
+                    }
+                    "disconnected" -> listeners.forEach {
+                        it.onDisconnected(message["id"].asString, message["publicKey"].asString)
+                    }
+                    "connection-error" -> listeners.forEach {
+                        it.onConnectionError(message["message"]?.asString ?: "Pear connection failed")
+                    }
                     "error", "fatal" -> _status.value = PearRuntimeStatus.Failed(
                         message["message"]?.asString ?: "Unknown Pear error"
                     )
                 }
             }
         }
+    }
+
+    @Synchronized
+    private fun sendAllowedPeers() {
+        val target = ipc ?: return
+        val message = JsonObject().apply {
+            addProperty("type", "allow")
+            add("publicKeys", JsonArray().also { array -> allowedPeers.forEach(array::add) })
+        }
+        write(target, message.toString() + '\n')
+    }
+
+    @Synchronized
+    private fun command(type: String, vararg fields: Pair<String, String>) {
+        val target = ipc ?: return
+        val message = JsonObject().apply {
+            addProperty("type", type)
+            fields.forEach { (key, value) -> addProperty(key, value) }
+        }
+        write(target, message.toString() + '\n')
     }
 
     private fun write(target: IPC, message: String) {
@@ -127,7 +194,8 @@ class PearRuntimeController @Inject constructor(
     private companion object {
         const val TAG = "NcyPear"
         const val MEMORY_LIMIT_BYTES = 24 * 1024 * 1024
-        const val MAX_IPC_CHARS = 64 * 1024
+        const val MAX_IPC_CHARS = 2 * 1024 * 1024
+        const val MAX_FRAME_CHARS = 1400 * 1024
         const val WORKLET_ASSET = "ncy-pear.bundle"
         const val IDENTITY_PREFS = "ncy_pear_identity"
         const val IDENTITY_SEED = "seed"

@@ -25,6 +25,7 @@ import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.peer.PhonePairingIdentity
 import com.ncy.notechaty.data.sync.peer.PairingPayload
 import com.ncy.notechaty.data.sync.pear.PearRuntimeController
+import com.ncy.notechaty.data.sync.pear.PearRuntimeListener
 import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -151,6 +152,7 @@ class PhoneSyncServer @Inject constructor(
         server = next
         next.isReuseAddr = true
         registerNetworkCallback()
+        next.startPearSessions()
         next.start()
         liveJob = scope.launch {
             eventBus.events.collect { event -> next.broadcastEvent(event) }
@@ -177,6 +179,7 @@ class PhoneSyncServer @Inject constructor(
         stopAdvertising()
         server?.let { current ->
             current.closeAll(reason)
+            current.stopPearSessions()
             runCatching { current.stop(500) }
         }
         server = null
@@ -225,8 +228,26 @@ class PhoneSyncServer @Inject constructor(
             if (ipv6) InetSocketAddress(InetAddress.getByName("::"), boundPort)
             else InetSocketAddress(boundPort)
         ) {
-        private val clients = java.util.concurrent.ConcurrentHashMap<WebSocket, Client>()
+        private val clients = java.util.concurrent.ConcurrentHashMap<ServerFrameConnection, Client>()
+        private val pearListener = object : PearRuntimeListener {
+            override fun onConnected(connectionId: String, publicKey: String, outgoing: Boolean) {
+                if (!outgoing) openConnection(PearFrameConnection(connectionId))
+            }
+
+            override fun onFrame(connectionId: String, text: String) {
+                val connection = PearFrameConnection(connectionId)
+                if (clients.containsKey(connection)) receiveFrame(connection, text)
+            }
+
+            override fun onDisconnected(connectionId: String, publicKey: String) {
+                closeConnection(PearFrameConnection(connectionId))
+            }
+        }
         @Volatile var listening: Boolean = false
+
+        fun startPearSessions() = pearRuntimeController.addListener(pearListener)
+
+        fun stopPearSessions() = pearRuntimeController.removeListener(pearListener)
 
         override fun onStart() {
             connectionLostTimeout = 30
@@ -239,6 +260,10 @@ class PhoneSyncServer @Inject constructor(
                 conn.close(1002, "wrong path")
                 return
             }
+            openConnection(WebSocketFrameConnection(conn))
+        }
+
+        private fun openConnection(conn: ServerFrameConnection) {
             val nonce = ByteArray(16).also(SecureRandom()::nextBytes)
             val nonce64 = Base64.encodeToString(nonce, Base64.NO_WRAP)
             clients[conn] = Client(nonce64)
@@ -246,6 +271,10 @@ class PhoneSyncServer @Inject constructor(
         }
 
         override fun onMessage(conn: WebSocket, text: String) {
+            receiveFrame(WebSocketFrameConnection(conn), text)
+        }
+
+        private fun receiveFrame(conn: ServerFrameConnection, text: String) {
             if (text.length > SyncLimits.MAX_WIRE_FRAME_CHARS) {
                 conn.close(1009, "frame too large")
                 return
@@ -350,6 +379,10 @@ class PhoneSyncServer @Inject constructor(
         }
 
         override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {
+            closeConnection(WebSocketFrameConnection(conn))
+        }
+
+        private fun closeConnection(conn: ServerFrameConnection) {
             val removed = clients.remove(conn)
             removed?.pending?.values?.forEach { it.discard() }
             removed?.deviceId?.let { id ->
@@ -380,7 +413,7 @@ class PhoneSyncServer @Inject constructor(
         }
 
         private fun finishCatchupAndGoLive(
-            conn: WebSocket,
+            conn: ServerFrameConnection,
             client: Client,
             remoteDeviceId: String,
             sinceHlc: com.ncy.notechaty.data.sync.event.HlcTimestamp?,
@@ -425,7 +458,7 @@ class PhoneSyncServer @Inject constructor(
             }
         }
 
-        private fun sendSecure(conn: WebSocket, client: Client, message: SyncWireMessage): Boolean =
+        private fun sendSecure(conn: ServerFrameConnection, client: Client, message: SyncWireMessage): Boolean =
             synchronized(client) {
                 val channel = client.secure ?: return@synchronized false
                 runCatching {
@@ -478,7 +511,7 @@ class PhoneSyncServer @Inject constructor(
             }
         }
 
-        private suspend fun receiveEvent(conn: WebSocket, client: Client, event: ChatEvent) {
+        private suspend fun receiveEvent(conn: ServerFrameConnection, client: Client, event: ChatEvent) {
             // Event-id dedup makes normal echoes harmless while allowing a restored
             // installation to recover an own-origin event it no longer has locally.
             if (!com.ncy.notechaty.data.sync.event.HlcTimestamp.isAcceptableRemote(
@@ -511,7 +544,7 @@ class PhoneSyncServer @Inject constructor(
             }
         }
 
-        private suspend fun serveBlob(conn: WebSocket, client: Client, hash: String, mediaType: String) {
+        private suspend fun serveBlob(conn: ServerFrameConnection, client: Client, hash: String, mediaType: String) {
             val file = repository.mediaFileForHash(hash, mediaType)
             if (file == null || !file.isFile) {
                 sendSecure(conn, client, SyncWireMessage.BlobMissing(hash))
@@ -585,6 +618,34 @@ class PhoneSyncServer @Inject constructor(
                 pending.tempFile.delete()
             }
         }
+    }
+
+    /** Transport-neutral connection used by the authenticated sync session host. */
+    private interface ServerFrameConnection {
+        val isOpen: Boolean
+        fun send(text: String)
+        fun close(code: Int, reason: String)
+    }
+
+    private data class WebSocketFrameConnection(
+        private val socket: WebSocket,
+    ) : ServerFrameConnection {
+        override val isOpen: Boolean get() = socket.isOpen
+        override fun send(text: String) = socket.send(text)
+        override fun close(code: Int, reason: String) = socket.close(code, reason)
+    }
+
+    private inner class PearFrameConnection(
+        private val connectionId: String,
+    ) : ServerFrameConnection {
+        override val isOpen: Boolean get() = true
+        override fun send(text: String) {
+            pearRuntimeController.send(connectionId, text)
+        }
+        override fun close(code: Int, reason: String) = pearRuntimeController.close(connectionId)
+        override fun equals(other: Any?): Boolean =
+            other is PhoneSyncServer.PearFrameConnection && other.connectionId == connectionId
+        override fun hashCode(): Int = connectionId.hashCode()
     }
 
     private data class Client(

@@ -21,6 +21,7 @@ class LanWebSocketTransport @Inject constructor() : ClientSyncTransport {
         host: String,
         port: Int,
         path: String,
+        pearPublicKey: String?,
         listener: ClientSyncTransport.Listener,
     ): ClientSyncTransport.Connection {
         val request = Request.Builder()

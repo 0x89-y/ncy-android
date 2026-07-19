@@ -1,6 +1,7 @@
 # Pear packaging decisions
 
-Status: agreed direction; packaging work not yet implemented.
+Status: agreed direction. Pear was promoted into the single production Android
+application on 2026-07-19; ABI-specific and desktop/server packaging remain pending.
 
 ## Product direction
 
@@ -73,8 +74,9 @@ Measured Windows Pear payload on 2026-07-19:
 
 1. Configure Android App Bundle and/or per-ABI APK outputs for `arm64-v8a`,
    `armeabi-v7a` and `x86_64`, with no `x86` artifact.
-2. Merge the Pear-enabled Android flavor into the single production Ncy product while
-   preserving the off-by-default runtime toggle and consent behavior.
+2. **Completed 2026-07-19:** Merge the Pear-enabled Android flavor into the single
+   production Ncy product while preserving the off-by-default runtime toggle and consent
+   behavior.
 3. Add target-specific Bare runtime, worker bundle and addons to desktop release resources.
 4. Add the equivalent target-specific resource layout to ncy-server release packaging.
 5. Confirm NSIS LZMA configuration and measure compressed versus installed Windows sizes.

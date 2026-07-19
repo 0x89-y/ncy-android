@@ -2,7 +2,7 @@
 
 ## Pear/Bare development setup
 
-The experimental `dev` flavor embeds Bare Kit and a linked Hyperswarm worker. Generated
+Both Android flavors embed Bare Kit and a linked Hyperswarm worker. Generated
 native artifacts stay out of Git. After cloning with submodules, prepare them with:
 
 ```powershell
@@ -14,8 +14,9 @@ git submodule update --init --recursive
 `setup_bare_kit.ps1` downloads the pinned Bare Kit `v2.3.0` release and verifies its
 published SHA-256 before creating a local AAR. `build_pear_worker.ps1` uses `npm ci`,
 bundles `pear-worker/index.js` for Android, and adds the matching official sodium/UDX
-prebuilds to that dev-only AAR. None of this code starts unless the user explicitly enables
-**Sync outside your local network**; the production flavor packages no Bare libraries.
+prebuilds to the local AAR. None of this code starts unless the user explicitly enables
+**Sync outside your local network**. Pear remains off by default in every flavor and starts
+only after explicit user consent.
 
 ## `sync_test_server.py`
 

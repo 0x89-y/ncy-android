@@ -189,7 +189,7 @@ and recommend stable DNS/IP or manual endpoint repair where mDNS is unsuitable.
 
 - URL: `ws://<host>:<port>/sync`
 - Frames: WebSocket **text** frames. UTF-8 JSON. One JSON object per frame.
-- Ncy Dev may, after explicit opt-in, carry those same complete UTF-8 frames over a
+- Ncy may, after explicit opt-in, carry those same complete UTF-8 frames over a
   length-prefixed Pear/Hyperswarm Noise stream. Its installation-local connection policy is
   one of **Local only**, **Pear only**, **Local preferred**, or **Pear preferred**. A preferred
   transport may fall back to the other transport only while establishing a connection; an
@@ -210,8 +210,8 @@ The discovery-initiated flow is the only pre-PSK exception: `PairRequest` and
 credential-bearing `PairAccept` payload is already protected by its ECDH-derived
 AES-GCM key. Normal sync never falls back to plaintext application frames.
 
-Pear is disabled by default and absent from the production flavor. **Local only** is the
-default and guarantees that the Pear runtime, DHT discovery, and Pear connection attempts
+Pear is included in the production application but disabled by default. **Local only** is
+the default and guarantees that the Pear runtime, DHT discovery, and Pear connection attempts
 are not started. Selecting any Pear-capable policy requires explicit privacy consent.
 **Pear only** never attempts the saved LAN endpoint. **Local preferred** tries LAN first and
 uses Pear when LAN is unavailable or the initial LAN attempt fails. **Pear preferred** does

@@ -21,11 +21,8 @@ import to.holepunch.bare.kit.IPC
 import to.holepunch.bare.kit.Worklet
 
 /**
- * Owns the experimental Bare worklet in Ncy Dev.
- *
- * This first stage is deliberately network-free: it proves native loading, IPC, and Android
- * lifecycle behavior before Hyperswarm is bundled. Construction has no side effects; Bare's
- * native library is loaded only after the user explicitly enables Pear and [start] is called.
+ * Owns the opt-in Bare/Hyperswarm worklet. Construction has no side effects; Bare's native
+ * library is loaded only after the user explicitly enables Pear and [start] is called.
  */
 @Singleton
 class PearRuntimeController @Inject constructor(

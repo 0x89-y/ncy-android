@@ -31,7 +31,7 @@ async function start(message) {
       return
     }
     const id = String(nextConnectionId++)
-    connections.set(id, connection)
+    connections.set(id, { connection, publicKey: info.publicKey })
     let frames = b4a.alloc(0)
     reply({ type: 'connected', id, publicKey, client: Boolean(info.client) })
     connection.on('data', (chunk) => {
@@ -50,6 +50,7 @@ async function start(message) {
     })
     connection.on('close', () => {
       connections.delete(id)
+      if (info.client) swarm?.leavePeer(info.publicKey)
       reply({ type: 'disconnected', id, publicKey })
     })
     connection.on('error', (error) => {
@@ -83,21 +84,25 @@ async function dispatch(message) {
     case 'connect': {
       if (!swarm) throw new Error('Pear is not ready')
       if (!allowedPeers.has(message.publicKey)) throw new Error('Pear peer is not paired')
-      swarm.connect(b4a.from(message.publicKey, 'hex'))
+      swarm.joinPeer(b4a.from(message.publicKey, 'hex'))
       return
     }
     case 'send': {
-      const connection = connections.get(String(message.id))
-      if (!connection) throw new Error('Unknown Pear connection')
+      const entry = connections.get(String(message.id))
+      if (!entry) throw new Error('Unknown Pear connection')
       const frame = b4a.from(message.data, 'base64')
       if (frame.byteLength > MAX_FRAME_BYTES) throw new Error('Pear frame exceeds limit')
       const header = b4a.alloc(4)
       header.writeUInt32BE(frame.byteLength, 0)
-      connection.write(b4a.concat([header, frame]))
+      entry.connection.write(b4a.concat([header, frame]))
       return
     }
     case 'close': {
-      connections.get(String(message.id))?.end()
+      const entry = connections.get(String(message.id))
+      if (entry) {
+        swarm?.leavePeer(entry.publicKey)
+        entry.connection.end()
+      }
       return
     }
     default: throw new Error(`Unknown command: ${message.type}`)

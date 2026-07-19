@@ -39,6 +39,7 @@ import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 private data class LicenseEntry(
     val name: String,
     val author: String,
+    val license: String = "Apache-2.0",
     val url: String
 )
 
@@ -92,6 +93,36 @@ private val licenses = listOf(
         name = "ZXing Android Embedded",
         author = "JourneyApps / ZXing",
         url = "https://github.com/journeyapps/zxing-android-embedded"
+    ),
+    LicenseEntry(
+        name = "Bare / Bare Kit",
+        author = "Holepunch",
+        license = "Apache-2.0",
+        url = "https://github.com/holepunchto/bare-kit"
+    ),
+    LicenseEntry(
+        name = "Hyperswarm",
+        author = "Holepunch contributors",
+        license = "MIT",
+        url = "https://github.com/holepunchto/hyperswarm"
+    ),
+    LicenseEntry(
+        name = "HyperDHT",
+        author = "Holepunch contributors",
+        license = "MIT",
+        url = "https://github.com/holepunchto/hyperdht"
+    ),
+    LicenseEntry(
+        name = "sodium-native",
+        author = "Holepunch contributors",
+        license = "MIT",
+        url = "https://github.com/holepunchto/sodium-native"
+    ),
+    LicenseEntry(
+        name = "udx-native",
+        author = "Holepunch contributors",
+        license = "Apache-2.0",
+        url = "https://github.com/holepunchto/udx-native"
     )
 )
 
@@ -169,7 +200,7 @@ private fun LicenseRow(entry: LicenseEntry, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(entry.name, style = MaterialTheme.typography.bodyLarge)
             Text(
-                entry.author,
+                "${entry.author} · ${entry.license}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -194,7 +225,7 @@ private fun ApacheLicensePanel() {
         ) {
             Text("Apache License 2.0", style = MaterialTheme.typography.titleSmall)
             Text(
-                "All of the libraries above are licensed under the Apache License, Version 2.0.",
+                "Ncy includes software under Apache-2.0, MIT, and ISC licenses. A detailed dependency inventory and the license and notice texts supplied by bundled Pear packages are included in the application asset THIRD_PARTY_NOTICES_PEAR.md.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

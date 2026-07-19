@@ -26,6 +26,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "npm ci failed for the Pear worker" }
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "Bare Pack failed for the Pear worker" }
+    npm run notices
+    if ($LASTEXITCODE -ne 0) { throw "Pear third-party notice generation failed" }
 } finally {
     Pop-Location
 }

@@ -76,6 +76,7 @@ fun SyncScreen(
     val hostState by viewModel.hostState.collectAsState()
     val hostingEnabled by viewModel.hostingEnabled.collectAsState()
     val hostedPeers by viewModel.hostedPeers.collectAsState()
+    val pendingPairing by viewModel.pendingPairing.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val pearStatus by viewModel.pearStatus.collectAsState()
     var showShareDialog by remember { mutableStateOf(false) }
@@ -105,7 +106,7 @@ fun SyncScreen(
             val error = viewModel.pair(contents)
             if (error == null) {
                 pairingText = ""
-                pairingSuccess = "Paired. Ncy will connect when in foreground."
+                pairingSuccess = pairingImportMessage(contents)
                 pairingError = null
             } else {
                 pairingText = contents
@@ -134,6 +135,24 @@ fun SyncScreen(
             pearStatus = pearStatus,
             onDismiss = { showShareDialog = false },
             onRegenerate = viewModel::regeneratePairing,
+        )
+    }
+
+    pendingPairing?.let { request ->
+        NcyAlertDialog(
+            onDismissRequest = {},
+            title = { Text("Allow this device?") },
+            text = {
+                Text(
+                    "${request.deviceName} scanned this phone's pairing code. Allowing it will begin encrypted chat synchronization."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::approvePendingPairing) { Text("Allow") }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::rejectPendingPairing) { Text("Reject") }
+            },
         )
     }
 
@@ -290,7 +309,7 @@ fun SyncScreen(
                             val error = viewModel.pair(pairingText)
                             if (error == null) {
                                 pairingText = ""
-                                pairingSuccess = "Paired. Ncy will connect when in foreground."
+                                pairingSuccess = pairingImportMessage(submitted)
                                 pairingError = null
                                 if (clipboard.getText()?.text == submitted) {
                                     clipboard.setText(AnnotatedString(""))
@@ -496,6 +515,13 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+private fun pairingImportMessage(raw: String): String =
+    if (PairingPayload.parse(raw)?.availability == PairingPayload.AVAILABILITY_FOREGROUND) {
+        "Pairing saved. Approve the request on the sharing phone."
+    } else {
+        "Pairing saved. Ncy will connect when the device is available."
+    }
+
 private fun pairingQrBitmap(text: String, size: Int = 768): Bitmap? = runCatching {
     val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
     val pixels = IntArray(size * size)
@@ -641,7 +667,8 @@ private fun PeerCard(
                         else "Waiting for a usable LAN"
                     peer.nextRetryAt != null -> "Scheduled ${formatter.format(Date(peer.nextRetryAt))}"
                     state is SyncManager.PeerState.Failed &&
-                        state.reason == SyncFailurePolicy.REPAIR_MESSAGE -> "Stopped until re-pairing"
+                        (state.reason == SyncFailurePolicy.REPAIR_MESSAGE ||
+                            state.reason == SyncFailurePolicy.REJECTED_MESSAGE) -> "Stopped until peer is removed"
                     else -> "No retry scheduled"
                 }
                 val lan = when {
@@ -679,7 +706,8 @@ private fun PeerCard(
                 }
             }
             if (state is SyncManager.PeerState.Failed &&
-                state.reason == SyncFailurePolicy.REPAIR_MESSAGE
+                (state.reason == SyncFailurePolicy.REPAIR_MESSAGE ||
+                    state.reason == SyncFailurePolicy.REJECTED_MESSAGE)
             ) {
                 Text(
                     "Automatic retries are stopped because this is a trust failure, not a network outage.",

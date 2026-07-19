@@ -4,6 +4,8 @@ package com.ncy.notechaty.data.sync
 object SyncFailurePolicy {
     const val REPAIR_MESSAGE =
         "Pairing credential was revoked or changed. Remove this device and pair again."
+    const val REJECTED_MESSAGE =
+        "Pairing was rejected on the other device. Remove this device before trying again."
 
     fun isIdentityFailure(reason: String): Boolean {
         val lower = reason.lowercase()
@@ -21,8 +23,15 @@ object SyncFailurePolicy {
     }
 
     fun stopsAutomaticRetry(reason: String): Boolean =
-        isIdentityFailure(reason) || isRejectedCredential(reason)
+        isIdentityFailure(reason) || isRejectedCredential(reason) || isHostRejection(reason)
 
     fun userFacingReason(reason: String): String =
-        if (isRejectedCredential(reason)) REPAIR_MESSAGE else reason
+        when {
+            isHostRejection(reason) -> REJECTED_MESSAGE
+            isRejectedCredential(reason) -> REPAIR_MESSAGE
+            else -> reason
+        }
+
+    private fun isHostRejection(reason: String): Boolean =
+        reason.lowercase().contains("pairing_rejected")
 }

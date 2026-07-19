@@ -77,6 +77,8 @@ class PhoneSyncServer @Inject constructor(
         val legacySharedCredential: Boolean = false,
     )
 
+    data class PendingPairing(val deviceId: String, val deviceName: String)
+
     sealed class HostState {
         object Disabled : HostState()
         object Stopped : HostState()
@@ -106,6 +108,8 @@ class PhoneSyncServer @Inject constructor(
     val state: StateFlow<HostState> = _state.asStateFlow()
     private val _hostedPeers = MutableStateFlow(loadHostedPeers())
     val hostedPeers: StateFlow<List<HostedPeer>> = _hostedPeers.asStateFlow()
+    private val _pendingPairing = MutableStateFlow<PendingPairing?>(null)
+    val pendingPairing: StateFlow<PendingPairing?> = _pendingPairing.asStateFlow()
     private var server: Server? = null
     private var liveJob: Job? = null
     private var transferCleanupJob: Job? = null
@@ -184,6 +188,7 @@ class PhoneSyncServer @Inject constructor(
             runCatching { current.stop(500) }
         }
         server = null
+        _pendingPairing.value = null
         _hostedPeers.value = _hostedPeers.value.map { it.copy(connected = false) }
         _state.value = if (_enabled.value) HostState.Stopped else HostState.Disabled
     }
@@ -211,6 +216,10 @@ class PhoneSyncServer @Inject constructor(
         server?.closeClient(peerId)
     }
 
+    fun approvePendingPairing() = server?.approvePendingPairing()
+
+    fun rejectPendingPairing() = server?.rejectPendingPairing("Pairing rejected on host")
+
     private fun refreshPairingPayload() {
         val current = server
         val host = localLanAddress()
@@ -232,6 +241,7 @@ class PhoneSyncServer @Inject constructor(
             else InetSocketAddress(boundPort)
         ) {
         private val clients = java.util.concurrent.ConcurrentHashMap<ServerFrameConnection, Client>()
+        @Volatile private var pendingApproval: PendingApproval? = null
         private val pearListener = object : PearRuntimeListener {
             override fun onConnected(connectionId: String, publicKey: String, outgoing: Boolean) {
                 if (!outgoing) openConnection(PearFrameConnection(connectionId))
@@ -310,7 +320,7 @@ class PhoneSyncServer @Inject constructor(
                     "Phone ${hello.deviceId.take(8)}",
                     hello.deviceName,
                 )
-                val auth = authenticate(client.nonce, hello.clientNonce, hello.auth, hello.deviceId, name)
+                val auth = authenticate(client.nonce, hello.clientNonce, hello.auth, hello.deviceId)
                 if (auth == null) {
                     conn.send(codec.encode(SyncWireMessage.Error("auth_failed", "Invalid or already-claimed pairing code")))
                     conn.close(1002, "auth failed")
@@ -350,24 +360,31 @@ class PhoneSyncServer @Inject constructor(
                     conn.close(1008, "identity collision")
                     return
                 }
-                client.deviceName = name
-                recordHostedPeer(
-                    id = hello.deviceId,
-                    name = name,
-                    connected = true,
-                    credential = auth.credential,
-                    legacySharedCredential = auth.legacySharedCredential,
-                )
                 if (auth.claimedInvitation) {
-                    refreshPairingPayload()
+                    // Proving possession of a QR credential is necessary but does not
+                    // authorize access. Pause before persisting the peer or sending Welcome.
+                    client.deviceId = null
+                    val pending = PendingApproval(conn, client, hello, name, auth)
+                    synchronized(this) {
+                        if (pendingApproval != null) {
+                            sendSecure(conn, client, SyncWireMessage.Error("pairing_busy", "Another pairing awaits confirmation"))
+                            conn.close(1008, "pairing busy")
+                            return
+                        }
+                        pendingApproval = pending
+                        _pendingPairing.value = PendingPairing(hello.deviceId, name)
+                    }
+                    scope.launch {
+                        delay(PAIRING_CONFIRM_TIMEOUT_MS)
+                        synchronized(this@Server) {
+                            if (pendingApproval === pending) {
+                                rejectPendingPairing("Pairing confirmation timed out")
+                            }
+                        }
+                    }
+                    return
                 }
-                synchronized(client) {
-                    client.catchingUp = true
-                    client.queuedLive.clear()
-                    client.catchupSentEventIds.clear()
-                }
-                sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, android.os.Build.MODEL ?: "Android phone"))
-                scope.launch { finishCatchupAndGoLive(conn, client, hello.deviceId, hello.sinceHlc) }
+                finishAuthentication(conn, client, hello, name, auth, claimInvitation = false)
                 return
             }
             when (msg) {
@@ -386,6 +403,12 @@ class PhoneSyncServer @Inject constructor(
         }
 
         private fun closeConnection(conn: ServerFrameConnection) {
+            synchronized(this) {
+                if (pendingApproval?.connection == conn) {
+                    pendingApproval = null
+                    _pendingPairing.value = null
+                }
+            }
             val removed = clients.remove(conn)
             removed?.pending?.values?.forEach { it.discard() }
             removed?.deviceId?.let { id ->
@@ -486,6 +509,67 @@ class PhoneSyncServer @Inject constructor(
 
         fun closeAll(reason: String) = clients.keys.forEach {
             it.close(CLOSE_GOING_AWAY, reason)
+        }
+
+        @Synchronized
+        fun approvePendingPairing() {
+            val pending = pendingApproval ?: return
+            pendingApproval = null
+            _pendingPairing.value = null
+            if (!pending.connection.isOpen || pairingIdentity.secret != pending.auth.credential) {
+                pending.connection.close(1008, "pairing invitation expired")
+                return
+            }
+            if (claimClientIdentity(pending.client, pending.hello.deviceId) != null) {
+                pending.connection.close(1008, "identity collision")
+                return
+            }
+            finishAuthentication(
+                pending.connection,
+                pending.client,
+                pending.hello,
+                pending.deviceName,
+                pending.auth,
+                claimInvitation = true,
+            )
+        }
+
+        @Synchronized
+        fun rejectPendingPairing(reason: String) {
+            val pending = pendingApproval ?: return
+            pendingApproval = null
+            _pendingPairing.value = null
+            sendSecure(pending.connection, pending.client, SyncWireMessage.Error("pairing_rejected", reason))
+            pending.connection.close(1008, "pairing rejected")
+        }
+
+        private fun finishAuthentication(
+            conn: ServerFrameConnection,
+            client: Client,
+            hello: SyncWireMessage.Hello,
+            name: String,
+            auth: AuthResult,
+            claimInvitation: Boolean,
+        ) {
+            client.deviceName = name
+            recordHostedPeer(
+                id = hello.deviceId,
+                name = name,
+                connected = true,
+                credential = auth.credential,
+                legacySharedCredential = auth.legacySharedCredential,
+            )
+            if (claimInvitation) {
+                pairingIdentity.regenerateSecret()
+                refreshPairingPayload()
+            }
+            synchronized(client) {
+                client.catchingUp = true
+                client.queuedLive.clear()
+                client.catchupSentEventIds.clear()
+            }
+            sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, android.os.Build.MODEL ?: "Android phone"))
+            scope.launch { finishCatchupAndGoLive(conn, client, hello.deviceId, hello.sinceHlc) }
         }
 
         @Synchronized
@@ -692,13 +776,20 @@ class PhoneSyncServer @Inject constructor(
         val legacySharedCredential: Boolean,
     )
 
+    private data class PendingApproval(
+        val connection: ServerFrameConnection,
+        val client: Client,
+        val hello: SyncWireMessage.Hello,
+        val deviceName: String,
+        val auth: AuthResult,
+    )
+
     @Synchronized
     private fun authenticate(
         nonce64: String,
         clientNonce64: String,
         auth64: String,
         deviceId: String,
-        deviceName: String,
     ): AuthResult? {
         val existing = _hostedPeers.value.firstOrNull { it.id == deviceId }
         if (existing != null && validAuth(existing.credential, nonce64, clientNonce64, deviceId, auth64)) {
@@ -707,10 +798,6 @@ class PhoneSyncServer @Inject constructor(
         val invitation = pairingIdentity.secret
         if (!validAuth(invitation, nonce64, clientNonce64, deviceId, auth64)) return null
 
-        // Claim the current invitation for this device. Rotation happens before
-        // another Hello can claim it because this method is synchronized.
-        recordHostedPeer(deviceId, deviceName, true, invitation, false)
-        pairingIdentity.regenerateSecret()
         return AuthResult(invitation, true, false)
     }
 
@@ -1080,6 +1167,7 @@ class PhoneSyncServer @Inject constructor(
     private companion object {
         const val TAG = "PhoneSyncServer"
         const val DEFAULT_PORT = 8765
+        const val PAIRING_CONFIRM_TIMEOUT_MS = 60_000L
         const val CHUNK_SIZE = 64 * 1024
         const val NETWORK_REFRESH_DEBOUNCE_MS = 500L
         const val ADVERTISEMENT_RESTART_DELAY_MS = 500L

@@ -41,6 +41,7 @@ class SyncViewModel @Inject constructor(
     val hostState: StateFlow<PhoneSyncServer.HostState> = phoneSyncServer.state
     val hostingEnabled: StateFlow<Boolean> = phoneSyncServer.enabled
     val hostedPeers: StateFlow<List<PhoneSyncServer.HostedPeer>> = phoneSyncServer.hostedPeers
+    val pendingPairing: StateFlow<PhoneSyncServer.PendingPairing?> = phoneSyncServer.pendingPairing
     val settings = settingsRepository.settings
     val pearStatus = pearRuntimeController.status
 
@@ -157,6 +158,10 @@ class SyncViewModel @Inject constructor(
     fun regeneratePairing() = phoneSyncServer.regeneratePairing()
 
     fun revokeHostedPeer(peerId: String) = phoneSyncServer.revokeHostedPeer(peerId)
+
+    fun approvePendingPairing() = phoneSyncServer.approvePendingPairing()
+
+    fun rejectPendingPairing() = phoneSyncServer.rejectPendingPairing()
 
     fun setHostingEnabled(enabled: Boolean) = phoneSyncServer.setEnabled(enabled)
 }

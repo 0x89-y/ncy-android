@@ -71,8 +71,10 @@ as trust-on-first-use: it stores the (`deviceId`, `secret`) pair and uses them f
 every subsequent connection. Removing a peer on the phone fully forgets the secret.
 When the payload supplies only `pearPublicKey`, importing it initiates the same authenticated
 sync handshake directly with that exact Pear identity. Ncy performs no Pear peer search or
-pairing discovery. The host must not expose or persist chat data until the invitation secret
-has authenticated successfully, and must retain the same one-device invitation rotation rules.
+pairing discovery. After the invitation secret authenticates, a phone host requires explicit
+local approval before it persists the new peer, sends `Welcome`, or exposes chat data. Rejection
+closes the pending connection without consuming the invitation. The host retains the same
+one-device invitation rotation rules after approval.
 
 Pairing QR codes and JSON are bearer credentials. Implementations must label them as
 sensitive, keep claimed credentials hidden by default, avoid logging them, exclude

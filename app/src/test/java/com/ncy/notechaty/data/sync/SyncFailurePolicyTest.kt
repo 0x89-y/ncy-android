@@ -24,4 +24,11 @@ class SyncFailurePolicyTest {
         assertFalse(SyncFailurePolicy.stopsAutomaticRetry("timeout"))
         assertEquals("timeout", SyncFailurePolicy.userFacingReason("timeout"))
     }
+
+    @Test
+    fun hostPairingRejectionStopsAutomaticRetries() {
+        val reason = "pairing_rejected: Pairing rejected on host"
+        assertTrue(SyncFailurePolicy.stopsAutomaticRetry(reason))
+        assertEquals(SyncFailurePolicy.REJECTED_MESSAGE, SyncFailurePolicy.userFacingReason(reason))
+    }
 }

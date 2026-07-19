@@ -18,6 +18,12 @@ prebuilds to the local AAR. None of this code starts unless the user explicitly 
 **Sync outside your local network**. Pear remains off by default in every flavor and starts
 only after explicit user consent.
 
+Release APK builds are split by ABI to avoid shipping several large Bare runtimes to one
+device. `arm64-v8a` is the primary physical-device artifact, `armeabi-v7a` supports legacy
+32-bit phones, and `x86_64` supports emulators. The obsolete 32-bit `x86` ABI and a universal
+fat APK are intentionally not produced. For store distribution, build the production App
+Bundle and let the store serve its matching ABI split.
+
 ## `sync_test_server.py`
 
 A minimal Python WebSocket server that implements the phase-1 sync wire protocol.

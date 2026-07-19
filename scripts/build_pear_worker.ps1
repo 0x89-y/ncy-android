@@ -40,7 +40,6 @@ if ($LASTEXITCODE -ne 0) { throw "Could not unpack the Bare Kit AAR" }
 $abis = @{
     "android-arm64" = "arm64-v8a"
     "android-arm" = "armeabi-v7a"
-    "android-ia32" = "x86"
     "android-x64" = "x86_64"
 }
 $addons = @{
@@ -48,6 +47,14 @@ $addons = @{
     "bare-type" = "libbare-type.1.1.0.so"
     "sodium-native" = "libsodium-native.5.1.0.so"
     "udx-native" = "libudx-native.1.20.7.so"
+}
+
+# The upstream AAR contains legacy 32-bit x86. Ncy intentionally publishes no
+# x86 artifact, so remove it from the linked AAR as well; APK split filters alone
+# do not remove an ABI from Android App Bundles.
+$legacyX86Dir = Join-Path $workRoot "jni/x86"
+if (Test-Path -LiteralPath $legacyX86Dir) {
+    Remove-Item -LiteralPath $legacyX86Dir -Recurse -Force
 }
 
 foreach ($hostName in $abis.Keys) {

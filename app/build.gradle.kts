@@ -42,6 +42,19 @@ android {
         }
     }
 
+    // Bare Kit dominates the Android package size. Generate one APK per supported
+    // architecture so direct-download users never receive native runtimes their
+    // device cannot execute. Google Play likewise uses these ABI inputs when
+    // producing device-specific APKs from the App Bundle.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = false
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true

@@ -40,6 +40,15 @@ Measured development artifacts on 2026-07-19:
 | `armeabi-v7a` `libbare-kit.so` | 48.69 MB |
 | `x86_64` `libbare-kit.so` | 63.82 MB |
 
+Measured unsigned production release artifacts after ABI splitting on 2026-07-19:
+
+| Artifact | Size |
+| --- | ---: |
+| `arm64-v8a` APK | 69.55 MB |
+| `armeabi-v7a` APK | 55.81 MB |
+| `x86_64` APK | 71.54 MB |
+| Three-ABI Android App Bundle | 58.10 MB |
+
 Expected Pear overhead for a per-ABI artifact is roughly 50–66 MB instead of
 244 MB. Final release artifacts must be measured rather than inferred from debug builds.
 
@@ -72,8 +81,8 @@ Measured Windows Pear payload on 2026-07-19:
 
 ## Packaging work to schedule
 
-1. Configure Android App Bundle and/or per-ABI APK outputs for `arm64-v8a`,
-   `armeabi-v7a` and `x86_64`, with no `x86` artifact.
+1. **Completed 2026-07-19:** Configure Android App Bundle and per-ABI APK outputs for
+   `arm64-v8a`, `armeabi-v7a` and `x86_64`, with no `x86` or universal APK artifact.
 2. **Completed 2026-07-19:** Merge the Pear-enabled Android flavor into the single
    production Ncy product while preserving the off-by-default runtime toggle and consent
    behavior.

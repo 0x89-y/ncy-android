@@ -49,19 +49,14 @@ class PearRuntimeController @Inject constructor(
         runCatching {
             val nextWorklet = Worklet(Worklet.Options().memoryLimit(MEMORY_LIMIT_BYTES))
             Log.i(TAG, "Bare worklet created")
-            val nextIpc = IPC(nextWorklet)
-            nextIpc.readable {
-                while (true) {
-                    val data = nextIpc.read() ?: break
-                    receive(data.toUtf8String())
-                }
-            }
             val bundle = context.assets.open(WORKLET_ASSET).use { it.readBytes() }
             worklet = nextWorklet
-            ipc = nextIpc
             pendingSeed = identitySeed()
             nextWorklet.start("/ncy-pear.bundle", ByteBuffer.wrap(bundle), emptyArray())
             Log.i(TAG, "Pear bundle started; waiting for worker boot")
+            val nextIpc = IPC(nextWorklet)
+            ipc = nextIpc
+            readNext(nextIpc)
         }.onFailure { error ->
             Log.e(TAG, "Could not start Bare worklet", error)
             stop()
@@ -230,6 +225,18 @@ class PearRuntimeController @Inject constructor(
         val bytes = ByteArray(remaining())
         get(bytes)
         return bytes.toString(StandardCharsets.UTF_8)
+    }
+
+    private fun readNext(target: IPC) {
+        target.read { data, error ->
+            if (error != null) {
+                Log.e(TAG, "Could not read Bare IPC", error)
+                _status.value = PearRuntimeStatus.Failed(error.message ?: "Pear IPC read failed")
+                return@read
+            }
+            if (data != null) receive(data.toUtf8String())
+            if (ipc === target) readNext(target)
+        }
     }
 
     private companion object {

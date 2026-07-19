@@ -39,6 +39,8 @@ import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
+import com.ncy.notechaty.data.sync.peer.PairingPayload
+import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.data.sync.transport.SyncEndpoint
 import com.google.zxing.BarcodeFormat
@@ -74,6 +76,8 @@ fun SyncScreen(
     val hostState by viewModel.hostState.collectAsState()
     val hostingEnabled by viewModel.hostingEnabled.collectAsState()
     val hostedPeers by viewModel.hostedPeers.collectAsState()
+    val settings by viewModel.settings.collectAsState()
+    val pearStatus by viewModel.pearStatus.collectAsState()
     var showShareDialog by remember { mutableStateOf(false) }
     var pairingText by remember { mutableStateOf("") }
     var pairingError by remember { mutableStateOf<String?>(null) }
@@ -126,6 +130,8 @@ fun SyncScreen(
     if (showShareDialog) {
         PairingDialog(
             state = hostState,
+            pearEnabled = settings.pearSyncEnabled,
+            pearStatus = pearStatus,
             onDismiss = { showShareDialog = false },
             onRegenerate = viewModel::regeneratePairing,
         )
@@ -373,6 +379,8 @@ fun SyncScreen(
 @Composable
 private fun PairingDialog(
     state: PhoneSyncServer.HostState,
+    pearEnabled: Boolean,
+    pearStatus: PearRuntimeStatus,
     onDismiss: () -> Unit,
     onRegenerate: () -> Unit,
 ) {
@@ -408,18 +416,34 @@ private fun PairingDialog(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    val payloadHasPear = remember(state.pairingJson) {
+                        PairingPayload.parse(state.pairingJson)?.pearPublicKey != null
+                    }
                     val qr = remember(state.pairingJson) { pairingQrBitmap(state.pairingJson) }
-                    if (qr != null) {
+                    if (qr != null && (!pearEnabled || payloadHasPear)) {
                         Image(
                             bitmap = qr.asImageBitmap(),
                             contentDescription = "Phone pairing QR code",
                             modifier = Modifier.size(240.dp),
                         )
+                    } else if (pearEnabled && pearStatus is PearRuntimeStatus.Starting) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(120.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { CircularProgressIndicator() }
                     }
                     Text(
-                        "Scan this from one other device. The code refreshes after it is claimed. Both devices must be on the same Wi-Fi and this phone must keep Ncy open.",
+                        when {
+                            payloadHasPear -> "Pear internet key included. Scan this from the other device; LAN will still be preferred."
+                            pearEnabled && pearStatus is PearRuntimeStatus.Starting -> "Pear is still starting. Wait for the internet key before scanning."
+                            pearEnabled && pearStatus is PearRuntimeStatus.Failed -> "Pear failed to start: ${pearStatus.reason}. This code is LAN-only."
+                            pearEnabled -> "Pear internet key is not available yet. This code is LAN-only."
+                            else -> "Pear is disabled. This code supports LAN sync only."
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (payloadHasPear || !pearEnabled) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else MaterialTheme.colorScheme.error,
                     )
                     Text(
                         "This QR and JSON contain a pairing credential. Share them only with the device you intend to pair; copied JSON clears after 60 seconds if unchanged.",
@@ -442,6 +466,7 @@ private fun PairingDialog(
                         },
                         shape = NcyButtonShape,
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !pearEnabled || payloadHasPear,
                     ) { Text("Copy pairing JSON") }
                     TextButton(onClick = onRegenerate) {
                         Text("Replace unused invitation")
@@ -629,6 +654,10 @@ private fun PeerCard(
                     )
                     Text("Retry: $retry", style = MaterialTheme.typography.bodySmall)
                     Text("Direct LAN: $lan", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Pear pairing key: ${if (peer.pearPublicKey != null) "Included" else "Not included"}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     peer.lastError?.let {
                         Text(
                             "Last error: $it",

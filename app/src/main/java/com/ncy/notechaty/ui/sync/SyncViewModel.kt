@@ -12,6 +12,8 @@ import com.ncy.notechaty.data.sync.peer.PairingPayload
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
+import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.sync.pear.PearRuntimeController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +31,8 @@ class SyncViewModel @Inject constructor(
     private val pairingClient: PairingClient,
     private val deviceIdentity: DeviceIdentity,
     private val phoneSyncServer: PhoneSyncServer,
+    settingsRepository: SettingsRepository,
+    pearRuntimeController: PearRuntimeController,
 ) : ViewModel() {
 
     val peers: StateFlow<List<SyncPeer>> = peerStore.peers
@@ -37,6 +41,8 @@ class SyncViewModel @Inject constructor(
     val hostState: StateFlow<PhoneSyncServer.HostState> = phoneSyncServer.state
     val hostingEnabled: StateFlow<Boolean> = phoneSyncServer.enabled
     val hostedPeers: StateFlow<List<PhoneSyncServer.HostedPeer>> = phoneSyncServer.hostedPeers
+    val settings = settingsRepository.settings
+    val pearStatus = pearRuntimeController.status
 
     /** Which discovered peer (by mDNS serviceName) has an in-flight pair request. */
     private val _pairingBusy = MutableStateFlow<String?>(null)

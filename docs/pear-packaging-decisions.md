@@ -79,6 +79,16 @@ Measured Windows Pear payload on 2026-07-19:
 | Offloaded native addons | 2.45 MB |
 | Total uncompressed payload | 46.35 MB |
 
+Measured Windows x64 desktop release packaging on 2026-07-19:
+
+| Artifact/component | Size |
+| --- | ---: |
+| Optimized Ncy executable | 25.59 MB |
+| Raw executable + packaged Pear resources | 71.95 MB |
+| Previous NSIS installer without packaged Pear | 6.41 MB |
+| NSIS LZMA installer with packaged Pear | 18.66 MB |
+| Compressed download increase | 12.25 MB |
+
 ## Packaging work to schedule
 
 1. **Completed 2026-07-19:** Configure Android App Bundle and per-ABI APK outputs for
@@ -86,7 +96,10 @@ Measured Windows Pear payload on 2026-07-19:
 2. **Completed 2026-07-19:** Merge the Pear-enabled Android flavor into the single
    production Ncy product while preserving the off-by-default runtime toggle and consent
    behavior.
-3. Add target-specific Bare runtime, worker bundle and addons to desktop release resources.
+3. **Completed 2026-07-19 for Windows x64:** Add the target-specific Bare runtime,
+   worker bundle and addons to desktop release resources. Other operating-system and
+   architecture targets remain future work when those desktop targets are supported.
 4. Add the equivalent target-specific resource layout to ncy-server release packaging.
-5. Confirm NSIS LZMA configuration and measure compressed versus installed Windows sizes.
+5. **Completed 2026-07-19:** Confirm NSIS LZMA configuration and measure compressed
+   versus raw installed Windows sizes.
 6. Record signed release APK/AAB, installer and installed-size measurements in this note.

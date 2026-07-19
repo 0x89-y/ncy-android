@@ -33,6 +33,7 @@ class PearRuntimeController @Inject constructor(
     private var worklet: Worklet? = null
     private var ipc: IPC? = null
     private var incoming = ""
+    private val pendingWrites = ArrayDeque<ByteBuffer>()
     private val listeners = CopyOnWriteArraySet<PearRuntimeListener>()
     private var allowedPeers: Set<String> = emptySet()
     private val _status = MutableStateFlow<PearRuntimeStatus>(PearRuntimeStatus.Disabled)
@@ -73,6 +74,7 @@ class PearRuntimeController @Inject constructor(
         ipc = null
         worklet = null
         incoming = ""
+        pendingWrites.clear()
         runCatching { activeIpc?.close() }
         runCatching { activeWorklet?.terminate() }
         _status.value = PearRuntimeStatus.Disabled
@@ -166,11 +168,39 @@ class PearRuntimeController @Inject constructor(
     }
 
     private fun write(target: IPC, message: String) {
-        target.write(ByteBuffer.wrap(message.toByteArray(StandardCharsets.UTF_8))) { error ->
-            if (error != null) {
-                Log.e(TAG, "Could not write to Bare IPC", error)
-                _status.value = PearRuntimeStatus.Failed(error.message ?: "Pear IPC write failed")
+        synchronized(this) {
+            pendingWrites.addLast(ByteBuffer.wrap(message.toByteArray(StandardCharsets.UTF_8)))
+            drainWrites(target)
+        }
+    }
+
+    /** Bare Kit returns a negative errno while the pipe is backpressured. Its v2.3.0
+     * async helper treats that errno as a ByteBuffer position, so queue and retry via
+     * the writable notification instead. */
+    @Synchronized
+    private fun drainWrites(target: IPC) {
+        if (ipc !== target) return
+        runCatching {
+            while (pendingWrites.isNotEmpty()) {
+                val buffer = pendingWrites.first()
+                val written = target.write(buffer)
+                if (written <= 0) {
+                    target.writable { drainWrites(target) }
+                    return
+                }
+                if (written >= buffer.remaining()) {
+                    pendingWrites.removeFirst()
+                } else {
+                    buffer.position(buffer.position() + written)
+                    pendingWrites.removeFirst()
+                    pendingWrites.addFirst(buffer.slice())
+                }
             }
+            target.writable(null)
+        }.onFailure { error ->
+            pendingWrites.clear()
+            Log.e(TAG, "Could not write to Bare IPC", error)
+            _status.value = PearRuntimeStatus.Failed(error.message ?: "Pear IPC write failed")
         }
     }
 

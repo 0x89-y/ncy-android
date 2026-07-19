@@ -44,6 +44,8 @@ $abis = @{
     "android-x64" = "x86_64"
 }
 $addons = @{
+    "bare-inspect" = "libbare-inspect.3.1.4.so"
+    "bare-type" = "libbare-type.1.1.0.so"
     "sodium-native" = "libsodium-native.5.1.0.so"
     "udx-native" = "libudx-native.1.20.7.so"
 }

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.7.0 — 2026-07-19
+
+### Added
+
+- Added optional Pear synchronization so explicitly paired devices can connect across
+  different networks while retaining Ncy's authenticated, encrypted sync protocol.
+- Added **Local only**, **Pear only**, **Local preferred**, and **Pear preferred** routing
+  policies. Pear is off by default and requires explicit user consent.
+- Added QR/JSON first-time pairing across Pear without exposing an unknown-device discovery
+  mechanism.
+- Added Pear support to Android, Desktop, and the headless server, including stable
+  installation identities and Pear-aware pairing payloads.
+
+### Changed
+
+- Promoted Pear from the side-by-side Android development flavor into the normal Ncy app.
+- Android releases now produce dedicated `arm64-v8a`, `armeabi-v7a`, and `x86_64`
+  artifacts, with arm64 as the primary phone download and no legacy 32-bit x86/fat APK.
+- Desktop Windows x64 installers now package their version-pinned Bare runtime, worker, and
+  native addons with NSIS LZMA compression.
+- Fixed large adjacent Pear IPC frames being discarded, which could interrupt an encrypted
+  session with an unexpected sequence error.
+
+### Privacy
+
+- Local-only mode guarantees that the Pear runtime and its network activity do not start.
+- Pear connects only identities obtained through Ncy pairing; it does not discover unknown
+  Ncy devices.
+
 ## Unreleased — 2026-07-11
 
 ### Added

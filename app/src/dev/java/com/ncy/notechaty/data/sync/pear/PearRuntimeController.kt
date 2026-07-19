@@ -33,6 +33,7 @@ class PearRuntimeController @Inject constructor(
     private var worklet: Worklet? = null
     private var ipc: IPC? = null
     private var incoming = ""
+    private var pendingSeed: String? = null
     private val pendingWrites = ArrayDeque<ByteBuffer>()
     private val listeners = CopyOnWriteArraySet<PearRuntimeListener>()
     private var allowedPeers: Set<String> = emptySet()
@@ -42,10 +43,12 @@ class PearRuntimeController @Inject constructor(
     @Synchronized
     fun start() {
         if (worklet != null) return
+        Log.i(TAG, "Starting Pear worklet")
         _status.value = PearRuntimeStatus.Starting
 
         runCatching {
             val nextWorklet = Worklet(Worklet.Options().memoryLimit(MEMORY_LIMIT_BYTES))
+            Log.i(TAG, "Bare worklet created")
             val nextIpc = IPC(nextWorklet)
             nextIpc.readable {
                 while (true) {
@@ -54,12 +57,11 @@ class PearRuntimeController @Inject constructor(
                 }
             }
             val bundle = context.assets.open(WORKLET_ASSET).use { it.readBytes() }
-            nextWorklet.start("/ncy-pear.bundle", ByteBuffer.wrap(bundle), emptyArray())
             worklet = nextWorklet
             ipc = nextIpc
-            val seed = identitySeed()
-            command("start", "seed" to seed)
-            sendAllowedPeers()
+            pendingSeed = identitySeed()
+            nextWorklet.start("/ncy-pear.bundle", ByteBuffer.wrap(bundle), emptyArray())
+            Log.i(TAG, "Pear bundle started; waiting for worker boot")
         }.onFailure { error ->
             Log.e(TAG, "Could not start Bare worklet", error)
             stop()
@@ -74,6 +76,7 @@ class PearRuntimeController @Inject constructor(
         ipc = null
         worklet = null
         incoming = ""
+        pendingSeed = null
         pendingWrites.clear()
         runCatching { activeIpc?.close() }
         runCatching { activeWorklet?.terminate() }
@@ -120,6 +123,13 @@ class PearRuntimeController @Inject constructor(
             Log.i(TAG, "Bare IPC: $line")
             runCatching { JsonParser.parseString(line).asJsonObject }.onSuccess { message ->
                 when (message["type"]?.asString) {
+                    "booted" -> {
+                        val seed = pendingSeed ?: return@onSuccess
+                        pendingSeed = null
+                        Log.i(TAG, "Pear worker booted; starting Hyperswarm")
+                        command("start", "seed" to seed)
+                        sendAllowedPeers()
+                    }
                     "ready" -> _status.value = PearRuntimeStatus.Ready(message["publicKey"].asString)
                     "connected" -> listeners.forEach {
                         it.onConnected(
@@ -184,6 +194,7 @@ class PearRuntimeController @Inject constructor(
             while (pendingWrites.isNotEmpty()) {
                 val buffer = pendingWrites.first()
                 val written = target.write(buffer)
+                Log.d(TAG, "Bare IPC write result=$written remaining=${buffer.remaining()}")
                 if (written <= 0) {
                     target.writable { drainWrites(target) }
                     return

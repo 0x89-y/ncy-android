@@ -86,6 +86,7 @@ class PhoneSyncServer @Inject constructor(
             val host: String,
             val port: Int,
             val usedFallbackPort: Boolean,
+            val lanAvailable: Boolean = true,
         ) : HostState()
         data class Failed(val reason: String) : HostState()
     }
@@ -213,14 +214,16 @@ class PhoneSyncServer @Inject constructor(
     private fun refreshPairingPayload() {
         val current = server
         val host = localLanAddress()
-        _state.value = if (current?.listening == true && host != null) {
+        val pearReady = pearRuntimeController.status.value is PearRuntimeStatus.Ready
+        _state.value = if (current?.listening == true && (host != null || pearReady)) {
             HostState.Ready(
-                pairingJson = pairingPayload(host, current.boundPort).toJson(),
-                host = host,
-                port = current.boundPort,
-                usedFallbackPort = current.boundPort != DEFAULT_PORT,
+                pairingJson = pairingPayload(host, if (host != null) current.boundPort else 0).toJson(),
+                host = host.orEmpty(),
+                port = if (host != null) current.boundPort else 0,
+                usedFallbackPort = host != null && current.boundPort != DEFAULT_PORT,
+                lanAvailable = host != null,
             )
-        } else HostState.Failed("Connect this phone to Wi-Fi to share pairing data.")
+        } else HostState.Failed("Connect to Wi-Fi/Ethernet, or enable a Pear connection mode, to share pairing data.")
     }
 
     private inner class Server(val boundPort: Int, val ipv6: Boolean) :
@@ -913,7 +916,16 @@ class PhoneSyncServer @Inject constructor(
         if (!current.listening) return
         val host = localLanAddress()
         if (host == null) {
-            _state.value = HostState.Failed("Connect this phone to Wi-Fi or Ethernet to share pairing data.")
+            val pearReady = pearRuntimeController.status.value is PearRuntimeStatus.Ready
+            _state.value = if (pearReady) HostState.Ready(
+                pairingJson = pairingPayload(null, 0).toJson(),
+                host = "",
+                port = 0,
+                usedFallbackPort = false,
+                lanAvailable = false,
+            ) else HostState.Failed(
+                "Connect to Wi-Fi/Ethernet, or enable a Pear connection mode, to share pairing data."
+            )
             advertisedHost = null
             advertisedPort = null
             advertisingRestartJob?.cancel()
@@ -950,9 +962,9 @@ class PhoneSyncServer @Inject constructor(
         if (_enabled.value) refreshPairingPayload()
     }
 
-    private fun pairingPayload(host: String, port: Int): PairingPayload {
+    private fun pairingPayload(host: String?, port: Int): PairingPayload {
         val pearKey = (pearRuntimeController.status.value as? PearRuntimeStatus.Ready)?.publicKey
-        return pairingIdentity.payload(host, port).copy(pearPublicKey = pearKey)
+        return pairingIdentity.payload(host.orEmpty(), port).copy(pearPublicKey = pearKey)
     }
 
     @Synchronized

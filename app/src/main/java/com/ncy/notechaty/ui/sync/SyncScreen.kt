@@ -452,7 +452,9 @@ private fun PairingDialog(
                         color = MaterialTheme.colorScheme.error,
                     )
                     Text(
-                        if (state.usedFallbackPort) {
+                        if (!state.lanAvailable) {
+                            "Available through Pear. This code contains the exact Pear key and pairing credential; it does not discover nearby or unknown devices."
+                        } else if (state.usedFallbackPort) {
                             "Available at ${SyncEndpoint.display(state.host, state.port)}. Port 8765 was busy, so Ncy selected a temporary fallback port and included it in this code."
                         } else {
                             "Available at ${SyncEndpoint.display(state.host, state.port)}. This code refreshes automatically if the phone's network address changes."

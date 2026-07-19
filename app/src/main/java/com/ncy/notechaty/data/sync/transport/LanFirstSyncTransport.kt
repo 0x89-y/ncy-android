@@ -35,6 +35,7 @@ class LanFirstSyncTransport @Inject constructor(
         listener: ClientSyncTransport.Listener,
     ): ClientSyncTransport.Connection {
         val mode = settings.settings.value.syncTransportMode
+        val hasLanEndpoint = host.isNotBlank() && port in 1..65535
         val lock = Any()
         var pearId: String? = null
         var closed = false
@@ -122,7 +123,10 @@ class LanFirstSyncTransport @Inject constructor(
 
         startLan = { cause ->
             if (closed || lanStarted) Unit
-            else if (mode == SyncTransportMode.PEAR_ONLY) listener.onFailure(cause)
+            else if (mode == SyncTransportMode.PEAR_ONLY || !hasLanEndpoint) {
+                if (mode == SyncTransportMode.LOCAL_PREFERRED) startPear(cause)
+                else listener.onFailure(cause)
+            }
             else {
                 lanStarted = true
                 lanConnection = lan.connect(host, port, path, pearPublicKey, object : ClientSyncTransport.Listener {
@@ -134,9 +138,9 @@ class LanFirstSyncTransport @Inject constructor(
                         listener.onFrame(text)
                     }
 
-                    override fun onFailure(lanFailure: Throwable) {
-                        if (mode == SyncTransportMode.LOCAL_PREFERRED && !lanFrameReceived) startPear(lanFailure)
-                        else listener.onFailure(lanFailure)
+                    override fun onFailure(cause: Throwable) {
+                        if (mode == SyncTransportMode.LOCAL_PREFERRED && !lanFrameReceived) startPear(cause)
+                        else listener.onFailure(cause)
                     }
 
                     override fun onClosed(code: Int, reason: String) {
@@ -150,7 +154,7 @@ class LanFirstSyncTransport @Inject constructor(
             SyncTransportMode.LOCAL_ONLY -> startLan(IllegalStateException("Local transport unavailable"))
             SyncTransportMode.PEAR_ONLY -> startPear(IllegalStateException("Pear transport unavailable or peer has no Pear key"))
             SyncTransportMode.LOCAL_PREFERRED -> {
-                if (networkMonitor.available.value) startLan(IllegalStateException("Local transport unavailable"))
+                if (networkMonitor.available.value && hasLanEndpoint) startLan(IllegalStateException("Local transport unavailable"))
                 else startPear(IllegalStateException("No usable LAN"))
             }
             SyncTransportMode.PEAR_PREFERRED -> startPear(IllegalStateException("Pear transport unavailable or peer has no Pear key"))

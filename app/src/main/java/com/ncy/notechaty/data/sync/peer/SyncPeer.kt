@@ -38,6 +38,7 @@ data class SyncPeer(
     val lastError: String? = null,
     val nextRetryAt: Long? = null,
 ) {
+    val hasLanEndpoint: Boolean get() = host.isNotBlank() && port in 1..65535
     val foregroundOnly: Boolean
         get() = availability == PairingPayload.AVAILABILITY_FOREGROUND
 }

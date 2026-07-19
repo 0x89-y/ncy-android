@@ -45,9 +45,8 @@ data class PairingPayload(
         fun parse(text: String): PairingPayload? = try {
             val parsed = Gson().fromJson(text.trim(), PairingPayload::class.java)
             if (parsed == null || parsed.v != WIRE_VERSION) null
-            else if (parsed.deviceId.isBlank() || parsed.host.isBlank() ||
-                parsed.secret.isBlank() || parsed.port !in 1..65535
-            ) null
+            else if (parsed.deviceId.isBlank() || parsed.secret.isBlank()) null
+            else if (!parsed.hasLanEndpoint && parsed.pearPublicKey == null) null
             else if (parsed.pearPublicKey != null && !PEAR_PUBLIC_KEY.matches(parsed.pearPublicKey)) null
             else parsed
         } catch (e: JsonSyntaxException) {
@@ -58,4 +57,7 @@ data class PairingPayload(
 
         private val PEAR_PUBLIC_KEY = Regex("^[0-9a-f]{64}$")
     }
+
+    /** Pear-only invitations deliberately carry no pretend or stale LAN address. */
+    val hasLanEndpoint: Boolean get() = host.isNotBlank() && port in 1..65535
 }

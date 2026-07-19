@@ -59,15 +59,20 @@ Out-of-band exchange. Format (JSON, UTF-8):
 | `v`        | int     | Pairing format version. Currently `1`. Reject mismatch.  |
 | `deviceId` | string  | Stable UUID for this desktop. Reused across reconnects.  |
 | `name`     | string  | Human-readable label shown to the user on the phone.     |
-| `host`     | string  | Host the phone should dial (typically a LAN IPv4).       |
-| `port`     | int     | TCP port. Range 1–65535.                                 |
+| `host`     | string  | Host the phone should dial (typically a LAN IPv4). Empty only when a valid `pearPublicKey` supplies the sole endpoint. |
+| `port`     | int     | TCP port. Range 1–65535, or `0` with a Pear-only endpoint. |
 | `secret`   | string  | Base64-encoded pre-shared key. **At least 32 bytes** of  |
 |            |         | cryptographic randomness. Used to HMAC the auth nonce.   |
+| `pearPublicKey` | string, optional | Exact 32-byte Pear/Noise public key as 64 lowercase hex characters. |
 | `availability` | string, optional | `foreground` means the host is reachable only while its app is open. Absence means continuously available. |
 
 A new pairing payload **must** generate a fresh `secret`. The phone treats the QR scan
 as trust-on-first-use: it stores the (`deviceId`, `secret`) pair and uses them for
 every subsequent connection. Removing a peer on the phone fully forgets the secret.
+When the payload supplies only `pearPublicKey`, importing it initiates the same authenticated
+sync handshake directly with that exact Pear identity. Ncy performs no Pear peer search or
+pairing discovery. The host must not expose or persist chat data until the invitation secret
+has authenticated successfully, and must retain the same one-device invitation rotation rules.
 
 Pairing QR codes and JSON are bearer credentials. Implementations must label them as
 sensitive, keep claimed credentials hidden by default, avoid logging them, exclude

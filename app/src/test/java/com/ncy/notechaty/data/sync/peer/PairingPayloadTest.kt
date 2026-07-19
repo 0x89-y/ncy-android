@@ -57,4 +57,30 @@ class PairingPayloadTest {
             )
         )
     }
+
+    @Test
+    fun pearOnlyPayloadDoesNotNeedLanEndpoint() {
+        val payload = PairingPayload(
+            v = 1,
+            deviceId = "phone",
+            name = "Phone",
+            host = "",
+            port = 0,
+            secret = "secret",
+            pearPublicKey = "ab".repeat(32),
+        )
+
+        val parsed = PairingPayload.parse(payload.toJson())!!
+        assertFalse(parsed.hasLanEndpoint)
+        assertFalse(parsed.toPeer(1L).hasLanEndpoint)
+    }
+
+    @Test
+    fun payloadWithoutAnyReachableTransportIsRejected() {
+        assertNull(
+            PairingPayload.parse(
+                """{"v":1,"deviceId":"peer","name":"Phone","host":"","port":0,"secret":"secret"}"""
+            )
+        )
+    }
 }

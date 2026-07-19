@@ -262,15 +262,16 @@ class SyncManager @Inject constructor(
     )
 
     private fun canUseNetwork(peer: SyncPeer, availability: NetworkAvailability): Boolean {
+        val lanUsable = availability.lan && peer.hasLanEndpoint
         val pearUsable =
             availability.internet &&
                 availability.pearReady &&
                 peer.pearPublicKey != null
         return when (availability.mode) {
-            SyncTransportMode.LOCAL_ONLY -> availability.lan
+            SyncTransportMode.LOCAL_ONLY -> lanUsable
             SyncTransportMode.PEAR_ONLY -> pearUsable
             SyncTransportMode.LOCAL_PREFERRED,
-            SyncTransportMode.PEAR_PREFERRED -> availability.lan || pearUsable
+            SyncTransportMode.PEAR_PREFERRED -> lanUsable || pearUsable
         }
     }
 

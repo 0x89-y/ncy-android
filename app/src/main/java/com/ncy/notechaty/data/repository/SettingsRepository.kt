@@ -6,6 +6,7 @@ import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.AppSettings
 import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
+import com.ncy.notechaty.data.model.SyncTransportMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +42,11 @@ class SettingsRepository @Inject constructor(
                 autoBackupEnabled = prefs.getBoolean("autoBackupEnabled", false),
                 autoBackupFolder = prefs.getString("autoBackupFolder", null),
                 autoBackupIntervalHours = prefs.getInt("autoBackupIntervalHours", 24),
-                pearSyncEnabled = transportPrefs.getBoolean("pearSyncEnabled", false),
+                syncTransportMode = transportPrefs.getString(KEY_TRANSPORT_MODE, null)
+                    ?.let { runCatching { SyncTransportMode.valueOf(it) }.getOrNull() }
+                    ?: if (transportPrefs.getBoolean(LEGACY_PEAR_ENABLED, false)) {
+                        SyncTransportMode.LOCAL_PREFERRED
+                    } else SyncTransportMode.LOCAL_ONLY,
                 topBarGradient = prefs.getBoolean("topBarGradient", false),
                 protectionPinHash = prefs.getString("protectionPinHash", null),
                 protectionPinSalt = prefs.getString("protectionPinSalt", null),
@@ -71,7 +76,13 @@ class SettingsRepository @Inject constructor(
             .putInt("protectionGracePeriodMinutes", settings.protectionGracePeriodMinutes)
             .apply()
         transportPrefs.edit()
-            .putBoolean("pearSyncEnabled", settings.pearSyncEnabled)
+            .putString(KEY_TRANSPORT_MODE, settings.syncTransportMode.name)
+            .remove(LEGACY_PEAR_ENABLED)
             .apply()
+    }
+
+    private companion object {
+        const val KEY_TRANSPORT_MODE = "syncTransportMode"
+        const val LEGACY_PEAR_ENABLED = "pearSyncEnabled"
     }
 }

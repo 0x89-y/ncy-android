@@ -19,6 +19,17 @@ enum class ChatSortMode(val displayName: String) {
     CREATED("Date created")
 }
 
+enum class SyncTransportMode(
+    val displayName: String,
+    val description: String,
+    val usesPear: Boolean,
+) {
+    LOCAL_ONLY("Local only", "Use Wi-Fi or Ethernet only", false),
+    PEAR_ONLY("Pear only", "Always connect through Pear", true),
+    LOCAL_PREFERRED("Local preferred", "Try local first, then Pear", true),
+    PEAR_PREFERRED("Pear preferred", "Try Pear first, then local", true),
+}
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentColor: AccentColor = AccentColor.DYNAMIC,
@@ -26,8 +37,8 @@ data class AppSettings(
     val autoBackupEnabled: Boolean = false,
     val autoBackupFolder: String? = null,
     val autoBackupIntervalHours: Int = 24,
-    /** Explicit opt-in. When false, no Pear runtime or public DHT activity may start. */
-    val pearSyncEnabled: Boolean = false,
+    /** Installation-local policy. LOCAL_ONLY guarantees no Pear/DHT runtime starts. */
+    val syncTransportMode: SyncTransportMode = SyncTransportMode.LOCAL_ONLY,
     val topBarGradient: Boolean = false,
     val protectionPinHash: String? = null,
     val protectionPinSalt: String? = null,

@@ -3,6 +3,7 @@ package com.ncy.notechaty.data.sync
 import android.util.Log
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
@@ -106,7 +107,7 @@ class SyncManager @Inject constructor(
                 settingsRepository.settings,
                 pearRuntimeController.status,
             ) { lan, internet, settings, pearStatus ->
-                NetworkAvailability(lan, internet, settings.pearSyncEnabled, pearStatus is PearRuntimeStatus.Ready)
+                NetworkAvailability(lan, internet, settings.syncTransportMode, pearStatus is PearRuntimeStatus.Ready)
             }.collect { availability ->
                 peerStore.peers.value.forEach { peer ->
                     val usable = canUseNetwork(peer, availability)
@@ -246,7 +247,7 @@ class SyncManager @Inject constructor(
     private data class NetworkAvailability(
         val lan: Boolean,
         val internet: Boolean,
-        val pearEnabled: Boolean,
+        val mode: SyncTransportMode,
         val pearReady: Boolean,
     )
 
@@ -255,18 +256,23 @@ class SyncManager @Inject constructor(
         NetworkAvailability(
             lan = lanNetworkMonitor.available.value,
             internet = lanNetworkMonitor.internetAvailable.value,
-            pearEnabled = settingsRepository.settings.value.pearSyncEnabled,
+            mode = settingsRepository.settings.value.syncTransportMode,
             pearReady = pearRuntimeController.status.value is PearRuntimeStatus.Ready,
         ),
     )
 
-    private fun canUseNetwork(peer: SyncPeer, availability: NetworkAvailability): Boolean =
-        availability.lan || (
+    private fun canUseNetwork(peer: SyncPeer, availability: NetworkAvailability): Boolean {
+        val pearUsable =
             availability.internet &&
-                availability.pearEnabled &&
                 availability.pearReady &&
                 peer.pearPublicKey != null
-            )
+        return when (availability.mode) {
+            SyncTransportMode.LOCAL_ONLY -> availability.lan
+            SyncTransportMode.PEAR_ONLY -> pearUsable
+            SyncTransportMode.LOCAL_PREFERRED,
+            SyncTransportMode.PEAR_PREFERRED -> availability.lan || pearUsable
+        }
+    }
 
     private fun updateState(peerId: String, state: PeerState) {
         _states.value = _states.value.toMutableMap().apply { put(peerId, state) }

@@ -130,7 +130,7 @@ fun SyncScreen(
     if (showShareDialog) {
         PairingDialog(
             state = hostState,
-            pearEnabled = settings.pearSyncEnabled,
+            pearEnabled = settings.syncTransportMode.usesPear,
             pearStatus = pearStatus,
             onDismiss = { showShareDialog = false },
             onRegenerate = viewModel::regeneratePairing,
@@ -355,6 +355,7 @@ fun SyncScreen(
                             onSyncNow = { viewModel.syncNow(peer.id) },
                             onEnabledChange = { viewModel.setPeerEnabled(peer.id, it) },
                             onUnpair = { viewModel.unpair(peer.id) },
+                            transportPolicy = settings.syncTransportMode.displayName,
                             showFingerprint = DeviceNameDisambiguation.isDuplicate(
                                 peer.name, duplicateDeviceNames
                             ),
@@ -591,6 +592,7 @@ private fun PeerCard(
     onSyncNow: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onUnpair: () -> Unit,
+    transportPolicy: String,
     showFingerprint: Boolean,
 ) {
     var showDiagnostics by remember { mutableStateOf(false) }
@@ -653,6 +655,7 @@ private fun PeerCard(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text("Retry: $retry", style = MaterialTheme.typography.bodySmall)
+                    Text("Configured policy: $transportPolicy", style = MaterialTheme.typography.bodySmall)
                     Text("Direct LAN: $lan", style = MaterialTheme.typography.bodySmall)
                     if (state is SyncManager.PeerState.Connected) {
                         Text(

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.ThemeMode
+import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
@@ -76,7 +77,8 @@ fun SettingsScreen(
     var showPinSetup by remember { mutableStateOf(false) }
     var showRemovePinConfirm by remember { mutableStateOf(false) }
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
-    var showEnablePearConfirm by remember { mutableStateOf(false) }
+    var showTransportModeDialog by remember { mutableStateOf(false) }
+    var pendingPearMode by remember { mutableStateOf<SyncTransportMode?>(null) }
     val settings by viewModel.settings.collectAsState()
 
     // Export all launcher
@@ -237,19 +239,13 @@ fun SettingsScreen(
                     }
                 )
                 NcyRowDivider()
-                NcySettingsToggleRow(
+                NcySettingsRow(
                     icon = Icons.Default.Public,
-                    title = "Sync outside your local network",
-                    subtitle = if (settings.pearSyncEnabled) {
-                        "Pear discovery is enabled"
-                    } else {
-                        "Off · uses Pear public discovery when enabled"
-                    },
-                    checked = settings.pearSyncEnabled,
-                    onCheckedChange = { enabled ->
+                    title = "Connection preference",
+                    subtitle = "${settings.syncTransportMode.displayName} · ${settings.syncTransportMode.description}",
+                    onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        if (enabled) showEnablePearConfirm = true
-                        else viewModel.setPearSyncEnabled(false)
+                        showTransportModeDialog = true
                     },
                 )
             }
@@ -541,9 +537,53 @@ fun SettingsScreen(
         )
     }
 
-    if (showEnablePearConfirm) {
+    if (showTransportModeDialog) {
         NcyAlertDialog(
-            onDismissRequest = { showEnablePearConfirm = false },
+            onDismissRequest = { showTransportModeDialog = false },
+            title = { Text("Connection preference") },
+            text = {
+                Column {
+                    SyncTransportMode.entries.forEach { mode ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (mode.usesPear && !settings.syncTransportMode.usesPear) {
+                                        pendingPearMode = mode
+                                    } else {
+                                        viewModel.setSyncTransportMode(mode)
+                                    }
+                                    showTransportModeDialog = false
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = settings.syncTransportMode == mode,
+                                onClick = null,
+                            )
+                            Column(modifier = Modifier.padding(start = 8.dp)) {
+                                Text(mode.displayName)
+                                Text(
+                                    mode.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showTransportModeDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    pendingPearMode?.let { selectedMode ->
+        NcyAlertDialog(
+            onDismissRequest = { pendingPearMode = null },
             title = { Text("Enable internet sync?") },
             text = {
                 Text(
@@ -556,13 +596,13 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.setPearSyncEnabled(true)
-                        showEnablePearConfirm = false
+                        viewModel.setSyncTransportMode(selectedMode)
+                        pendingPearMode = null
                     },
-                ) { Text("Enable") }
+                ) { Text("Use ${selectedMode.displayName}") }
             },
             dismissButton = {
-                TextButton(onClick = { showEnablePearConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { pendingPearMode = null }) { Text("Cancel") }
             },
         )
     }

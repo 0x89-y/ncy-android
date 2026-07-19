@@ -79,7 +79,7 @@ class MainActivity : FragmentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 settingsRepository.settings
-                    .map { it.pearSyncEnabled }
+                    .map { it.syncTransportMode.usesPear }
                     .distinctUntilChanged()
                     .collect { enabled ->
                         if (enabled) pearRuntimeController.start() else pearRuntimeController.stop()

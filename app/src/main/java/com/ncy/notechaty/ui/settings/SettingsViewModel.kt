@@ -7,6 +7,7 @@ import com.ncy.notechaty.backup.BackupScheduler
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.AppSettings
 import com.ncy.notechaty.data.model.ThemeMode
+import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.SyncManager
@@ -105,9 +106,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setPearSyncEnabled(enabled: Boolean) {
+    fun setSyncTransportMode(mode: SyncTransportMode) {
         viewModelScope.launch {
-            settingsRepository.updateSettings(settings.value.copy(pearSyncEnabled = enabled))
+            if (settings.value.syncTransportMode == mode) return@launch
+            settingsRepository.updateSettings(settings.value.copy(syncTransportMode = mode))
+            syncManager.stop()
+            syncManager.start()
         }
     }
 

@@ -23,6 +23,8 @@ class LanNetworkMonitor @Inject constructor(@ApplicationContext context: Context
     private val networks = ConcurrentHashMap<Network, NetworkCapabilities>()
     private val _available = MutableStateFlow(hasLanInterface())
     val available: StateFlow<Boolean> = _available.asStateFlow()
+    private val _internetAvailable = MutableStateFlow(hasInternetNetwork())
+    val internetAvailable: StateFlow<Boolean> = _internetAvailable.asStateFlow()
     private var callback: ConnectivityManager.NetworkCallback? = null
 
     @Synchronized
@@ -43,6 +45,7 @@ class LanNetworkMonitor @Inject constructor(@ApplicationContext context: Context
         }
         callback = next
         _available.value = hasLanInterface()
+        _internetAvailable.value = hasInternetNetwork()
         runCatching {
             connectivity.registerNetworkCallback(
                 NetworkRequest.Builder().clearCapabilities().build(),
@@ -66,12 +69,20 @@ class LanNetworkMonitor @Inject constructor(@ApplicationContext context: Context
 
     private fun publish() {
         _available.value = networks.values.any(::isLan) || hasLanInterface()
+        _internetAvailable.value = networks.values.any(::hasInternet) || hasInternetNetwork()
     }
 
     private fun isLan(capabilities: NetworkCapabilities): Boolean =
         !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
             (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
                 capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+
+    private fun hasInternet(capabilities: NetworkCapabilities): Boolean =
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+
+    private fun hasInternetNetwork(): Boolean =
+        connectivity.activeNetwork?.let(connectivity::getNetworkCapabilities)?.let(::hasInternet) == true
 
     private fun hasLanInterface(): Boolean = runCatching {
         NetworkInterface.getNetworkInterfaces().toList().any { network ->

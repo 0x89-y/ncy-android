@@ -607,7 +607,9 @@ private fun PeerCard(
                 val retry = when {
                     peer.disabled -> "Paused by user"
                     state is SyncManager.PeerState.Connected -> "Not retrying"
-                    state is SyncManager.PeerState.WaitingForNetwork -> "Waiting for a usable LAN"
+                    state is SyncManager.PeerState.WaitingForNetwork ->
+                        if (peer.pearPublicKey != null) "Waiting for LAN or Pear internet access"
+                        else "Waiting for a usable LAN"
                     peer.nextRetryAt != null -> "Scheduled ${formatter.format(Date(peer.nextRetryAt))}"
                     state is SyncManager.PeerState.Failed &&
                         state.reason == SyncFailurePolicy.REPAIR_MESSAGE -> "Stopped until re-pairing"
@@ -808,7 +810,9 @@ private fun statusLine(state: SyncManager.PeerState, peer: SyncPeer): String = w
         else "Not yet synced"
     }
     SyncManager.PeerState.Disabled -> "Sync disabled for this device"
-    SyncManager.PeerState.WaitingForNetwork -> "Waiting for Wi-Fi or Ethernet"
+    SyncManager.PeerState.WaitingForNetwork ->
+        if (peer.pearPublicKey != null) "Waiting for LAN or Pear internet access"
+        else "Waiting for Wi-Fi or Ethernet"
     SyncManager.PeerState.Connecting -> "Connecting…"
     is SyncManager.PeerState.Connected ->
         "Connected · ${state.sentCount} sent · ${state.receivedCount} received"

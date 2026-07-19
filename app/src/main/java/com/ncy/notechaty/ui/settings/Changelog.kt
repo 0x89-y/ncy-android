@@ -14,6 +14,17 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.0",
+        date = "2026-07-19",
+        changes = listOf(
+            "Added optional Pear sync for paired devices on different networks.",
+            "Added Local only, Pear only, Local preferred, and Pear preferred connection modes.",
+            "New devices can pair securely by QR or JSON even when they are not on the same network.",
+            "Pear remains off by default and starts only after explicit consent.",
+            "Release downloads now target each device architecture instead of including every native runtime.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.6.5",
         date = "2026-07-11",
         changes = listOf(

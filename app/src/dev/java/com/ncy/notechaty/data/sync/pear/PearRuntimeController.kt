@@ -11,6 +11,7 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.Executors
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,10 @@ class PearRuntimeController @Inject constructor(
     private var pendingSeed: String? = null
     private val pendingWrites = ArrayDeque<ByteBuffer>()
     private val listeners = CopyOnWriteArraySet<PearRuntimeListener>()
+    /** IPC callbacks arrive on Android's main thread. Keep ordered protocol work off it. */
+    private val listenerExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "NcyPear-events").apply { isDaemon = true }
+    }
     private var allowedPeers: Set<String> = emptySet()
     private val _status = MutableStateFlow<PearRuntimeStatus>(PearRuntimeStatus.Disabled)
     val status: StateFlow<PearRuntimeStatus> = _status.asStateFlow()
@@ -116,43 +121,48 @@ class PearRuntimeController @Inject constructor(
             val line = incoming.substring(0, newline)
             incoming = incoming.substring(newline + 1)
             if (line.isBlank()) continue
-            Log.i(TAG, "Bare IPC: $line")
-            runCatching { JsonParser.parseString(line).asJsonObject }.onSuccess { message ->
-                when (message["type"]?.asString) {
-                    "booted" -> {
-                        val seed = pendingSeed ?: return@onSuccess
-                        pendingSeed = null
-                        Log.i(TAG, "Pear worker booted; starting Hyperswarm")
-                        command("start", "seed" to seed)
-                        sendAllowedPeers()
-                    }
-                    "ready" -> _status.value = PearRuntimeStatus.Ready(message["publicKey"].asString)
-                    "connected" -> listeners.forEach {
-                        it.onConnected(
-                            message["id"].asString,
-                            message["publicKey"].asString,
-                            message["client"]?.asBoolean == true,
-                        )
-                    }
-                    "frame" -> {
-                        val text = Base64.decode(message["data"].asString, Base64.NO_WRAP)
-                            .toString(StandardCharsets.UTF_8)
-                        listeners.forEach { it.onFrame(message["id"].asString, text) }
-                    }
-                    "disconnected" -> listeners.forEach {
-                        it.onDisconnected(message["id"].asString, message["publicKey"].asString)
-                    }
-                    "connection-error", "command-error" -> listeners.forEach {
-                        it.onConnectionError(
-                            message["publicKey"]?.takeUnless { value -> value.isJsonNull }?.asString,
-                            message["id"]?.takeUnless { value -> value.isJsonNull }?.asString,
-                            message["message"]?.asString ?: "Pear connection failed",
-                        )
-                    }
-                    "error", "fatal" -> _status.value = PearRuntimeStatus.Failed(
-                        message["message"]?.asString ?: "Unknown Pear error"
+            listenerExecutor.execute { handleLine(line) }
+        }
+    }
+
+    private fun handleLine(line: String) {
+        runCatching { JsonParser.parseString(line).asJsonObject }.onSuccess { message ->
+            when (message["type"]?.asString) {
+                "booted" -> {
+                    val seed = synchronized(this) {
+                        pendingSeed?.also { pendingSeed = null }
+                    } ?: return@onSuccess
+                    Log.i(TAG, "Pear worker booted; starting Hyperswarm")
+                    command("start", "seed" to seed)
+                    sendAllowedPeers()
+                }
+                "ready" -> _status.value = PearRuntimeStatus.Ready(message["publicKey"].asString)
+                "connected" -> listeners.forEach {
+                    it.onConnected(
+                        message["id"].asString,
+                        message["publicKey"].asString,
+                        message["client"]?.asBoolean == true,
                     )
                 }
+                "frame" -> {
+                    val text = Base64.decode(message["data"].asString, Base64.NO_WRAP)
+                        .toString(StandardCharsets.UTF_8)
+                    val connectionId = message["id"].asString
+                    listeners.forEach { it.onFrame(connectionId, text) }
+                }
+                "disconnected" -> listeners.forEach {
+                    it.onDisconnected(message["id"].asString, message["publicKey"].asString)
+                }
+                "connection-error", "command-error" -> listeners.forEach {
+                    it.onConnectionError(
+                        message["publicKey"]?.takeUnless { value -> value.isJsonNull }?.asString,
+                        message["id"]?.takeUnless { value -> value.isJsonNull }?.asString,
+                        message["message"]?.asString ?: "Pear connection failed",
+                    )
+                }
+                "error", "fatal" -> _status.value = PearRuntimeStatus.Failed(
+                    message["message"]?.asString ?: "Unknown Pear error"
+                )
             }
         }
     }

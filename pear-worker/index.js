@@ -54,7 +54,7 @@ async function start(message) {
       reply({ type: 'disconnected', id, publicKey })
     })
     connection.on('error', (error) => {
-      reply({ type: 'connection-error', message: error.message })
+      reply({ type: 'connection-error', id, publicKey, message: error.message })
     })
   })
   swarm.on('error', (error) => reply({ type: 'error', message: error.message }))
@@ -85,6 +85,10 @@ async function dispatch(message) {
       if (!swarm) throw new Error('Pear is not ready')
       if (!allowedPeers.has(message.publicKey)) throw new Error('Pear peer is not paired')
       swarm.joinPeer(b4a.from(message.publicKey, 'hex'))
+      return
+    }
+    case 'cancel-connect': {
+      if (swarm) swarm.leavePeer(b4a.from(message.publicKey, 'hex'))
       return
     }
     case 'send': {
@@ -123,9 +127,20 @@ IPC.on('data', (chunk) => {
     const line = buffered.slice(0, newline)
     buffered = buffered.slice(newline + 1)
     if (!line) continue
-    Promise.resolve()
-      .then(() => dispatch(JSON.parse(line)))
-      .catch((error) => reply({ type: 'error', message: error.message }))
+    Promise.resolve().then(async () => {
+      const message = JSON.parse(line)
+      try {
+        await dispatch(message)
+      } catch (error) {
+        reply({
+          type: 'command-error',
+          command: message.type,
+          id: message.id,
+          publicKey: message.publicKey,
+          message: error.message
+        })
+      }
+    }).catch((error) => reply({ type: 'error', message: error.message }))
   }
 })
 

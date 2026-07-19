@@ -85,6 +85,7 @@ class PearRuntimeController @Inject constructor(
     }
 
     fun connect(publicKey: String) = command("connect", "publicKey" to publicKey)
+    fun cancelConnect(publicKey: String) = command("cancel-connect", "publicKey" to publicKey)
 
     fun send(connectionId: String, text: String): Boolean {
         if (text.length > MAX_FRAME_CHARS || ipc == null) return false
@@ -141,8 +142,12 @@ class PearRuntimeController @Inject constructor(
                     "disconnected" -> listeners.forEach {
                         it.onDisconnected(message["id"].asString, message["publicKey"].asString)
                     }
-                    "connection-error" -> listeners.forEach {
-                        it.onConnectionError(message["message"]?.asString ?: "Pear connection failed")
+                    "connection-error", "command-error" -> listeners.forEach {
+                        it.onConnectionError(
+                            message["publicKey"]?.takeUnless { value -> value.isJsonNull }?.asString,
+                            message["id"]?.takeUnless { value -> value.isJsonNull }?.asString,
+                            message["message"]?.asString ?: "Pear connection failed",
+                        )
                     }
                     "error", "fatal" -> _status.value = PearRuntimeStatus.Failed(
                         message["message"]?.asString ?: "Unknown Pear error"

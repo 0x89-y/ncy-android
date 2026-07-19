@@ -654,6 +654,12 @@ private fun PeerCard(
                     )
                     Text("Retry: $retry", style = MaterialTheme.typography.bodySmall)
                     Text("Direct LAN: $lan", style = MaterialTheme.typography.bodySmall)
+                    if (state is SyncManager.PeerState.Connected) {
+                        Text(
+                            "Active transport: ${state.transport?.name ?: "Negotiating"}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     Text(
                         "Pear pairing key: ${if (peer.pearPublicKey != null) "Included" else "Not included"}",
                         style = MaterialTheme.typography.bodySmall,
@@ -844,7 +850,7 @@ private fun statusLine(state: SyncManager.PeerState, peer: SyncPeer): String = w
         else "Waiting for Wi-Fi or Ethernet"
     SyncManager.PeerState.Connecting -> "Connecting…"
     is SyncManager.PeerState.Connected ->
-        "Connected · ${state.sentCount} sent · ${state.receivedCount} received"
+        "Connected via ${state.transport?.name ?: "sync"} · ${state.sentCount} sent · ${state.receivedCount} received"
     is SyncManager.PeerState.Unavailable -> "Unavailable · ${state.reason}"
     is SyncManager.PeerState.Failed -> "Failed: ${state.reason}"
 }

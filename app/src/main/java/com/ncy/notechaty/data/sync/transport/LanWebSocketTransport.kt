@@ -28,6 +28,9 @@ class LanWebSocketTransport @Inject constructor() : ClientSyncTransport {
             .url(SyncEndpoint.webSocketUrl(host, port, path))
             .build()
         val socket = httpClient.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) =
+                listener.onTransportSelected(ClientSyncTransport.Kind.LAN)
+
             override fun onMessage(webSocket: WebSocket, text: String) = listener.onFrame(text)
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) =

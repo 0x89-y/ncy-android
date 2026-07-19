@@ -5,5 +5,5 @@ interface PearRuntimeListener {
     fun onConnected(connectionId: String, publicKey: String, outgoing: Boolean) = Unit
     fun onFrame(connectionId: String, text: String) = Unit
     fun onDisconnected(connectionId: String, publicKey: String) = Unit
-    fun onConnectionError(message: String) = Unit
+    fun onConnectionError(publicKey: String?, connectionId: String?, message: String) = Unit
 }

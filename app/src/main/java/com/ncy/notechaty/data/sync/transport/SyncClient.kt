@@ -25,6 +25,7 @@ class SyncClient @Inject constructor(
 
     sealed class Event {
         object Connecting : Event()
+        data class TransportSelected(val kind: ClientSyncTransport.Kind) : Event()
         data class Authenticated(val peerName: String) : Event()
         data class Acked(val upToHlc: HlcTimestamp) : Event()
         /** Server pushed an event back at us (phase 2 bidirectional). */
@@ -75,6 +76,9 @@ class SyncClient @Inject constructor(
         lateinit var connection: ClientSyncTransport.Connection
 
         connection = frameTransport.connect(peer.host, peer.port, "sync", peer.pearPublicKey, object : ClientSyncTransport.Listener {
+            override fun onTransportSelected(kind: ClientSyncTransport.Kind) {
+                onEvent(Event.TransportSelected(kind))
+            }
             override fun onFrame(text: String) {
                 if (text.length > SyncLimits.MAX_WIRE_FRAME_CHARS) {
                     onEvent(Event.Failed("Wire frame exceeds the encrypted transport limit"))

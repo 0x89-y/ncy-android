@@ -18,6 +18,7 @@ import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import com.ncy.notechaty.data.sync.transport.SyncClient
 import com.ncy.notechaty.data.sync.transport.SyncCatchupPolicy
 import com.ncy.notechaty.data.sync.transport.SyncLimits
+import com.ncy.notechaty.data.sync.transport.ClientSyncTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +85,8 @@ class SyncManager @Inject constructor(
         data class Connected(
             val peerName: String,
             val sentCount: Int,
-            val receivedCount: Int = 0
+            val receivedCount: Int = 0,
+            val transport: ClientSyncTransport.Kind? = null,
         ) : PeerState()
         data class Unavailable(val reason: String) : PeerState()
         data class Failed(val reason: String) : PeerState()
@@ -300,6 +302,7 @@ class SyncManager @Inject constructor(
         private var sentCount = 0
         private var receivedCount = 0
         private var peerName: String = peer.name
+        private var activeTransport: ClientSyncTransport.Kind? = null
         private val blobMutex = Mutex()
 
         // Outbound watermark: highest HLC the peer has acked from us. Drives our catchup.
@@ -321,6 +324,9 @@ class SyncManager @Inject constructor(
                     is SyncClient.Event.Connecting -> {
                         updateState(peer.id, PeerState.Connecting)
                     }
+                    is SyncClient.Event.TransportSelected -> {
+                        activeTransport = event.kind
+                    }
                     is SyncClient.Event.Authenticated -> {
                         identityFailure = false
                         if (candidateMode) {
@@ -337,7 +343,7 @@ class SyncManager @Inject constructor(
                         peerStore.updateAuthenticatedName(peer.id, peerName)
                         peerStore.recordAuthenticated(peer.id, peer.host, peer.port)
                         reconnectAttempt = 0 // healthy session — reset backoff
-                        updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
+                        updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
                         startCatchupAndLiveForwarding(checkNotNull(session))
                     }
                     is SyncClient.Event.Acked -> {
@@ -428,7 +434,7 @@ class SyncManager @Inject constructor(
             if (cur == null || routedEvent.hlc > cur) lastReceivedHlc = routedEvent.hlc
             if (!newlyApplied) return
             receivedCount++
-            updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
+            updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
 
             // Phase 2b: kick off blob fetches for any media references we don't have yet.
             scope.launch { fetchMissingMedia(routedEvent) }
@@ -563,7 +569,7 @@ class SyncManager @Inject constructor(
             for (event in pending) {
                 if (!sendEvent(s, event, fullReplay)) return
             }
-            updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
+            updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
         }
 
         private fun startCatchupAndLiveForwarding(s: SyncClient.Session) {
@@ -617,7 +623,7 @@ class SyncManager @Inject constructor(
             if (acked != null && event.hlc <= acked) return true
             if (!s.send(event)) return false
             sentCount++
-            updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount))
+            updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
             return true
         }
 

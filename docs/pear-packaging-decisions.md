@@ -55,8 +55,10 @@ Expected Pear overhead for a per-ABI artifact is roughly 50–66 MB instead of
   uninstall coupling.
 
 The main plausible same-machine use case is an always-on ncy-server service plus an
-occasionally opened desktop UI, potentially under different user accounts. That does not
-justify shared-runtime complexity for an estimated maximum saving of about 46 MB.
+occasionally opened desktop UI, potentially under different user accounts. In normal
+desktop use this is largely redundant because Ncy Desktop can close to the tray and keep
+sync running. The remaining niche case does not justify shared-runtime complexity for an
+estimated maximum saving of about 46 MB.
 
 Measured Windows Pear payload on 2026-07-19:
 

@@ -47,7 +47,6 @@ class SettingsRepository @Inject constructor(
                     ?: if (transportPrefs.getBoolean(LEGACY_PEAR_ENABLED, false)) {
                         SyncTransportMode.LOCAL_PREFERRED
                     } else SyncTransportMode.LOCAL_ONLY,
-                topBarGradient = prefs.getBoolean("topBarGradient", false),
                 protectionPinHash = prefs.getString("protectionPinHash", null),
                 protectionPinSalt = prefs.getString("protectionPinSalt", null),
                 protectionUseBiometric = prefs.getBoolean("protectionUseBiometric", false),
@@ -68,7 +67,6 @@ class SettingsRepository @Inject constructor(
             .putBoolean("autoBackupEnabled", settings.autoBackupEnabled)
             .putString("autoBackupFolder", settings.autoBackupFolder)
             .putInt("autoBackupIntervalHours", settings.autoBackupIntervalHours)
-            .putBoolean("topBarGradient", settings.topBarGradient)
             .putString("protectionPinHash", settings.protectionPinHash)
             .putString("protectionPinSalt", settings.protectionPinSalt)
             .putBoolean("protectionUseBiometric", settings.protectionUseBiometric)

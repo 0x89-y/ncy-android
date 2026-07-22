@@ -83,6 +83,12 @@ fun FormattingToolbar(
                 }
             )
             FormatToggle(
+                icon = Icons.Default.Checklist,
+                label = "Checklist",
+                isActive = false,
+                onClick = { state.insertLinePrefix("- [ ] ") }
+            )
+            FormatToggle(
                 icon = Icons.Default.Code,
                 label = "Code",
                 isActive = state.currentBlockType == BlockType.CODE_BLOCK,

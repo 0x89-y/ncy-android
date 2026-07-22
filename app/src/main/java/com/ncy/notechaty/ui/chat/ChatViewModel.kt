@@ -464,18 +464,17 @@ class ChatViewModel @Inject constructor(
         if (items.isEmpty() || items.all { it.isBlank() }) return
         val replyTarget = consumeReplyTarget()
         viewModelScope.launch {
-            val checklistItems = items.filter { it.isNotBlank() }.map { text ->
-                ChecklistItem(
-                    id = UUID.randomUUID().toString(),
-                    text = text.trim(),
-                    checked = false
+            val content = items.filter { it.isNotBlank() }.map { text ->
+                RichTextBlock(
+                    type = BlockType.BULLET_LIST,
+                    spans = listOf(RichTextSpan(text = "[ ] ${text.trim()}"))
                 )
             }
             val message = Message(
                 id = UUID.randomUUID().toString(),
                 chatId = chatId,
-                type = MessageType.CHECKLIST,
-                checklistItems = checklistItems
+                type = MessageType.TEXT,
+                content = content
             ).withReplyTo(replyTarget)
             repository.addMessage(message)
             loadChat()
@@ -492,6 +491,31 @@ class ChatViewModel @Inject constructor(
                 editedAt = System.currentTimeMillis()
             )
             repository.updateMessage(updated)
+            loadChat()
+        }
+    }
+
+    fun toggleTextChecklistBlock(message: Message, blockIndex: Int) {
+        if (message.type != MessageType.TEXT) return
+        val block = message.content.getOrNull(blockIndex) ?: return
+        val firstSpan = block.spans.firstOrNull() ?: return
+        val toggledText = when {
+            firstSpan.text.startsWith("[ ] ") -> "[x]" + firstSpan.text.drop(3)
+            firstSpan.text.startsWith("[x] ") || firstSpan.text.startsWith("[X] ") ->
+                "[ ]" + firstSpan.text.drop(3)
+            else -> return
+        }
+        val updatedBlocks = message.content.toMutableList().apply {
+            this[blockIndex] = block.copy(
+                spans = block.spans.toMutableList().apply {
+                    this[0] = firstSpan.copy(text = toggledText)
+                }
+            )
+        }
+        viewModelScope.launch {
+            repository.updateMessage(
+                message.copy(content = updatedBlocks, editedAt = System.currentTimeMillis())
+            )
             loadChat()
         }
     }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.backup.BackupScheduler
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.AppSettings
+import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.repository.ChatRepository
@@ -86,6 +87,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setChatSortMode(mode: ChatSortMode) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings(settings.value.copy(chatSortMode = mode))
+        }
+    }
+
     fun setAutoBackupEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateSettings(settings.value.copy(autoBackupEnabled = enabled))
@@ -112,12 +119,6 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.updateSettings(settings.value.copy(syncTransportMode = mode))
             syncManager.stop()
             syncManager.start()
-        }
-    }
-
-    fun setTopBarGradient(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.updateSettings(settings.value.copy(topBarGradient = enabled))
         }
     }
 

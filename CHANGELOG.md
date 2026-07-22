@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.7.1 — 2026-07-22
+
+### Added
+
+- Added interactive Markdown task markers to ordinary messages on Android and Desktop.
+- Added a compact Desktop formatting toolbar for bold, italic, bullet-list, and checklist actions.
+- Added one-click Desktop voice-transcription setup with progress reporting, verified Whisper downloads, and runtime-version and speech-model diagnostics.
+- Added Fast, Balanced, and Accurate Desktop transcription models with multilingual and English-only variants.
+- Cached downloaded Desktop transcription models for instant switching and added cleanup for inactive models.
+
+### Changed
+
+- New checklists are stored and synchronized as ordinary text messages, while existing structured
+  checklist messages remain supported without automatic conversion.
+- Combined Desktop attachments, voice recording, and the formatting-toolbar toggle into one composer
+  add menu.
+- Removed the dedicated Desktop checklist composer; task markers are now inserted directly into the
+  normal message field.
+- Consolidated Desktop profile, tag, and archived-chat filters into one menu.
+- Replaced the dedicated Desktop search view with an inline chat-and-message search bar beside a compact filter button.
+- Refreshed the Desktop chat sidebar with an icon-only segmented view selector and an edge-to-edge
+  layout.
+- Moved Desktop chat organization, appearance, privacy, and deletion controls from the overflow
+  menu into a dedicated chat-settings panel.
+- Added Desktop automatic backups with preset or custom intervals, selectable folders,
+  configurable retention, manual runs, and last-run status.
+- Moved deletion-record cleanup from Backup into advanced sync data maintenance.
+- Reworked Android and Desktop changelogs into release-series views so long version histories no
+  longer expand indefinitely inside Settings.
+- Unified Android's home screen around bottom Chats, Starred, and Reminders navigation with an expandable, inline chat-and-message search mode.
+- Unified archive visibility across Android and Desktop: archived chats are opt-in and appear in a separate section.
+- Aligned Android and Desktop composers around one add menu, a multiline message field, and matching formatting actions.
+- Standardized message actions across clients, including contextual Copy and reminder labels.
+- Standardized chat settings around Organization, Appearance, Privacy, and Data sections.
+- Reorganized Android Settings into General, Sync, Interface, Transcription, Backup, Changelog, and About pages.
+- Standardized user-facing terms around Favorites, Reminders, Archived chats, Paired devices, Voice transcription, connection states, and last-synchronized times.
+- Restricted Desktop LAN discovery advertisements to the selected network interface, preventing recurring errors from unrelated virtual adapters.
+- Aligned empty states and retained native Android and Desktop interaction patterns.
+- Reworked Desktop Settings into an edge-to-edge navigation rail and content pane instead of a
+  centered floating panel.
+- Moved Android's detailed device-sync guidance behind an information button.
+
+### Fixed
+
+- Desktop Pear connection choices now save immediately and remain selected when runtime startup
+  fails, allowing a later retry without silently reverting to local-only mode.
+- Desktop pairing codes in a Pear-capable mode now wait for a Pear public key instead of silently
+  producing a local-only invitation.
+
 ## 0.7.0 — 2026-07-19
 
 ### Added

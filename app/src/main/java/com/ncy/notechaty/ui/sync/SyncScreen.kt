@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Sync
@@ -80,6 +81,7 @@ fun SyncScreen(
     val settings by viewModel.settings.collectAsState()
     val pearStatus by viewModel.pearStatus.collectAsState()
     var showShareDialog by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
     var pairingText by remember { mutableStateOf("") }
     var pairingError by remember { mutableStateOf<String?>(null) }
     var pairingSuccess by remember { mutableStateOf<String?>(null) }
@@ -138,6 +140,34 @@ fun SyncScreen(
         )
     }
 
+    if (showInfoDialog) {
+        NcyAlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("About device sync") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Pair phones and desktops using a QR code or pairing JSON. " +
+                            "Keep Ncy open on a phone while it is sharing a pairing code."
+                    )
+                    Text(
+                        "Local connections use Wi-Fi or Ethernet. Public and guest Wi-Fi may " +
+                            "isolate devices even when they show the same network name. Pear-capable " +
+                            "connection modes can reach already-paired devices across networks."
+                    )
+                    Text(
+                        "Ncy never scans the subnet or discovers unknown devices through Pear. " +
+                            "Changes merge automatically: the latest simultaneous edit wins, " +
+                            "deletes stay deleted, and protected content remains encrypted."
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) { Text("Done") }
+            },
+        )
+    }
+
     pendingPairing?.let { request ->
         NcyAlertDialog(
             onDismissRequest = {},
@@ -160,10 +190,15 @@ fun SyncScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Sync devices") },
+                title = { Text("Paired devices") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showInfoDialog = true }) {
+                        Icon(Icons.Default.Info, contentDescription = "About device sync")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -184,27 +219,10 @@ fun SyncScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                "Pair two phones directly on the same Wi-Fi, or connect to the desktop. " +
-                    "Keep Ncy open on the phone sharing its code while syncing.",
+                "Pair another phone or desktop using a QR code or pairing JSON.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 6.dp)
-            )
-            Text(
-                "Public and guest Wi-Fi may isolate devices or block multicast discovery even " +
-                    "when both show the same network name. Ncy never scans the subnet; if devices " +
-                    "stay offline, use a private LAN or one phone's hotspot.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 6.dp),
-            )
-            Text(
-                "Changes merge automatically: the latest simultaneous edit wins, deletes " +
-                    "stay deleted, and protection never exposes an unresolved plaintext copy. " +
-                    "Profile names remain local labels on each phone.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 6.dp),
             )
 
             NcySettingsSection("Share this phone") {
@@ -213,7 +231,7 @@ fun SyncScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        "On the other phone, open Sync devices and scan this phone's code.",
+                        "On the other phone, open Paired devices and scan this phone's code.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -662,9 +680,7 @@ private fun PeerCard(
                 val retry = when {
                     peer.disabled -> "Paused by user"
                     state is SyncManager.PeerState.Connected -> "Not retrying"
-                    state is SyncManager.PeerState.WaitingForNetwork ->
-                        if (peer.pearPublicKey != null) "Waiting for LAN or Pear internet access"
-                        else "Waiting for a usable LAN"
+                    state is SyncManager.PeerState.WaitingForNetwork -> "Waiting to connect"
                     peer.nextRetryAt != null -> "Scheduled ${formatter.format(Date(peer.nextRetryAt))}"
                     state is SyncManager.PeerState.Failed &&
                         (state.reason == SyncFailurePolicy.REPAIR_MESSAGE ||
@@ -874,16 +890,14 @@ private fun statusColor(state: SyncManager.PeerState) = when (state) {
 private fun statusLine(state: SyncManager.PeerState, peer: SyncPeer): String = when (state) {
     SyncManager.PeerState.Idle -> {
         val last = peer.lastSyncAt
-        if (last != null) "Last synced ${DateFormat.getDateTimeInstance().format(Date(last))}"
-        else "Not yet synced"
+        if (last != null) "Last synchronized ${DateFormat.getDateTimeInstance().format(Date(last))}"
+        else "Waiting to connect"
     }
     SyncManager.PeerState.Disabled -> "Sync disabled for this device"
-    SyncManager.PeerState.WaitingForNetwork ->
-        if (peer.pearPublicKey != null) "Waiting for LAN or Pear internet access"
-        else "Waiting for Wi-Fi or Ethernet"
-    SyncManager.PeerState.Connecting -> "Connecting…"
+    SyncManager.PeerState.WaitingForNetwork -> "Waiting to connect"
+    SyncManager.PeerState.Connecting -> "Waiting to connect"
     is SyncManager.PeerState.Connected ->
-        "Connected via ${state.transport?.name ?: "sync"} · ${state.sentCount} sent · ${state.receivedCount} received"
+        "${if (state.transport?.name.equals("PEAR", ignoreCase = true)) "Connected via Pear" else "Connected locally"} · ${state.sentCount} sent · ${state.receivedCount} received"
     is SyncManager.PeerState.Unavailable -> "Unavailable · ${state.reason}"
     is SyncManager.PeerState.Failed -> "Failed: ${state.reason}"
 }

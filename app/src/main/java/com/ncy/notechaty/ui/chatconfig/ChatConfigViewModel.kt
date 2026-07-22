@@ -128,6 +128,15 @@ class ChatConfigViewModel @Inject constructor(
         }
     }
 
+    fun setPinned(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = _chat.value ?: return@launch
+            val updated = current.copy(isPinned = enabled, isArchived = if (enabled) false else current.isArchived)
+            repository.updateChat(updated)
+            _chat.value = updated
+        }
+    }
+
     fun toggleArchive(onDone: () -> Unit) {
         viewModelScope.launch {
             val current = _chat.value ?: return@launch

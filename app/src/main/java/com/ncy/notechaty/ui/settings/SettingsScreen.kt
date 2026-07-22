@@ -6,9 +6,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.ncy.notechaty.security.BiometricHelper
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +42,7 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.AccentColor
+import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
@@ -79,6 +80,7 @@ fun SettingsScreen(
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
     var showTransportModeDialog by remember { mutableStateOf(false) }
     var pendingPearMode by remember { mutableStateOf<SyncTransportMode?>(null) }
+    var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
     val settings by viewModel.settings.collectAsState()
 
     // Export all launcher
@@ -123,23 +125,15 @@ fun SettingsScreen(
         }
     }
 
-    val topBarColor = MaterialTheme.colorScheme.primaryContainer
-    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
-
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                modifier = if (settings.topBarGradient) {
-                    Modifier.background(
-                        Brush.verticalGradient(
-                            colors = listOf(gradientTopColor, topBarColor)
-                        )
-                    )
-                } else Modifier,
-                title = { Text("Settings") },
+                title = { Text(settingsSection ?: "Settings") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = {
+                        if (settingsSection != null) settingsSection = null else onNavigateBack()
+                    }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
@@ -147,8 +141,7 @@ fun SettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (settings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -164,7 +157,38 @@ fun SettingsScreen(
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            if (settingsSection == null) {
+                NcySettingsPanel {
+                    listOf(
+                        Triple("General", Icons.Default.Lock, "Privacy and app protection"),
+                        Triple("Sync", Icons.Default.Sync, "Paired devices and connection mode"),
+                        Triple("Interface", Icons.Default.Palette, "Theme and appearance"),
+                        Triple("Transcription", Icons.Default.Info, "Voice transcription options"),
+                        Triple("Backup", Icons.Default.Backup, "Import, export, and automatic backups"),
+                    ).forEachIndexed { index, (title, icon, subtitle) ->
+                        NcySettingsRow(icon = icon, title = title, subtitle = subtitle, onClick = { settingsSection = title })
+                        if (index < 4) NcyRowDivider()
+                    }
+                }
+                NcySettingsPanel {
+                    NcySettingsRow(
+                        icon = Icons.Default.NewReleases,
+                        title = "Changelog",
+                        subtitle = "Recent changes and version history",
+                        onClick = { showChangelog = true }
+                    )
+                    NcyRowDivider()
+                    NcySettingsRow(
+                        icon = Icons.Default.Info,
+                        title = "About",
+                        subtitle = "Version, credits, and open-source licenses",
+                        onClick = { settingsSection = "About" }
+                    )
+                }
+            }
+
             // ---- Backup ----
+            if (settingsSection == "Backup") {
             NcySettingsSection("Backup") {
                 NcySettingsRow(
                     icon = Icons.Default.FileUpload,
@@ -226,13 +250,15 @@ fun SettingsScreen(
                     onClick = { showPurgeTombstonesConfirm = true },
                 )
             }
+            }
 
             // ---- Sync ----
+            if (settingsSection == "Sync") {
             NcySettingsSection("Sync") {
                 NcySettingsRow(
                     icon = Icons.Default.Sync,
-                    title = "Sync devices",
-                    subtitle = "Push chats to a paired desktop on the same LAN",
+                    title = "Paired devices",
+                    subtitle = "Manage devices that synchronize your chats",
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         onOpenSync()
@@ -241,7 +267,7 @@ fun SettingsScreen(
                 NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.Public,
-                    title = "Connection preference",
+                    title = "Connection mode",
                     subtitle = "${settings.syncTransportMode.displayName} · ${settings.syncTransportMode.description}",
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -249,8 +275,10 @@ fun SettingsScreen(
                     },
                 )
             }
+            }
 
             // ---- Privacy ----
+            if (settingsSection == "General") {
             NcySettingsSection("Privacy") {
                 val hasPin = viewModel.hasPin()
                 NcySettingsRow(
@@ -325,9 +353,11 @@ fun SettingsScreen(
                     }
                 }
             }
+            }
 
             // ---- Appearance ----
-            NcySettingsSection("Appearance") {
+            if (settingsSection == "Interface") {
+            NcySettingsSection("Interface") {
                 NcySettingsPanel {
                     Text("Theme", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -388,9 +418,45 @@ fun SettingsScreen(
                         }
                     }
                 }
+                NcyRowDivider()
+                NcySettingsPanel {
+                    Text("Chat order", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ChatSortMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = settings.chatSortMode == mode,
+                                onClick = { viewModel.setChatSortMode(mode) },
+                                label = { Text(mode.displayName) },
+                                leadingIcon = if (settings.chatSortMode == mode) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                } else null
+                            )
+                        }
+                    }
+                }
+            }
+            }
+
+            if (settingsSection == "Transcription") {
+                NcySettingsSection("Voice transcription") {
+                    NcySettingsPanel {
+                        Text("Voice transcription is not available on Android yet.")
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Voice messages can still be recorded, sent, and played normally.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             // ---- About ----
+            if (settingsSection == "About") {
             NcySettingsSection("About") {
                 NcySettingsRow(
                     icon = Icons.Default.Person,
@@ -400,18 +466,12 @@ fun SettingsScreen(
                 )
                 NcyRowDivider()
                 NcySettingsRow(
-                    icon = Icons.Default.NewReleases,
-                    title = "What's new",
-                    subtitle = "Recent changes and version history",
-                    onClick = { showChangelog = true }
-                )
-                NcyRowDivider()
-                NcySettingsRow(
                     icon = Icons.Default.Info,
                     title = "Open source licenses",
                     subtitle = "Third-party libraries used in this app",
                     onClick = onOpenLicenses
                 )
+            }
             }
         }
     }
@@ -540,7 +600,7 @@ fun SettingsScreen(
     if (showTransportModeDialog) {
         NcyAlertDialog(
             onDismissRequest = { showTransportModeDialog = false },
-            title = { Text("Connection preference") },
+            title = { Text("Connection mode") },
             text = {
                 Column {
                     SyncTransportMode.entries.forEach { mode ->
@@ -676,6 +736,11 @@ private fun PinSetupDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChangelogSheet(onDismiss: () -> Unit) {
+    val series = remember { CHANGELOG.map { it.version.split('.').take(2).joinToString(".") }.distinct() }
+    var selectedSeries by remember { mutableStateOf(series.firstOrNull() ?: "all") }
+    val visibleEntries = remember(selectedSeries) {
+        if (selectedSeries == "all") CHANGELOG else CHANGELOG.filter { it.version.startsWith("$selectedSeries.") }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface
@@ -689,7 +754,16 @@ private fun ChangelogSheet(onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text("What's new", style = MaterialTheme.typography.titleLarge)
-            CHANGELOG.forEach { entry ->
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(selected = selectedSeries == "all", onClick = { selectedSeries = "all" }, label = { Text("All") })
+                series.forEach { value ->
+                    FilterChip(selected = selectedSeries == value, onClick = { selectedSeries = value }, label = { Text("$value.x") })
+                }
+            }
+            visibleEntries.forEach { entry ->
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

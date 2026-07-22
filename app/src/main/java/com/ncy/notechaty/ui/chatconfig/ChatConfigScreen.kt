@@ -23,9 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import androidx.compose.ui.layout.ContentScale
@@ -118,20 +116,11 @@ fun ChatConfigScreen(
         }
     }
 
-    val topBarColor = MaterialTheme.colorScheme.primaryContainer
-    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                modifier = if (appSettings.topBarGradient) {
-                    Modifier.background(
-                        Brush.verticalGradient(
-                            colors = listOf(gradientTopColor, topBarColor)
-                        )
-                    )
-                } else Modifier,
                 title = { Text("Chat Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -139,8 +128,7 @@ fun ChatConfigScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (appSettings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -326,8 +314,8 @@ fun ChatConfigScreen(
                 }
             }
 
-            // Protection
-            NcySettingsSection("Protection") {
+            // Privacy
+            NcySettingsSection("Privacy") {
                 val hasPin = viewModel.hasAppPin()
                 NcySettingsToggleRow(
                     icon = Icons.Default.Lock,
@@ -356,8 +344,16 @@ fun ChatConfigScreen(
                 }
             }
 
-            // Tags
-            NcySettingsSection("Tags") {
+            // Organization
+            NcySettingsSection("Organization") {
+                NcySettingsToggleRow(
+                    icon = Icons.Default.PushPin,
+                    title = "Pin chat",
+                    subtitle = "Keep this chat at the top of the chat list",
+                    checked = chat?.isPinned == true,
+                    onCheckedChange = { viewModel.setPinned(it) }
+                )
+                NcyRowDivider()
                 NcySettingsPanel {
                     var newTag by remember { mutableStateOf("") }
                     val currentTags = chat?.tags ?: emptyList()
@@ -412,10 +408,18 @@ fun ChatConfigScreen(
                         }
                     }
                 }
+                NcyRowDivider()
+                NcySettingsToggleRow(
+                    icon = Icons.Outlined.Archive,
+                    title = "Archive chat",
+                    subtitle = "Move this chat to the archived section",
+                    checked = chat?.isArchived == true,
+                    onCheckedChange = { viewModel.toggleArchive {} }
+                )
             }
 
-            // Export
-            NcySettingsSection("Export") {
+            // Data
+            NcySettingsSection("Data") {
                 NcySettingsRow(
                     icon = Icons.Default.Share,
                     title = "Export chat",
@@ -425,24 +429,6 @@ fun ChatConfigScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Archive
-            OutlinedButton(
-                onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    viewModel.toggleArchive(onBack)
-                },
-                shape = NcyButtonShape,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    if (chat?.isArchived == true) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (chat?.isArchived == true) "Unarchive Chat" else "Archive Chat")
-            }
 
             // Delete
             Button(

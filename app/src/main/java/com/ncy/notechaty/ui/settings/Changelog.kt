@@ -14,6 +14,17 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.1",
+        date = "2026-07-22",
+        changes = listOf(
+            "New checklists are ordinary messages using interactive Markdown task markers, while legacy checklists remain fully supported.",
+            "Moved the detailed device-sync guidance behind an information button to reduce visual clutter.",
+            "Aligned the Android and Desktop composers, message actions, and chat-settings organization.",
+            "Reorganized Settings into dedicated pages and aligned Favorites, Paired devices, connection statuses, and empty-state wording with Desktop.",
+            "Grouped the changelog by release series so version history stays manageable as it grows.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.0",
         date = "2026-07-19",
         changes = listOf(
@@ -104,6 +115,8 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
             "Redesigned the app to match the Ncy desktop look — dotted background, flat divided-list cards, and accent-coloured message bubbles.",
             "Chat and profile avatars are now rounded squares, each with its own colour.",
             "Long-press menus, the reminder and icon pickers, and the create/rename sheets are now bottom sheets.",
+            "Unified the home screen with bottom Chats, Starred, and Reminders navigation plus an expandable inline chat-and-message search mode.",
+            "Made archived chats opt-in and visually separated them from active chats across Android and Desktop.",
             "Reorganised Settings and grouped import, export and auto-backup together under Backup.",
             "Added a \"What's new\" changelog, and refreshed the About and open-source licenses pages.",
             "Removed the top-bar and message-bubble gradient options.",

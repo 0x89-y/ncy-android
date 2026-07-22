@@ -185,6 +185,48 @@ fun RichTextInput(
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (editingMessage == null) {
+                    Box {
+                        FilledIconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                showAttachMenu = true
+                            },
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape,
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(22.dp))
+                        }
+                        DropdownMenu(expanded = showAttachMenu, onDismissRequest = { showAttachMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Camera") },
+                                leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
+                                onClick = { showAttachMenu = false; onCameraClick() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Gallery") },
+                                leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
+                                onClick = { showAttachMenu = false; onImageClick() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("File") },
+                                leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null) },
+                                onClick = { showAttachMenu = false; onFileClick() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Voice message") },
+                                leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                                onClick = { showAttachMenu = false; onVoiceClick() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (showToolbar) "Hide formatting" else "Formatting") },
+                                leadingIcon = { Icon(Icons.Default.TextFormat, contentDescription = null) },
+                                onClick = { showAttachMenu = false; showToolbar = !showToolbar }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 // Main input field area (rounded filled)
                 Surface(
                     modifier = Modifier.weight(1f),
@@ -270,21 +312,6 @@ fun RichTextInput(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Format toggle
-                            IconButton(
-                                onClick = { showToolbar = !showToolbar },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    if (showToolbar) Icons.Default.KeyboardArrowDown
-                                    else Icons.Default.TextFormat,
-                                    contentDescription = "Toggle formatting",
-                                    modifier = Modifier.size(22.dp),
-                                    tint = if (showToolbar) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
                             // Text field (no border, transparent background)
                             TextField(
                                 value = state.textFieldValue,
@@ -354,77 +381,6 @@ fun RichTextInput(
                                 contentDescription = "Send",
                                 modifier = Modifier.size(20.dp)
                             )
-                        }
-                    } else if (editingMessage == null) {
-                        Box {
-                            FilledIconButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    showAttachMenu = true
-                                },
-                                modifier = Modifier.size(44.dp),
-                                shape = CircleShape,
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Attach",
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showAttachMenu,
-                                onDismissRequest = { showAttachMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Camera") },
-                                    leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showAttachMenu = false
-                                        onCameraClick()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Gallery") },
-                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showAttachMenu = false
-                                        onImageClick()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("File") },
-                                    leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null) },
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showAttachMenu = false
-                                        onFileClick()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Voice message") },
-                                    leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showAttachMenu = false
-                                        onVoiceClick()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Checklist") },
-                                    leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = null) },
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        showAttachMenu = false
-                                        checklistMode = true
-                                    }
-                                )
-                            }
                         }
                     } else {
                         Spacer(modifier = Modifier.size(44.dp))

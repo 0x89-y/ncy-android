@@ -3,6 +3,7 @@ package com.ncy.notechaty.ui.chat
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,9 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import androidx.lifecycle.Lifecycle
@@ -107,6 +106,18 @@ fun ChatScreen(
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var reminderMessage by remember { mutableStateOf<Message?>(null) }
+    var pendingReminder by remember { mutableStateOf<Pair<Message, Long>?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val pending = pendingReminder
+        pendingReminder = null
+        if (granted && pending != null) {
+            viewModel.setReminder(pending.first, pending.second)
+        } else if (!granted) {
+            Toast.makeText(context, "Notification permission is required for reminders", Toast.LENGTH_SHORT).show()
+        }
+    }
     val seenMessageIds = remember { mutableSetOf<String>() }
     var isSearching by remember { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
@@ -265,21 +276,10 @@ fun ChatScreen(
         }
     }
 
-    val topBarColor = MaterialTheme.colorScheme.primaryContainer
-    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
-    val gradientModifier = if (appSettings.topBarGradient) {
-        Modifier.background(
-            Brush.verticalGradient(
-                colors = listOf(gradientTopColor, topBarColor)
-            )
-        )
-    } else Modifier
-
     Scaffold(
         topBar = {
             if (isSearching) {
                 TopAppBar(
-                    modifier = gradientModifier,
                     title = {
                         TextField(
                             value = uiState.searchQuery,
@@ -328,8 +328,7 @@ fun ChatScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = if (appSettings.topBarGradient) Color.Transparent
-                            else MaterialTheme.colorScheme.surface,
+                        containerColor = MaterialTheme.colorScheme.surface,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
                         navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -337,7 +336,6 @@ fun ChatScreen(
                 )
             } else if (selectionMode) {
                 TopAppBar(
-                    modifier = gradientModifier,
                     title = { Text("${selectedIds.size} selected") },
                     navigationIcon = {
                         IconButton(onClick = {
@@ -366,8 +364,7 @@ fun ChatScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = if (appSettings.topBarGradient) Color.Transparent
-                            else MaterialTheme.colorScheme.surface,
+                        containerColor = MaterialTheme.colorScheme.surface,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
                         navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -375,7 +372,6 @@ fun ChatScreen(
                 )
             } else {
                 TopAppBar(
-                    modifier = gradientModifier,
                     title = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -424,8 +420,7 @@ fun ChatScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = if (appSettings.topBarGradient) Color.Transparent
-                            else MaterialTheme.colorScheme.surface,
+                        containerColor = MaterialTheme.colorScheme.surface,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
                         navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -499,6 +494,9 @@ fun ChatScreen(
                                 },
                                 onToggleChecklistItem = { itemId ->
                                     viewModel.toggleChecklistItem(message, itemId)
+                                },
+                                onToggleTextChecklistBlock = { blockIndex ->
+                                    viewModel.toggleTextChecklistBlock(message, blockIndex)
                                 },
                                 onReply = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -659,7 +657,15 @@ fun ChatScreen(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 reminderOptions.forEach { (label, delay) ->
                     NcySheetActionRow(Icons.Default.Alarm, label) {
-                        viewModel.setReminder(msg, System.currentTimeMillis() + delay)
+                        val triggerAt = System.currentTimeMillis() + delay
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            pendingReminder = msg to triggerAt
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            viewModel.setReminder(msg, triggerAt)
+                        }
                         reminderMessage = null
                     }
                 }

@@ -51,6 +51,15 @@ class RichTextState {
         currentColor = color
     }
 
+    fun insertLinePrefix(prefix: String) {
+        val value = textFieldValue
+        val lineStart = value.text.lastIndexOf('\n', (value.selection.start - 1).coerceAtLeast(0)) + 1
+        textFieldValue = value.copy(
+            text = value.text.substring(0, lineStart) + prefix + value.text.substring(lineStart),
+            selection = TextRange(value.selection.start + prefix.length, value.selection.end + prefix.length)
+        )
+    }
+
     fun clear() {
         textFieldValue = TextFieldValue()
         isBold = false

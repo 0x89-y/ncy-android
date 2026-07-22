@@ -13,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Modifier
@@ -101,11 +100,8 @@ class MainActivity : FragmentActivity() {
                 themeMode = settings.themeMode,
                 accentColor = settings.accentColor
             ) {
-                val primaryContainer = MaterialTheme.colorScheme.primaryContainer
                 val surfaceColor = MaterialTheme.colorScheme.surface
-                val statusBarColor = if (settings.topBarGradient) {
-                    lerp(primaryContainer, androidx.compose.ui.graphics.Color.White, 0.3f)
-                } else primaryContainer
+                val statusBarColor = MaterialTheme.colorScheme.primaryContainer
                 val navBarColor = MaterialTheme.colorScheme.surface
                 val isLight = statusBarColor.luminance() > 0.5f
                 LaunchedEffect(statusBarColor, navBarColor, isLight) {

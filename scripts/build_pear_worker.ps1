@@ -76,7 +76,40 @@ foreach ($hostName in $abis.Keys) {
 if (Test-Path -LiteralPath $temporaryZip) {
     Remove-Item -LiteralPath $temporaryZip -Force
 }
-Compress-Archive -Path (Join-Path $workRoot "*") -DestinationPath $temporaryZip -Force
+
+# Compress-Archive writes ZIP entry names with Windows backslashes. Android's
+# AAR extractor expects the ZIP-standard forward slash separator and can turn a
+# directory such as META-INF/com into a zero-byte file otherwise. Add only file
+# entries with normalized names; ZIP readers infer their parent directories.
+Add-Type -AssemblyName System.IO.Compression
+$zipStream = [IO.File]::Open(
+    $temporaryZip,
+    [IO.FileMode]::CreateNew,
+    [IO.FileAccess]::ReadWrite,
+    [IO.FileShare]::None
+)
+$archive = [IO.Compression.ZipArchive]::new(
+    $zipStream,
+    [IO.Compression.ZipArchiveMode]::Create,
+    $false
+)
+try {
+    foreach ($file in Get-ChildItem -LiteralPath $workRoot -File -Recurse) {
+        $entryName = $file.FullName.Substring($resolvedWorkRoot.Length).Replace('\', '/')
+        $entry = $archive.CreateEntry($entryName, [IO.Compression.CompressionLevel]::Optimal)
+        $entryStream = $entry.Open()
+        $sourceStream = [IO.File]::OpenRead($file.FullName)
+        try {
+            $sourceStream.CopyTo($entryStream)
+        } finally {
+            $sourceStream.Dispose()
+            $entryStream.Dispose()
+        }
+    }
+} finally {
+    $archive.Dispose()
+    $zipStream.Dispose()
+}
 Move-Item -LiteralPath $temporaryZip -Destination $baseAar -Force
 Remove-Item -LiteralPath $workRoot -Recurse -Force
 

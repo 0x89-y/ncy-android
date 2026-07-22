@@ -86,6 +86,7 @@ fun MessageBubble(
     onSetReminder: () -> Unit = {},
     onToggleReaction: (String) -> Unit = {},
     onToggleChecklistItem: (String) -> Unit = {},
+    onToggleTextChecklistBlock: (Int) -> Unit = {},
     onReply: () -> Unit = {},
     onJumpToReplyTarget: () -> Unit = {},
     /** False when the quoted message has since been deleted — the quote stays, the jump doesn't. */
@@ -242,7 +243,15 @@ fun MessageBubble(
                     )
                 }
                 when (message.type) {
-                    MessageType.TEXT -> RichTextContent(message.content, chatDir, contentColor)
+                    MessageType.TEXT -> RichTextContent(
+                        message.content,
+                        chatDir,
+                        contentColor,
+                        onChecklistToggle = { blockIndex ->
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            onToggleTextChecklistBlock(blockIndex)
+                        }
+                    )
                     MessageType.VOICE -> {
                         val voiceFile = message.voiceFile?.let { File(chatDir, it) }
                         if (voiceFile != null) {
@@ -304,7 +313,7 @@ fun MessageBubble(
                     if (message.isStarred) {
                         Icon(
                             Icons.Default.Star,
-                            contentDescription = "Starred",
+                            contentDescription = "Favorite",
                             modifier = Modifier.size(12.dp),
                             tint = subtleColor
                         )
@@ -371,13 +380,13 @@ fun MessageBubble(
                         }
                         NcySheetActionRow(
                             if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
-                            if (message.isStarred) "Unstar" else "Star"
+                            if (message.isStarred) "Remove from favorites" else "Add to favorites"
                         ) {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             showMenu = false
                             onToggleStar()
                         }
-                        NcySheetActionRow(Icons.Default.Alarm, "Set reminder") {
+                        NcySheetActionRow(Icons.Default.Alarm, if (message.reminderAt != null) "Edit reminder" else "Set reminder") {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             showMenu = false
                             onSetReminder()
@@ -567,10 +576,59 @@ private fun formatFileSize(bytes: Long): String = when {
     else -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
 }
 
+private fun checklistState(block: RichTextBlock): Boolean? {
+    val text = block.spans.joinToString("") { it.text }
+    return when {
+        text.startsWith("[ ] ") -> false
+        text.startsWith("[x] ") || text.startsWith("[X] ") -> true
+        else -> null
+    }
+}
+
+private fun withoutChecklistMarker(spans: List<RichTextSpan>): List<RichTextSpan> {
+    var remaining = 4
+    return spans.mapNotNull { span ->
+        if (remaining == 0) return@mapNotNull span
+        if (span.text.length <= remaining) {
+            remaining -= span.text.length
+            null
+        } else {
+            span.copy(text = span.text.drop(remaining)).also { remaining = 0 }
+        }
+    }
+}
+
 @Composable
-fun RichTextContent(blocks: List<RichTextBlock>, chatDir: File, textColor: Color = Color.Unspecified) {
+fun RichTextContent(
+    blocks: List<RichTextBlock>,
+    chatDir: File,
+    textColor: Color = Color.Unspecified,
+    onChecklistToggle: ((Int) -> Unit)? = null
+) {
     Column {
-        for (block in blocks) {
+        blocks.forEachIndexed { blockIndex, block ->
+            val checked = checklistState(block)
+            if (checked != null) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = if (onChecklistToggle == null) null else {
+                            { onChecklistToggle(blockIndex) }
+                        },
+                        modifier = Modifier.size(24.dp),
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = textColor,
+                            checkmarkColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                    RichTextSpans(
+                        withoutChecklistMarker(block.spans),
+                        chatDir,
+                        textColor = textColor
+                    )
+                }
+                return@forEachIndexed
+            }
             when (block.type) {
                 BlockType.HEADING1 -> RichTextSpans(block.spans, chatDir, fontSize = 24, fontWeight = FontWeight.Bold, textColor = textColor)
                 BlockType.HEADING2 -> RichTextSpans(block.spans, chatDir, fontSize = 20, fontWeight = FontWeight.Bold, textColor = textColor)

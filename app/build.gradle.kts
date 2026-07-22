@@ -17,8 +17,8 @@ android {
         applicationId = "com.ncy.notechaty"
         minSdk = 31
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.7.0"
+        versionCode = 14
+        versionName = "0.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -50,7 +50,16 @@ android {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            val requestedAbis = providers.gradleProperty("ncyAbis").orNull
+                ?.split(',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
+            include(*(if (requestedAbis.isEmpty()) {
+                listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            } else {
+                requestedAbis
+            }).toTypedArray())
             isUniversalApk = false
         }
     }

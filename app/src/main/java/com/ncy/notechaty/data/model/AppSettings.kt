@@ -39,7 +39,6 @@ data class AppSettings(
     val autoBackupIntervalHours: Int = 24,
     /** Installation-local policy. LOCAL_ONLY guarantees no Pear/DHT runtime starts. */
     val syncTransportMode: SyncTransportMode = SyncTransportMode.LOCAL_ONLY,
-    val topBarGradient: Boolean = false,
     val protectionPinHash: String? = null,
     val protectionPinSalt: String? = null,
     val protectionUseBiometric: Boolean = false,

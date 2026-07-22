@@ -2,24 +2,28 @@ package com.ncy.notechaty.ui.chatlist
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
@@ -30,7 +34,6 @@ import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import androidx.compose.ui.layout.ContentScale
@@ -47,21 +50,27 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.Profile
+import com.ncy.notechaty.ui.search.SearchResult
+import com.ncy.notechaty.ui.search.SearchViewModel
+import com.ncy.notechaty.ui.starred.StarredMessage
+import com.ncy.notechaty.ui.starred.StarredMessagesViewModel
 import com.ncy.notechaty.security.BiometricHelper
 import com.ncy.notechaty.util.gibberishFor
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+private enum class HomeTab { CHATS, STARRED, REMINDERS }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
     onChatClick: (String, String) -> Unit,
     onSettingsClick: () -> Unit,
-    onStarredClick: () -> Unit = {},
-    onSearchClick: () -> Unit = {},
     onManageProfilesClick: () -> Unit = {},
-    viewModel: ChatListViewModel = hiltViewModel()
+    viewModel: ChatListViewModel = hiltViewModel(),
+    searchViewModel: SearchViewModel = hiltViewModel(),
+    starredViewModel: StarredMessagesViewModel = hiltViewModel()
 ) {
     val chats by viewModel.chats.collectAsState()
     val archivedChats by viewModel.archivedChats.collectAsState()
@@ -70,14 +79,31 @@ fun ChatListScreen(
     val baseDir by viewModel.baseDir.collectAsState()
     val profiles by viewModel.profiles.collectAsState()
     val activeProfileId by viewModel.activeProfileId.collectAsState()
+    val searchQuery by searchViewModel.query.collectAsState()
+    val searchResults by searchViewModel.results.collectAsState()
+    val isSearching by searchViewModel.isSearching.collectAsState()
+    val starredMessages by starredViewModel.starredMessages.collectAsState()
+    val reminderMessages by starredViewModel.reminderMessages.collectAsState()
     val view = LocalView.current
     var showCreateDialog by remember { mutableStateOf(false) }
     var chatToDelete by remember { mutableStateOf<Chat?>(null) }
     var longPressedChat by remember { mutableStateOf<Chat?>(null) }
-    var showArchived by remember { mutableStateOf(false) }
+    var showArchivedChats by rememberSaveable { mutableStateOf(false) }
+    var filtersOpen by remember { mutableStateOf(false) }
     var chatToUnlock by remember { mutableStateOf<Chat?>(null) }
     var profileToUnlock by remember { mutableStateOf<Profile?>(null) }
     var showAddProfileDialog by remember { mutableStateOf(false) }
+    var homeTab by rememberSaveable { mutableStateOf(HomeTab.CHATS) }
+    var searchActive by rememberSaveable { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+
+    BackHandler(enabled = searchActive) {
+        searchViewModel.setQuery("")
+        searchActive = false
+    }
+    LaunchedEffect(searchActive) {
+        if (searchActive) searchFocusRequester.requestFocus()
+    }
 
     val openChat: (Chat) -> Unit = { chat ->
         if (chat.isProtected && !viewModel.isChatUnlockedWithinGrace(chat.id)) {
@@ -87,21 +113,26 @@ fun ChatListScreen(
         }
     }
 
-    val topBarColor = MaterialTheme.colorScheme.primaryContainer
-    val gradientTopColor = lerp(topBarColor, Color.White, 0.3f)
 
     Scaffold(
         topBar = {
             TopAppBar(
-                modifier = if (appSettings.topBarGradient) {
-                    Modifier.background(
-                        Brush.verticalGradient(
-                            colors = listOf(gradientTopColor, topBarColor)
-                        )
-                    )
-                } else Modifier,
                 title = {
-                    ProfileSwitcherDropdown(
+                    if (searchActive) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = searchViewModel::setQuery,
+                            modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
+                            placeholder = { Text("Search chats & messages…") },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            )
+                        )
+                    } else ProfileSwitcherDropdown(
                         profiles = profiles,
                         activeProfileId = activeProfileId,
                         onProfileSelected = { id ->
@@ -115,23 +146,57 @@ fun ChatListScreen(
                         onManageProfiles = onManageProfilesClick
                     )
                 },
-                actions = {
-                    IconButton(onClick = onStarredClick) {
-                        Icon(Icons.Default.Star, contentDescription = "Starred")
+                navigationIcon = {
+                    if (searchActive) {
+                        IconButton(onClick = {
+                            searchViewModel.setQuery("")
+                            searchActive = false
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close search")
+                        }
                     }
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                },
+                actions = {
+                    if (!searchActive) {
+                        IconButton(onClick = { searchActive = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                        Box {
+                            IconButton(onClick = { filtersOpen = true }) {
+                                Icon(
+                                    Icons.Default.FilterList,
+                                    contentDescription = "Filter chats",
+                                    tint = if (showArchivedChats) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                                )
+                            }
+                            DropdownMenu(expanded = filtersOpen, onDismissRequest = { filtersOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Show archived chats") },
+                                    trailingIcon = { Checkbox(checked = showArchivedChats, onCheckedChange = null) },
+                                    onClick = {
+                                        showArchivedChats = !showArchivedChats
+                                        filtersOpen = false
+                                    }
+                                )
+                            }
+                        }
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (appSettings.topBarGradient) Color.Transparent
-                        else MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         },
+        bottomBar = {
+            HomeBottomNavigation(selected = homeTab, onSelected = { homeTab = it })
+        },
         floatingActionButton = {
+            if (homeTab == HomeTab.CHATS && searchQuery.isBlank()) {
             FloatingActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -142,8 +207,19 @@ fun ChatListScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "New Chat")
             }
+            }
         }
     ) { padding ->
+        when {
+        searchQuery.isNotBlank() -> HomeSearchResults(
+            Modifier.padding(padding),
+            chats.filter { it.name.contains(searchQuery, ignoreCase = true) },
+            searchResults,
+            isSearching
+        ) { onChatClick(it, "") }
+        homeTab == HomeTab.STARRED -> HomeSavedMessages(Modifier.padding(padding), starredMessages, "No favorites") { onChatClick(it, "") }
+        homeTab == HomeTab.REMINDERS -> HomeSavedMessages(Modifier.padding(padding), reminderMessages, "No reminders") { onChatClick(it, "") }
+        else ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -192,8 +268,6 @@ fun ChatListScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    item(key = "search") { SearchPill(onClick = onSearchClick) }
-
                     if (pinned.isNotEmpty()) {
                         item(key = "lbl_pinned") { NcySectionLabel("Pinned") }
                         item(key = "card_pinned") {
@@ -230,64 +304,26 @@ fun ChatListScreen(
                         }
                     }
 
-                    // Archived section — its own card with an expand/collapse header row.
-                    if (archivedChats.isNotEmpty()) {
+                    if (showArchivedChats && archivedChats.isNotEmpty()) {
+                        item(key = "lbl_archived") { NcySectionLabel("Archived chats") }
                         item(key = "card_archived") {
                             NcyDividedCard {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                            showArchived = !showArchived
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.Archive,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                archivedChats.forEachIndexed { i, chat ->
+                                    if (i > 0) NcyRowDivider()
+                                    ChatListItem(
+                                        chat = chat,
+                                        baseDir = baseDir,
+                                        isUnlocked = chat.id in unlockedChatIds,
+                                        onClick = { openChat(chat) },
+                                        onLongClick = { longPressedChat = chat }
                                     )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        "Archived",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        "${archivedChats.size}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Icon(
-                                        if (showArchived) Icons.Default.KeyboardArrowUp
-                                        else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = if (showArchived) "Collapse" else "Expand",
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (showArchived) {
-                                    archivedChats.forEach { chat ->
-                                        NcyRowDivider()
-                                        ChatListItem(
-                                            chat = chat,
-                                            baseDir = baseDir,
-                                            isUnlocked = chat.id in unlockedChatIds,
-                                            onClick = { openChat(chat) },
-                                            onLongClick = { longPressedChat = chat }
-                                        )
-                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+        }
         }
     }
 
@@ -436,34 +472,66 @@ fun ChatListScreen(
     }
 }
 
-/** Search field styled as a flat bordered pill; taps route to the search screen. */
 @Composable
-private fun SearchPill(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Search,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                "Search notes & chats",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+private fun HomeBottomNavigation(selected: HomeTab, onSelected: (HomeTab) -> Unit) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+        listOf(
+            Triple(HomeTab.CHATS, Icons.Outlined.ChatBubbleOutline, "Chats"),
+            Triple(HomeTab.STARRED, Icons.Default.Star, "Favorites"),
+            Triple(HomeTab.REMINDERS, Icons.Default.Notifications, "Reminders")
+        ).forEach { (tab, icon, label) ->
+            NavigationBarItem(
+                selected = selected == tab,
+                onClick = { onSelected(tab) },
+                icon = { Icon(icon, contentDescription = label) },
+                label = { Text(label) }
             )
         }
     }
+}
+
+@Composable
+private fun HomeSearchResults(modifier: Modifier, chatResults: List<Chat>, results: List<SearchResult>, searching: Boolean, onChatClick: (String) -> Unit) {
+    if (searching) {
+        Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    } else if (chatResults.isEmpty() && results.isEmpty()) {
+        Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) { Text("No results found", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    } else {
+        LazyColumn(modifier.fillMaxSize().ncyDottedGrid()) {
+            items(chatResults, key = { "chat-${it.id}" }) { chat ->
+                HomeMessageRow("Chat", chat.name, chat.lastMessageAt ?: chat.createdAt) { onChatClick(chat.id) }
+            }
+            items(results.size, key = { results[it].message.id }) { index ->
+                val result = results[index]
+                HomeMessageRow(result.chatName, result.message.plainTextPreview(), result.message.createdAt) { onChatClick(result.chatId) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSavedMessages(modifier: Modifier, messages: List<StarredMessage>, emptyText: String, onChatClick: (String) -> Unit) {
+    if (messages.isEmpty()) {
+        Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) { Text(emptyText, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    } else {
+        LazyColumn(modifier.fillMaxSize().ncyDottedGrid()) {
+            items(messages.size, key = { messages[it].message.id }) { index ->
+                val item = messages[index]
+                HomeMessageRow(item.chatName, item.message.plainTextPreview(), item.message.reminderAt ?: item.message.createdAt) { onChatClick(item.chatId) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeMessageRow(chatName: String, preview: String, timestamp: Long, onClick: () -> Unit) {
+    ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        overlineContent = { Text(chatName, color = MaterialTheme.colorScheme.primary) },
+        headlineContent = { Text(preview, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(timestamp))) }
+    )
+    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
 }
 
 @OptIn(ExperimentalFoundationApi::class)

@@ -13,9 +13,7 @@ import com.ncy.notechaty.ui.chatconfig.ChatConfigScreen
 import com.ncy.notechaty.ui.chatlist.ChatListScreen
 import com.ncy.notechaty.ui.licenses.LicensesScreen
 import com.ncy.notechaty.ui.profiles.ProfilesScreen
-import com.ncy.notechaty.ui.search.SearchScreen
 import com.ncy.notechaty.ui.settings.SettingsScreen
-import com.ncy.notechaty.ui.starred.StarredMessagesScreen
 import com.ncy.notechaty.ui.sync.SyncScreen
 
 object Routes {
@@ -24,8 +22,6 @@ object Routes {
     const val CHAT_CONFIG = "chat_config/{chatId}"
     const val SETTINGS = "settings"
     const val LICENSES = "licenses"
-    const val STARRED = "starred"
-    const val SEARCH = "search"
     const val PROFILES = "profiles"
     const val SYNC = "sync"
 
@@ -50,12 +46,6 @@ fun NcyNavGraph(navController: NavHostController) {
                 },
                 onSettingsClick = {
                     navController.navigate(Routes.SETTINGS)
-                },
-                onStarredClick = {
-                    navController.navigate(Routes.STARRED)
-                },
-                onSearchClick = {
-                    navController.navigate(Routes.SEARCH)
                 },
                 onManageProfilesClick = {
                     navController.navigate(Routes.PROFILES)
@@ -111,24 +101,6 @@ fun NcyNavGraph(navController: NavHostController) {
         composable(Routes.LICENSES) {
             LicensesScreen(
                 onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(Routes.STARRED) {
-            StarredMessagesScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onChatClick = { chatId ->
-                    navController.navigate(Routes.chat(chatId))
-                }
-            )
-        }
-
-        composable(Routes.SEARCH) {
-            SearchScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onChatClick = { chatId ->
-                    navController.navigate(Routes.chat(chatId))
-                }
             )
         }
 

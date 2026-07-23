@@ -42,6 +42,10 @@ class SettingsRepository @Inject constructor(
                 autoBackupEnabled = prefs.getBoolean("autoBackupEnabled", false),
                 autoBackupFolder = prefs.getString("autoBackupFolder", null),
                 autoBackupIntervalHours = prefs.getInt("autoBackupIntervalHours", 24),
+                automaticFileDownloadLimitBytes = prefs.getLong(
+                    "automaticFileDownloadLimitBytes",
+                    100L * 1024 * 1024,
+                ).coerceIn(0L, 1024L * 1024 * 1024),
                 syncTransportMode = transportPrefs.getString(KEY_TRANSPORT_MODE, null)
                     ?.let { runCatching { SyncTransportMode.valueOf(it) }.getOrNull() }
                     ?: if (transportPrefs.getBoolean(LEGACY_PEAR_ENABLED, false)) {
@@ -67,6 +71,10 @@ class SettingsRepository @Inject constructor(
             .putBoolean("autoBackupEnabled", settings.autoBackupEnabled)
             .putString("autoBackupFolder", settings.autoBackupFolder)
             .putInt("autoBackupIntervalHours", settings.autoBackupIntervalHours)
+            .putLong(
+                "automaticFileDownloadLimitBytes",
+                settings.automaticFileDownloadLimitBytes.coerceIn(0L, 1024L * 1024 * 1024),
+            )
             .putString("protectionPinHash", settings.protectionPinHash)
             .putString("protectionPinSalt", settings.protectionPinSalt)
             .putBoolean("protectionUseBiometric", settings.protectionUseBiometric)

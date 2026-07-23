@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.2 — 2026-07-24
+
+### Added
+
+- Added configurable automatic file-download limits on Android, Desktop, and Server, with
+  an explicit download action for files above the receiving device's limit.
+- Added signed Android release builds, per-ABI APK packaging, signature verification, and
+  SHA-256 checksums for GitHub and Obtainium distribution.
+
+### Changed
+
+- Increased the temporary absolute file-transfer ceiling to 1 GiB while keeping each
+  device's automatic-download preference independent and local.
+- Legacy checklist messages now remain compatible while newly edited checklists preserve
+  their Markdown task markers as ordinary synchronized messages.
+- Removed credential rotation from already-paired device actions; removing and pairing the
+  device again remains the explicit replacement workflow.
+
+### Fixed
+
+- Fixed release-only Android QR/JSON pairing failures caused by minified reflected models.
+- Fixed an Android initial-sync crash caused by reading a materialized chat while it was
+  being replaced.
+- Fixed chats disappearing after restarting Android by rebuilding derived chat files and
+  recovering on-disk profiles whose registry entries were lost.
+- Fixed checklist edits dropping list markers and collapsing checkbox labels on Android and
+  Desktop.
+- Fixed Bare runtimes remaining active after Ncy Desktop or Server had fully exited.
+- Removed deprecated generic-array API usage from Core's authentication and encryption code.
+
 ## 0.7.1 — 2026-07-22
 
 ### Added

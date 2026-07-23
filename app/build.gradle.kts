@@ -1,9 +1,32 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val releaseSigningPropertiesFile = file(
+    System.getenv("NCY_ANDROID_SIGNING_PROPERTIES")
+        ?: "${System.getProperty("user.home")}/.ncy/android-signing.properties"
+)
+val releaseSigningProperties = Properties().apply {
+    if (releaseSigningPropertiesFile.isFile) {
+        releaseSigningPropertiesFile.inputStream().use(::load)
+    }
+}
+val releaseBuildRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true)
+}
+if (releaseBuildRequested && !releaseSigningPropertiesFile.isFile) {
+    error(
+        "Release signing configuration not found: " +
+            releaseSigningPropertiesFile.absolutePath +
+            ". Copy android-signing.properties.example there or set " +
+            "NCY_ANDROID_SIGNING_PROPERTIES."
+    )
 }
 
 android {
@@ -17,8 +40,8 @@ android {
         applicationId = "com.ncy.notechaty"
         minSdk = 31
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.7.1"
+        versionCode = 15
+        versionName = "0.7.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -64,9 +87,35 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseSigningPropertiesFile.isFile) {
+            create("release") {
+                fun requiredProperty(name: String): String =
+                    releaseSigningProperties.getProperty(name)
+                        ?.takeIf { it.isNotBlank() }
+                        ?: error(
+                            "Missing '$name' in release signing file: " +
+                                releaseSigningPropertiesFile.absolutePath
+                        )
+
+                storeFile = file(requiredProperty("storeFile")).also {
+                    check(it.isFile) { "Release keystore not found: ${it.absolutePath}" }
+                }
+                storePassword = requiredProperty("storePassword")
+                keyAlias = requiredProperty("keyAlias")
+                keyPassword = requiredProperty("keyPassword")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

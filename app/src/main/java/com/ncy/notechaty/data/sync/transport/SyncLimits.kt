@@ -6,7 +6,8 @@ import java.io.File
 object SyncLimits {
     const val MAX_TEXT_FRAME_CHARS = 1024 * 1024
     const val MAX_WIRE_FRAME_CHARS = 1400 * 1024
-    const val MAX_BLOB_BYTES = 100 * 1024 * 1024
+    /** Temporary universal safety ceiling. Automatic-download policy is configured separately. */
+    const val MAX_BLOB_BYTES = 1024 * 1024 * 1024
     const val MAX_CHUNK_BYTES = 64 * 1024
     const val MAX_BASE64_CHARS = 90 * 1024
     const val MAX_PENDING_BLOBS = 8

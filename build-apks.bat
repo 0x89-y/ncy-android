@@ -9,6 +9,8 @@ set "BUILD_MODE=debug"
 set "SKIP_PEAR=0"
 set "OPEN_OUTPUT=1"
 set "ARM64_ONLY=0"
+set "SIGNING_PROPERTIES=%NCY_ANDROID_SIGNING_PROPERTIES%"
+if not defined SIGNING_PROPERTIES set "SIGNING_PROPERTIES=%USERPROFILE%\.ncy\android-signing.properties"
 
 :parse_args
 if "%~1"=="" goto :args_done
@@ -46,6 +48,15 @@ goto :usage
 
 :args_done
 if /I not "%BUILD_MODE%"=="debug" if /I not "%BUILD_MODE%"=="release" if /I not "%BUILD_MODE%"=="all" goto :usage
+
+if /I "%BUILD_MODE%"=="release" (
+  call :check_signing
+  if errorlevel 1 goto :failed
+)
+if /I "%BUILD_MODE%"=="all" (
+  call :check_signing
+  if errorlevel 1 goto :failed
+)
 
 echo.
 echo ============================================================
@@ -133,25 +144,30 @@ if /I "%BUILD_MODE%"=="all" (
 )
 if errorlevel 1 goto :failed
 
+if /I "%BUILD_MODE%"=="release" call :verify_release
+if errorlevel 1 goto :failed
+if /I "%BUILD_MODE%"=="all" call :verify_release
+if errorlevel 1 goto :failed
+
 echo.
 echo ============================================================
 echo  Build complete
 echo  APK folder: !OUTPUT_ROOT!
 echo ============================================================
 echo.
-if /I "%BUILD_MODE%"=="release" call :unsigned_warning
-if /I "%BUILD_MODE%"=="all" call :unsigned_warning
-
 if "!OPEN_OUTPUT!"=="1" start "" explorer.exe "!OUTPUT_ROOT!"
 exit /b 0
 
 :collect
 set "VARIANT=%~1"
 set "OUTPUT_LABEL=!VARIANT!"
-if /I "!VARIANT!"=="release" set "OUTPUT_LABEL=release-unsigned"
 set "SOURCE_DIR=app\build\outputs\apk\production\!VARIANT!"
 set "DEST_DIR=!OUTPUT_ROOT!\!VARIANT!"
 if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
+if /I "!VARIANT!"=="release" (
+  del /Q "!DEST_DIR!\Ncy-!APP_VERSION!-*-release.apk" >nul 2>nul
+  del /Q "!DEST_DIR!\SHA256SUMS.txt" >nul 2>nul
+)
 set "COPIED=0"
 set "EXPECTED_APKS=3"
 set "COLLECT_ABIS=arm64-v8a armeabi-v7a x86_64"
@@ -175,9 +191,52 @@ if not "!COPIED!"=="!EXPECTED_APKS!" (
 )
 exit /b 0
 
-:unsigned_warning
-echo NOTE: Release APKs are optimized but unsigned because this repository has
-echo no release keystore configured. Use the debug APKs for direct installation.
+:check_signing
+if not exist "%SIGNING_PROPERTIES%" (
+  echo ERROR: Release signing configuration was not found:
+  echo   %SIGNING_PROPERTIES%
+  echo.
+  echo Copy android-signing.properties.example to that location and fill in
+  echo the permanent Ncy release-keystore details.
+  exit /b 1
+)
+set "NCY_ANDROID_SIGNING_PROPERTIES=%SIGNING_PROPERTIES%"
+set "APKSIGNER_CMD="
+if defined ANDROID_HOME (
+  for /r "%ANDROID_HOME%\build-tools" %%S in (apksigner.bat) do if exist "%%~fS" if not defined APKSIGNER_CMD set "APKSIGNER_CMD=%%~fS"
+)
+if not defined APKSIGNER_CMD if exist "%LOCALAPPDATA%\Android\Sdk\build-tools" (
+  for /r "%LOCALAPPDATA%\Android\Sdk\build-tools" %%S in (apksigner.bat) do if exist "%%~fS" if not defined APKSIGNER_CMD set "APKSIGNER_CMD=%%~fS"
+)
+if not defined APKSIGNER_CMD (
+  echo ERROR: apksigner.bat was not found in the Android SDK Build Tools.
+  exit /b 1
+)
+echo  APK verifier: %APKSIGNER_CMD%
+exit /b 0
+
+:verify_release
+set "SIGNED_DIR=!OUTPUT_ROOT!\release"
+echo.
+echo Verifying signed release APKs...
+for %%F in ("!SIGNED_DIR!\*.apk") do (
+  if exist "%%~fF" (
+    call "!APKSIGNER_CMD!" verify --verbose --print-certs "%%~fF"
+    set "VERIFY_EXIT=!ERRORLEVEL!"
+    if not "!VERIFY_EXIT!"=="0" (
+      echo ERROR: Signature verification failed for %%~nxF.
+      echo apksigner exit code: !VERIFY_EXIT!
+      exit /b 1
+    )
+  )
+)
+set "NCY_CHECKSUM_DIR=!SIGNED_DIR!"
+powershell.exe -NoProfile -Command "$ErrorActionPreference='Stop'; $dir=$env:NCY_CHECKSUM_DIR; $sha=[Security.Cryptography.SHA256]::Create(); $lines=@(Get-ChildItem -LiteralPath $dir -Filter '*.apk' | Sort-Object Name | ForEach-Object { $stream=[IO.File]::OpenRead($_.FullName); try { $hash=$sha.ComputeHash($stream) } finally { $stream.Dispose() }; $hex=([BitConverter]::ToString($hash)).Replace('-','').ToLowerInvariant(); '{0}  {1}' -f $hex,$_.Name }); [IO.File]::WriteAllLines((Join-Path $dir 'SHA256SUMS.txt'),$lines,[Text.Encoding]::ASCII)"
+if errorlevel 1 (
+  echo ERROR: Could not create SHA256SUMS.txt.
+  exit /b 1
+)
+echo   SHA256SUMS.txt
 echo.
 exit /b 0
 
@@ -185,7 +244,7 @@ exit /b 0
 echo Usage: %~nx0 [debug^|release^|all] [--arm64] [--skip-pear] [--no-open]
 echo.
 echo   debug    Installable production APKs, one per ABI. This is the default.
-echo   release  Optimized but unsigned APKs, one per ABI.
+echo   release  Optimized and signed APKs, one per ABI.
 echo   all      Build both sets.
 echo.
 echo --arm64 builds only the arm64-v8a APK for faster physical-device testing.

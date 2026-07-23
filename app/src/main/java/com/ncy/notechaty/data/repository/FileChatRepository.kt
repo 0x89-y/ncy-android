@@ -768,22 +768,74 @@ class FileChatRepository @Inject constructor(
     }
 
     suspend fun refreshChats() = withContext(Dispatchers.IO) {
-        val chats = profileDir.listFiles()
+        // Capture the profile once. A profile switch can happen while files are being
+        // decoded; an older refresh must never publish its result into the new profile.
+        val profileId = profileRepository.activeProfileId.value
+        val directory = if (profileId.isEmpty()) rootDir else File(rootDir, "profile_$profileId")
+        directory.mkdirs()
+        val chatDirectories = directory.listFiles()
             ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+            ?: emptyList()
+        Log.i(
+            "FileChatRepo",
+            "refresh start active=${profileId.take(8)} profiles=${profileRepository.profiles.value.size} " +
+                "profileDirs=${rootDir.listFiles()?.count {
+                    it.isDirectory && it.name.startsWith("profile_")
+                } ?: 0} chatDirs=${chatDirectories.size}",
+        )
+        val chats = chatDirectories
             ?.mapNotNull { dir ->
                 val chatFile = File(dir, "chat.json")
-                if (!chatFile.exists()) return@mapNotNull null
                 try {
-                    val data = serializer.readFromFile(chatFile)
+                    val data = loadOrRepairChat(dir, chatFile) ?: return@mapNotNull null
                     data.toChat(data.chat.id, data.messages)
                 } catch (e: Exception) {
+                    Log.w(
+                        "FileChatRepo",
+                        "Could not load ${dir.name}; preserving its event log for recovery",
+                        e,
+                    )
                     null
                 }
             }
             ?.sortedByDescending { it.lastMessageAt ?: it.createdAt }
             ?: emptyList()
 
-        _chats.value = chats
+        if (profileRepository.activeProfileId.value == profileId) {
+            _chats.value = chats
+            Log.i(
+                "FileChatRepo",
+                "refresh publish active=${profileId.take(8)} chats=${chats.size} " +
+                    "archived=${chats.count { it.isArchived }}",
+            )
+        } else {
+            Log.i(
+                "FileChatRepo",
+                "refresh discarded active changed ${profileId.take(8)} -> " +
+                    profileRepository.activeProfileId.value.take(8),
+            )
+        }
+    }
+
+    /**
+     * `chat.json` is only a derived cache; `events.ndjson` remains the source of truth.
+     * Recover a missing/corrupt cache during every explicit scan so an already-acked
+     * chat cannot disappear permanently from the UI and require a peer to resend it.
+     */
+    private fun loadOrRepairChat(chatDir: File, chatFile: File): ChatData? {
+        if (chatFile.exists()) {
+            try {
+                return serializer.readFromFile(chatFile)
+            } catch (error: Exception) {
+                Log.w("FileChatRepo", "Repairing unreadable ${chatDir.name}/chat.json", error)
+            }
+        }
+
+        val eventsFile = File(chatDir, "events.ndjson")
+        if (!eventsFile.exists()) return null
+        val rebuilt = MaterializedView.fold(ChatEventHistory.read(chatDir, eventCodec)) ?: return null
+        serializer.writeToFile(chatFile, rebuilt)
+        return rebuilt
     }
 
     /**

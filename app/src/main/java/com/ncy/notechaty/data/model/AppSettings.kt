@@ -37,6 +37,8 @@ data class AppSettings(
     val autoBackupEnabled: Boolean = false,
     val autoBackupFolder: String? = null,
     val autoBackupIntervalHours: Int = 24,
+    /** Local-only threshold for automatically fetching generic file attachments. */
+    val automaticFileDownloadLimitBytes: Long = 100L * 1024 * 1024,
     /** Installation-local policy. LOCAL_ONLY guarantees no Pear/DHT runtime starts. */
     val syncTransportMode: SyncTransportMode = SyncTransportMode.LOCAL_ONLY,
     val protectionPinHash: String? = null,

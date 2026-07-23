@@ -2,10 +2,12 @@ package com.ncy.notechaty.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.ncy.notechaty.data.model.Profile
 import com.ncy.notechaty.security.PinHasher
+import com.ncy.notechaty.data.sync.event.ChatEventHistory
 import com.ncy.notechaty.data.sync.event.ProfileRoutingPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -151,6 +153,62 @@ class ProfileRepository @Inject constructor(
         persist()
     }
 
+    /**
+     * Rebuild profile-registry entries when their directories survived but the
+     * SharedPreferences registry did not. Chat/event data is authoritative here:
+     * a directory is recovered only when it actually contains at least one chat.
+     */
+    @Synchronized
+    fun recoverOrphanedProfileDirectories() {
+        val root = rootDir()
+        val knownIds = _profiles.value.mapTo(HashSet()) { it.id }
+        val orphanDirs = root.listFiles()
+            ?.filter { dir ->
+                dir.isDirectory && dir.name.startsWith("profile_") &&
+                    dir.name.removePrefix("profile_") !in knownIds &&
+                    dir.listFiles()?.any {
+                        it.isDirectory && it.name.startsWith("chat_")
+                    } == true
+            }
+            .orEmpty()
+        if (orphanDirs.isEmpty()) return
+
+        val active = activeProfile()
+        val activeHasChats = active?.let { profile ->
+            profileDir(profile.id).listFiles()?.any {
+                it.isDirectory && it.name.startsWith("chat_")
+            } == true
+        } ?: false
+        val fallbackName = active?.name?.takeIf { !activeHasChats } ?: "Recovered profile"
+
+        val recovered = orphanDirs.mapNotNull { dir ->
+            val id = dir.name.removePrefix("profile_").takeIf(::isSafeProfileId)
+                ?: return@mapNotNull null
+            val eventName = dir.listFiles()
+                ?.asSequence()
+                ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+                ?.flatMap { ChatEventHistory.read(it).asSequence() }
+                ?.map { it.profileName.trim() }
+                ?.firstOrNull { it.isNotEmpty() }
+            Profile(id = id, name = eventName ?: fallbackName)
+        }
+        if (recovered.isEmpty()) return
+
+        _profiles.value = _profiles.value + recovered
+        if (!activeHasChats) {
+            _activeProfileId.value = recovered.maxBy { profile ->
+                profileDir(profile.id).listFiles()?.count {
+                    it.isDirectory && it.name.startsWith("chat_")
+                } ?: 0
+            }.id
+        }
+        persist()
+        Log.i(
+            "ProfileRepo",
+            "Recovered ${recovered.size} profile directories; active=${_activeProfileId.value.take(8)}",
+        )
+    }
+
     /** Resolve a remote profile stamp without multiplying reinstall generations. */
     @Synchronized
     fun resolveSyncedProfile(remoteId: String, remoteName: String): Profile {
@@ -250,4 +308,8 @@ class ProfileRepository @Inject constructor(
         private const val KEY_PROFILES = "profiles"
         private const val KEY_ACTIVE = "active_profile_id"
     }
+
+    private fun isSafeProfileId(id: String): Boolean =
+        id.isNotEmpty() && id.length <= 128 &&
+            id.all { it.isLetterOrDigit() || it == '-' || it == '_' }
 }

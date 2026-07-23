@@ -74,6 +74,15 @@ class SyncManager @Inject constructor(
     private val _states = MutableStateFlow<Map<String, PeerState>>(emptyMap())
     val states: StateFlow<Map<String, PeerState>> = _states.asStateFlow()
 
+    fun downloadFileAnyway(chatId: String, profileId: String, hash: String) {
+        scope.launch {
+            val sessions = synchronized(this@SyncManager) { perPeer.values.toList() }
+            for (peerSession in sessions) {
+                if (peerSession.requestFileAnyway(chatId, profileId, hash)) break
+            }
+        }
+    }
+
     private var running = false
     private var discoveryJob: Job? = null
     private var networkJob: Job? = null
@@ -449,8 +458,15 @@ class SyncManager @Inject constructor(
 
         private suspend fun fetchMissingMedia(event: ChatEvent) {
             val s = session ?: return
-            for ((hash, mediaType) in extractMediaRefs(event)) {
+            for (ref in extractMediaRefs(event)) {
+                val hash = ref.hash
+                val mediaType = ref.mediaType
                 if (chatRepository.mediaFileForHash(hash, mediaType, event.profileId) != null) continue
+                if (
+                    mediaType == "file" &&
+                    ref.sizeBytes != null &&
+                    ref.sizeBytes > settingsRepository.settings.value.automaticFileDownloadLimitBytes
+                ) continue
                 val newlyPending = synchronized(this@PeerSession) {
                     if (pendingFetches.containsKey(hash) || pendingFetches.size >= SyncLimits.MAX_PENDING_BLOBS) false
                     else {
@@ -467,6 +483,30 @@ class SyncManager @Inject constructor(
                 }
                 if (newlyPending) s.requestBlob(hash, mediaType)
             }
+        }
+
+        suspend fun requestFileAnyway(chatId: String, profileId: String, hash: String): Boolean {
+            val s = session ?: return false
+            if (chatRepository.mediaFileForHash(hash, "file", profileId) != null) return true
+            val newlyPending = synchronized(this@PeerSession) {
+                if (pendingFetches.containsKey(hash) || pendingFetches.size >= SyncLimits.MAX_PENDING_BLOBS) {
+                    false
+                } else {
+                    val temp = SyncLimits.newBlobTempFile(chatRepository.getBaseDir())
+                    pendingFetches[hash] = PendingFetch(
+                        chatId = chatId,
+                        profileId = profileId,
+                        mediaType = "file",
+                        tempFile = temp,
+                        output = BufferedOutputStream(temp.outputStream()),
+                    )
+                    true
+                }
+            }
+            if (!newlyPending) return pendingFetches.containsKey(hash)
+            if (s.requestBlob(hash, "file")) return true
+            discardPending(hash)
+            return false
         }
 
         private suspend fun serveBlob(hash: String, mediaType: String) {
@@ -785,36 +825,44 @@ class SyncManager @Inject constructor(
          * that don't match the post-phase-2b content-addressed naming pattern (legacy
          * random-named media stays untransferable).
          */
-        fun extractMediaRefs(event: ChatEvent): List<Pair<String, String>> {
-            val refs = mutableListOf<Pair<String, String>>()
+        data class MediaRef(
+            val hash: String,
+            val mediaType: String,
+            val sizeBytes: Long? = null,
+        )
+
+        fun extractMediaRefs(event: ChatEvent): List<MediaRef> {
+            val refs = mutableListOf<MediaRef>()
             when (val op = event.op) {
                 is ChatEventOp.MessageCreated -> collectFromMessage(op.message, refs)
                 is ChatEventOp.MessageEdited -> collectFromMessage(op.message, refs)
                 is ChatEventOp.ChatMetadataChanged -> {
                     // Phase 2b slice 2: avatars (and backgrounds, even though no client
                     // renders them yet) carry hashed refs that the receiver fetches.
-                    MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += it to "image" }
-                    MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += it to "image" }
+                    MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += MediaRef(it, "image") }
+                    MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += MediaRef(it, "image") }
                 }
                 else -> { /* tombstones carry no media refs */ }
             }
-            return refs.distinct()
+            return refs.distinctBy { it.hash to it.mediaType }
         }
 
         private fun collectFromMessage(
             message: com.ncy.notechaty.data.model.Message,
-            refs: MutableList<Pair<String, String>>
+            refs: MutableList<MediaRef>
         ) {
-            MediaHash.extractHash(message.voiceFile)?.let { refs += it to "voice" }
+            MediaHash.extractHash(message.voiceFile)?.let { refs += MediaRef(it, "voice") }
             for (img in message.imageFiles) {
-                MediaHash.extractHash(img)?.let { refs += it to "image" }
+                MediaHash.extractHash(img)?.let { refs += MediaRef(it, "image") }
             }
             for (attachment in message.fileAttachments) {
-                MediaHash.extractHash(attachment.file)?.let { refs += it to "file" }
+                MediaHash.extractHash(attachment.file)?.let {
+                    refs += MediaRef(it, "file", attachment.sizeBytes)
+                }
             }
             for (block in message.content) {
                 for (span in block.spans) {
-                    MediaHash.extractHash(span.inlineImage)?.let { refs += it to "image" }
+                    MediaHash.extractHash(span.inlineImage)?.let { refs += MediaRef(it, "image") }
                 }
             }
         }

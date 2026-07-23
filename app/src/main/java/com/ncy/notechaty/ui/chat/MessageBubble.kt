@@ -87,6 +87,8 @@ fun MessageBubble(
     onToggleReaction: (String) -> Unit = {},
     onToggleChecklistItem: (String) -> Unit = {},
     onToggleTextChecklistBlock: (Int) -> Unit = {},
+    automaticFileDownloadLimitBytes: Long = 100L * 1024 * 1024,
+    onDownloadFileAnyway: (FileAttachment) -> Unit = {},
     onReply: () -> Unit = {},
     onJumpToReplyTarget: () -> Unit = {},
     /** False when the quoted message has since been deleted — the quote stays, the jump doesn't. */
@@ -278,7 +280,13 @@ fun MessageBubble(
                     MessageType.FILE -> {
                         val attachment = message.fileAttachments.firstOrNull()
                         if (attachment != null) {
-                            FileAttachmentContent(attachment, chatDir, contentColor)
+                            FileAttachmentContent(
+                                attachment,
+                                chatDir,
+                                contentColor,
+                                automaticFileDownloadLimitBytes,
+                                onDownloadFileAnyway,
+                            )
                         } else {
                             Text("File", color = contentColor)
                         }
@@ -485,10 +493,15 @@ private fun FileAttachmentContent(
     attachment: FileAttachment,
     chatDir: File,
     contentColor: Color,
+    automaticFileDownloadLimitBytes: Long,
+    onDownloadAnyway: (FileAttachment) -> Unit,
 ) {
     val context = LocalContext.current
     val localFile = remember(chatDir, attachment.file) { File(chatDir, attachment.file) }
     var available by remember(localFile) { mutableStateOf(localFile.isFile) }
+    var manuallyRequested by remember(localFile) { mutableStateOf(false) }
+    val deferred = !available && !manuallyRequested &&
+        attachment.sizeBytes?.let { it > automaticFileDownloadLimitBytes } == true
     LaunchedEffect(localFile) {
         while (!available) {
             kotlinx.coroutines.delay(2_000)
@@ -553,18 +566,36 @@ private fun FileAttachmentContent(
                 )
                 val detail = buildList {
                     attachment.sizeBytes?.let { add(formatFileSize(it)) }
-                    if (!available) add("Downloading…")
+                    if (deferred) {
+                        add(
+                            if (automaticFileDownloadLimitBytes == 0L) "Automatic downloads are set to Always ask"
+                            else "Above your ${formatFileSize(automaticFileDownloadLimitBytes)} automatic download limit",
+                        )
+                    } else if (!available) {
+                        add("Downloading…")
+                    }
                 }.joinToString(" · ")
                 if (detail.isNotEmpty()) {
                     Text(detail, fontSize = 11.sp, color = contentColor.copy(alpha = 0.72f))
                 }
             }
-            IconButton(
-                enabled = available,
-                onClick = { saveLauncher.launch(attachment.name) },
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(Icons.Default.Download, contentDescription = "Save file")
+            if (deferred) {
+                TextButton(
+                    onClick = {
+                        manuallyRequested = true
+                        onDownloadAnyway(attachment)
+                    },
+                ) {
+                    Text("Download anyway")
+                }
+            } else {
+                IconButton(
+                    enabled = available,
+                    onClick = { saveLauncher.launch(attachment.name) },
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = "Save file")
+                }
             }
         }
     }

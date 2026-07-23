@@ -8,6 +8,8 @@ import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.ChatEventBus
+import com.ncy.notechaty.data.sync.SyncManager
+import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
@@ -48,6 +50,8 @@ class ChatViewModel @Inject constructor(
     private val eventBus: ChatEventBus,
     private val keyStore: ProtectionKeyStore,
     private val deviceIdentity: DeviceIdentity,
+    private val syncManager: SyncManager,
+    private val phoneSyncServer: PhoneSyncServer,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -264,6 +268,16 @@ class ChatViewModel @Inject constructor(
                 sourceFile.delete()
             }
         }
+    }
+
+    fun downloadFileAnyway(attachment: FileAttachment) {
+        val hash = MediaHash.extractHash(attachment.file) ?: return
+        syncManager.downloadFileAnyway(
+            chatId,
+            "",
+            hash,
+        )
+        phoneSyncServer.downloadFileAnyway(chatId, "", hash)
     }
 
     /**

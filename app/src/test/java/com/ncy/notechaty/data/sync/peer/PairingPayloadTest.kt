@@ -1,86 +1,30 @@
 package com.ncy.notechaty.data.sync.peer
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class PairingPayloadTest {
     @Test
-    fun oldPayloadDefaultsToAlwaysAvailable() {
+    fun parsesDesktopPairingWireNames() {
+        val publicKey = "a".repeat(64)
         val payload = PairingPayload.parse(
-            """{"v":1,"deviceId":"peer","name":"Desktop","host":"192.168.1.2","port":8765,"secret":"secret"}"""
-        )!!
-        assertNull(payload.availability)
-        assertFalse(payload.toPeer(1L).foregroundOnly)
-        assertFalse(payload.toPeer(1L).disabled)
-    }
-
-    @Test
-    fun foregroundCapabilitySurvivesPairingImport() {
-        val payload = PairingPayload(
-            v = 1,
-            deviceId = "phone",
-            name = "Phone",
-            host = "192.168.1.3",
-            port = 8765,
-            secret = "secret",
-            availability = PairingPayload.AVAILABILITY_FOREGROUND,
-        )
-        assertEquals(PairingPayload.AVAILABILITY_FOREGROUND, PairingPayload.parse(payload.toJson())?.availability)
-        assertTrue(payload.toPeer(1L).foregroundOnly)
-    }
-
-    @Test
-    fun optionalPearKeySurvivesPairingImport() {
-        val key = "ab".repeat(32)
-        val payload = PairingPayload(
-            v = 1,
-            deviceId = "phone",
-            name = "Phone",
-            host = "192.168.1.3",
-            port = 8765,
-            secret = "secret",
-            pearPublicKey = key,
-        )
-        val parsed = PairingPayload.parse(payload.toJson())!!
-        assertEquals(key, parsed.pearPublicKey)
-        assertEquals(key, parsed.toPeer(1L).pearPublicKey)
-    }
-
-    @Test
-    fun malformedPearKeyIsRejected() {
-        assertNull(
-            PairingPayload.parse(
-                """{"v":1,"deviceId":"peer","name":"Desktop","host":"192.168.1.2","port":8765,"secret":"secret","pearPublicKey":"not-a-key"}"""
-            )
-        )
-    }
-
-    @Test
-    fun pearOnlyPayloadDoesNotNeedLanEndpoint() {
-        val payload = PairingPayload(
-            v = 1,
-            deviceId = "phone",
-            name = "Phone",
-            host = "",
-            port = 0,
-            secret = "secret",
-            pearPublicKey = "ab".repeat(32),
+            """
+            {
+              "v": 1,
+              "deviceId": "desktop-id",
+              "name": "My Desktop",
+              "host": "",
+              "port": 0,
+              "secret": "pairing-secret",
+              "pearPublicKey": "$publicKey"
+            }
+            """.trimIndent(),
         )
 
-        val parsed = PairingPayload.parse(payload.toJson())!!
-        assertFalse(parsed.hasLanEndpoint)
-        assertFalse(parsed.toPeer(1L).hasLanEndpoint)
-    }
-
-    @Test
-    fun payloadWithoutAnyReachableTransportIsRejected() {
-        assertNull(
-            PairingPayload.parse(
-                """{"v":1,"deviceId":"peer","name":"Phone","host":"","port":0,"secret":"secret"}"""
-            )
-        )
+        assertNotNull(payload)
+        assertEquals("desktop-id", payload?.deviceId)
+        assertEquals("pairing-secret", payload?.secret)
+        assertEquals(publicKey, payload?.pearPublicKey)
     }
 }

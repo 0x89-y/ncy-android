@@ -14,6 +14,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
@@ -64,6 +65,7 @@ class PhoneSyncServer @Inject constructor(
     private val snapshot: SyncSnapshot,
     private val repository: ChatRepository,
     private val eventBus: ChatEventBus,
+    private val settingsRepository: SettingsRepository,
     private val pearRuntimeController: PearRuntimeController,
 ) {
     data class HostedPeer(
@@ -111,6 +113,10 @@ class PhoneSyncServer @Inject constructor(
     private val _pendingPairing = MutableStateFlow<PendingPairing?>(null)
     val pendingPairing: StateFlow<PendingPairing?> = _pendingPairing.asStateFlow()
     private var server: Server? = null
+
+    fun downloadFileAnyway(chatId: String, profileId: String, hash: String) {
+        scope.launch { server?.requestFileAnyway(chatId, profileId, hash) }
+    }
     private var liveJob: Job? = null
     private var transferCleanupJob: Job? = null
     private var networkRefreshJob: Job? = null
@@ -598,6 +604,22 @@ class PhoneSyncServer @Inject constructor(
             }
         }
 
+        suspend fun requestFileAnyway(chatId: String, profileId: String, hash: String): Boolean {
+            clients.forEach { (conn, client) ->
+                if (client.deviceId == null || client.pending.size >= SyncLimits.MAX_PENDING_BLOBS) {
+                    return@forEach
+                }
+                if (repository.mediaFileForHash(hash, "file", profileId) != null) return true
+                val candidate = newPending(chatId, profileId, "file")
+                if (client.pending.putIfAbsent(hash, candidate) == null) {
+                    sendSecure(conn, client, SyncWireMessage.BlobRequest(hash, "file"))
+                    return true
+                }
+                candidate.discard()
+            }
+            return false
+        }
+
         private suspend fun receiveEvent(conn: ServerFrameConnection, client: Client, event: ChatEvent) {
             // Event-id dedup makes normal echoes harmless while allowing a restored
             // installation to recover an own-origin event it no longer has locally.
@@ -617,7 +639,14 @@ class PhoneSyncServer @Inject constructor(
             val newlyApplied = repository.applyExternalEvent(routedEvent)
             sendSecure(conn, client, SyncWireMessage.Ack(routedEvent.hlc))
             if (!newlyApplied) return
-            mediaRefs(routedEvent).forEach { (hash, mediaType) ->
+            mediaRefs(routedEvent).forEach { ref ->
+                val hash = ref.hash
+                val mediaType = ref.mediaType
+                if (
+                    mediaType == "file" &&
+                    ref.sizeBytes != null &&
+                    ref.sizeBytes > settingsRepository.settings.value.automaticFileDownloadLimitBytes
+                ) return@forEach
                 if (client.pending.size < SyncLimits.MAX_PENDING_BLOBS &&
                     repository.mediaFileForHash(hash, mediaType, routedEvent.profileId) == null
                 ) {
@@ -1140,28 +1169,36 @@ class PhoneSyncServer @Inject constructor(
             .onFailure { Log.w(TAG, "Could not stop phone sync advertisement", it) }
     }
 
-    private fun mediaRefs(event: ChatEvent): List<Pair<String, String>> {
-        val refs = mutableListOf<Pair<String, String>>()
+    private data class MediaRef(
+        val hash: String,
+        val mediaType: String,
+        val sizeBytes: Long? = null,
+    )
+
+    private fun mediaRefs(event: ChatEvent): List<MediaRef> {
+        val refs = mutableListOf<MediaRef>()
         fun fromMessage(message: Message) {
-            MediaHash.extractHash(message.voiceFile)?.let { refs += it to "voice" }
-            message.imageFiles.forEach { file -> MediaHash.extractHash(file)?.let { refs += it to "image" } }
+            MediaHash.extractHash(message.voiceFile)?.let { refs += MediaRef(it, "voice") }
+            message.imageFiles.forEach { file -> MediaHash.extractHash(file)?.let { refs += MediaRef(it, "image") } }
             message.fileAttachments.forEach { attachment ->
-                MediaHash.extractHash(attachment.file)?.let { refs += it to "file" }
+                MediaHash.extractHash(attachment.file)?.let {
+                    refs += MediaRef(it, "file", attachment.sizeBytes)
+                }
             }
             message.content.flatMap { it.spans }.forEach { span ->
-                MediaHash.extractHash(span.inlineImage)?.let { refs += it to "image" }
+                MediaHash.extractHash(span.inlineImage)?.let { refs += MediaRef(it, "image") }
             }
         }
         when (val op = event.op) {
             is ChatEventOp.MessageCreated -> fromMessage(op.message)
             is ChatEventOp.MessageEdited -> fromMessage(op.message)
             is ChatEventOp.ChatMetadataChanged -> {
-                MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += it to "image" }
-                MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += it to "image" }
+                MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += MediaRef(it, "image") }
+                MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += MediaRef(it, "image") }
             }
             else -> Unit
         }
-        return refs.distinct()
+        return refs.distinctBy { it.hash to it.mediaType }
     }
 
     private companion object {

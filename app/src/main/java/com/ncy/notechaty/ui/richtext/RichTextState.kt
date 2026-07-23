@@ -79,7 +79,9 @@ class RichTextState {
             currentBlockType = blocks.first().type
         }
 
-        for (block in blocks) {
+        for ((blockIndex, block) in blocks.withIndex()) {
+            if (blockIndex > 0) fullText.append('\n')
+            if (block.type == BlockType.BULLET_LIST) fullText.append("- ")
             for (span in block.spans) {
                 if (span.inlineImage != null) continue
                 val start = fullText.length
@@ -123,7 +125,12 @@ class RichTextState {
                 continue
             }
 
-            val lineStart = offset
+            val checklistPrefixLength = when {
+                line.startsWith("- [ ] ") || line.startsWith("- [x] ") || line.startsWith("- [X] ") -> 2
+                else -> 0
+            }
+            val storedLine = line.drop(checklistPrefixLength)
+            val lineStart = offset + checklistPrefixLength
             val lineEnd = offset + line.length
 
             // Find spans that overlap this line
@@ -134,7 +141,7 @@ class RichTextState {
                 // No specific formatting — use current formatting state
                 lineSpans.add(
                     RichTextSpan(
-                        text = line,
+                        text = storedLine,
                         bold = isBold,
                         italic = isItalic,
                         underline = isUnderline,
@@ -175,7 +182,7 @@ class RichTextState {
 
             blocks.add(
                 RichTextBlock(
-                    type = currentBlockType,
+                    type = if (checklistPrefixLength > 0) BlockType.BULLET_LIST else currentBlockType,
                     spans = lineSpans
                 )
             )

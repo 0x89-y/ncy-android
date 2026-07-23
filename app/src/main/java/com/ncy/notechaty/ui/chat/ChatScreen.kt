@@ -248,7 +248,7 @@ fun ChatScreen(
                 if (picked == null) {
                     Toast.makeText(
                         context,
-                        "Could not attach file (maximum size is 100 MB)",
+                        "Could not attach file (maximum size is 1 GB)",
                         Toast.LENGTH_LONG,
                     ).show()
                 } else {
@@ -498,6 +498,9 @@ fun ChatScreen(
                                 onToggleTextChecklistBlock = { blockIndex ->
                                     viewModel.toggleTextChecklistBlock(message, blockIndex)
                                 },
+                                automaticFileDownloadLimitBytes =
+                                    appSettings.automaticFileDownloadLimitBytes,
+                                onDownloadFileAnyway = viewModel::downloadFileAnyway,
                                 onReply = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     viewModel.startReply(message)

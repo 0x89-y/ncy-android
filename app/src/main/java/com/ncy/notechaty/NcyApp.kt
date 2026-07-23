@@ -31,6 +31,9 @@ class NcyApp : Application(), Configuration.Provider {
         // Migration must run before any ViewModel/repository observer reads chats.
         ProfileMigration.runIfNeeded(this, profileRepository)
         EventLogMigrator.runIfNeeded(this, deviceIdentity.deviceId)
+        // The on-disk chats can outlive a damaged/legacy profile registry. Restore
+        // those entries before repositories decide which profile directory to show.
+        profileRepository.recoverOrphanedProfileDirectories()
         // Trim oversized event logs once per launch — silent no-op for small chats.
         EventLogCompactor.runIfNeeded(this)
 

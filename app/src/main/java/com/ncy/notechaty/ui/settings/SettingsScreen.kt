@@ -79,6 +79,7 @@ fun SettingsScreen(
     var showRemovePinConfirm by remember { mutableStateOf(false) }
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
     var showTransportModeDialog by remember { mutableStateOf(false) }
+    var showFileLimitDialog by remember { mutableStateOf(false) }
     var pendingPearMode by remember { mutableStateOf<SyncTransportMode?>(null) }
     var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
     val settings by viewModel.settings.collectAsState()
@@ -273,6 +274,17 @@ fun SettingsScreen(
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         showTransportModeDialog = true
                     },
+                )
+                NcyRowDivider()
+                NcySettingsRow(
+                    icon = Icons.Default.FileDownload,
+                    title = "Automatic file downloads",
+                    subtitle = if (settings.automaticFileDownloadLimitBytes == 0L) {
+                        "Always ask"
+                    } else {
+                        "Up to ${formatSettingFileSize(settings.automaticFileDownloadLimitBytes)}"
+                    },
+                    onClick = { showFileLimitDialog = true },
                 )
             }
             }
@@ -641,6 +653,74 @@ fun SettingsScreen(
         )
     }
 
+    if (showFileLimitDialog) {
+        var customMiB by rememberSaveable {
+            mutableStateOf(
+                (settings.automaticFileDownloadLimitBytes / (1024 * 1024))
+                    .coerceAtLeast(1)
+                    .toString(),
+            )
+        }
+        val presets = listOf(
+            0L to "Always ask",
+            25L to "25 MB",
+            100L to "100 MB",
+            250L to "250 MB",
+            500L to "500 MB",
+            1024L to "1 GB",
+        )
+        NcyAlertDialog(
+            onDismissRequest = { showFileLimitDialog = false },
+            title = { Text("Automatic file downloads") },
+            text = {
+                Column {
+                    presets.forEach { (mib, label) ->
+                        val bytes = mib * 1024 * 1024
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setAutomaticFileDownloadLimit(bytes)
+                                    showFileLimitDialog = false
+                                }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = settings.automaticFileDownloadLimitBytes == bytes,
+                                onClick = null,
+                            )
+                            Text(label, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                    OutlinedTextField(
+                        value = customMiB,
+                        onValueChange = { customMiB = it.filter(Char::isDigit).take(4) },
+                        label = { Text("Custom limit (MB)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = customMiB.toLongOrNull() in 1L..1024L,
+                    onClick = {
+                        val mib = customMiB.toLongOrNull() ?: return@TextButton
+                        viewModel.setAutomaticFileDownloadLimit(mib * 1024 * 1024)
+                        showFileLimitDialog = false
+                    },
+                ) { Text("Use custom") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFileLimitDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
     pendingPearMode?.let { selectedMode ->
         NcyAlertDialog(
             onDismissRequest = { pendingPearMode = null },
@@ -791,6 +871,9 @@ private fun ChangelogSheet(onDismiss: () -> Unit) {
         }
     }
 }
+
+private fun formatSettingFileSize(bytes: Long): String =
+    if (bytes >= 1024L * 1024 * 1024) "1 GB" else "${bytes / (1024 * 1024)} MB"
 
 private fun accentPreviewColor(accent: AccentColor): Color = when (accent) {
     AccentColor.DYNAMIC -> Color(0xFF757575)

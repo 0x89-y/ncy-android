@@ -122,6 +122,17 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setAutomaticFileDownloadLimit(bytes: Long) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings(
+                settings.value.copy(
+                    automaticFileDownloadLimitBytes =
+                        bytes.coerceIn(0L, 1024L * 1024 * 1024),
+                ),
+            )
+        }
+    }
+
     fun setLockOnAppStart(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateSettings(settings.value.copy(lockOnAppStart = enabled))

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added installation-owned device names that default from the OS, can be edited locally,
+  and refresh automatically on authenticated paired devices.
 - Added configurable automatic file-download limits on Android, Desktop, and Server, with
   an explicit download action for files above the receiving device's limit.
 - Added signed Android release builds, per-ABI APK packaging, signature verification, and
@@ -20,6 +22,8 @@
 
 ### Fixed
 
+- Fixed minified Android release builds crashing when enabling Pear by preserving Bare Kit's
+  Java/JNI bridge names.
 - Fixed release-only Android QR/JSON pairing failures caused by minified reflected models.
 - Fixed an Android initial-sync crash caused by reading a materialized chat while it was
   being replaced.

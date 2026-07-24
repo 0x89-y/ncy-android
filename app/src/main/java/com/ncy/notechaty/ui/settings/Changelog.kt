@@ -17,9 +17,10 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         version = "0.7.2",
         date = "2026-07-24",
         changes = listOf(
+            "Added editable device names that default from the phone and refresh automatically on authenticated paired devices.",
             "Added configurable automatic file-download limits with an explicit download action for larger files.",
             "Added signed per-architecture Android release APKs with signature verification and SHA-256 checksums.",
-            "Fixed release-only pairing and initial-sync crashes.",
+            "Fixed release-only pairing, Pear startup, and initial-sync crashes.",
             "Fixed chats disappearing after restart by recovering their on-disk profile and rebuilding derived chat data.",
             "Fixed edited checklists losing their task markers or collapsing their labels.",
         ),

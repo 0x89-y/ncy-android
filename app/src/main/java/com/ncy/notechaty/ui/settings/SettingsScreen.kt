@@ -45,7 +45,6 @@ import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.model.SyncTransportMode
-import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
@@ -81,7 +80,6 @@ fun SettingsScreen(
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
     var showTransportModeDialog by remember { mutableStateOf(false) }
     var showFileLimitDialog by remember { mutableStateOf(false) }
-    var showDeviceNameDialog by remember { mutableStateOf(false) }
     var pendingPearMode by remember { mutableStateOf<SyncTransportMode?>(null) }
     var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
     val settings by viewModel.settings.collectAsState()
@@ -163,7 +161,7 @@ fun SettingsScreen(
             if (settingsSection == null) {
                 NcySettingsPanel {
                     listOf(
-                        Triple("General", Icons.Default.Person, "Device identity and app protection"),
+                        Triple("General", Icons.Default.Lock, "Privacy and app protection"),
                         Triple("Sync", Icons.Default.Sync, "Paired devices and connection mode"),
                         Triple("Interface", Icons.Default.Palette, "Theme and appearance"),
                         Triple("Transcription", Icons.Default.Info, "Voice transcription options"),
@@ -287,21 +285,6 @@ fun SettingsScreen(
                         "Up to ${formatSettingFileSize(settings.automaticFileDownloadLimitBytes)}"
                     },
                     onClick = { showFileLimitDialog = true },
-                )
-            }
-            }
-
-            // ---- Device identity ----
-            if (settingsSection == "General") {
-            NcySettingsSection("General") {
-                NcySettingsRow(
-                    icon = Icons.Default.Person,
-                    title = "Device name",
-                    subtitle = settings.deviceName,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        showDeviceNameDialog = true
-                    },
                 )
             }
             }
@@ -557,38 +540,6 @@ fun SettingsScreen(
                 }
             }
         }
-    }
-
-    if (showDeviceNameDialog) {
-        var editedName by rememberSaveable(settings.deviceName) { mutableStateOf(settings.deviceName) }
-        NcyAlertDialog(
-            onDismissRequest = { showDeviceNameDialog = false },
-            title = { Text("Device name") },
-            text = {
-                OutlinedTextField(
-                    value = editedName,
-                    onValueChange = { editedName = it.take(AuthenticatedDeviceName.MAX_LENGTH) },
-                    label = { Text("Name") },
-                    supportingText = {
-                        Text("Shown to paired devices after authentication.")
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = editedName.isNotBlank(),
-                    onClick = {
-                        viewModel.setDeviceName(editedName)
-                        showDeviceNameDialog = false
-                    },
-                ) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeviceNameDialog = false }) { Text("Cancel") }
-            },
-        )
     }
 
     if (showPinSetup) {

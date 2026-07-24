@@ -4,8 +4,6 @@
 
 ### Added
 
-- Added installation-owned device names that default from the OS, can be edited locally,
-  and refresh automatically on authenticated paired devices.
 - Added configurable automatic file-download limits on Android, Desktop, and Server, with
   an explicit download action for files above the receiving device's limit.
 - Added signed Android release builds, per-ABI APK packaging, signature verification, and

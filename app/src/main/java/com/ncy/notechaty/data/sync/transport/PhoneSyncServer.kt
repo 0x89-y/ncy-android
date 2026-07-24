@@ -574,7 +574,7 @@ class PhoneSyncServer @Inject constructor(
                 client.queuedLive.clear()
                 client.catchupSentEventIds.clear()
             }
-            sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, settingsRepository.settings.value.deviceName))
+            sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, android.os.Build.MODEL ?: "Android phone"))
             scope.launch { finishCatchupAndGoLive(conn, client, hello.deviceId, hello.sinceHlc) }
         }
 

@@ -1,6 +1,6 @@
 package com.ncy.notechaty.data.sync.transport
 
-import com.ncy.notechaty.data.repository.SettingsRepository
+import android.os.Build
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.peer.SyncPeer
@@ -19,7 +19,6 @@ import javax.inject.Singleton
 @Singleton
 class SyncClient @Inject constructor(
     private val frameTransport: ClientSyncTransport,
-    private val settingsRepository: SettingsRepository,
 ) {
 
     private val codec = SyncWireCodec()
@@ -131,7 +130,7 @@ class SyncClient @Inject constructor(
                                 deviceId = localDeviceId,
                                 auth = signed,
                                 sinceHlc = sinceHlc,
-                                deviceName = settingsRepository.settings.value.deviceName,
+                                deviceName = Build.MODEL?.takeIf { it.isNotBlank() } ?: "Android phone",
                                 transport = TransportCrypto.TRANSPORT,
                                 clientNonce = clientNonce,
                             )

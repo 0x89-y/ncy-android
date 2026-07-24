@@ -31,8 +31,6 @@ enum class SyncTransportMode(
 }
 
 data class AppSettings(
-    /** Installation-owned friendly name announced only after explicit pairing/authentication. */
-    val deviceName: String = "Android phone",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentColor: AccentColor = AccentColor.DYNAMIC,
     val chatSortMode: ChatSortMode = ChatSortMode.LAST_MESSAGE,

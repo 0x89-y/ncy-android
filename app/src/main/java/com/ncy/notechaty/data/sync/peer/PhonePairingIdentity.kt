@@ -1,8 +1,8 @@
 package com.ncy.notechaty.data.sync.peer
 
 import android.content.Context
+import android.os.Build
 import android.util.Base64
-import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.DeviceIdentity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.SecureRandom
@@ -14,7 +14,6 @@ import javax.inject.Singleton
 class PhonePairingIdentity @Inject constructor(
     @ApplicationContext context: Context,
     private val deviceIdentity: DeviceIdentity,
-    private val settingsRepository: SettingsRepository,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -26,7 +25,7 @@ class PhonePairingIdentity @Inject constructor(
     fun payload(host: String, port: Int): PairingPayload = PairingPayload(
         v = PairingPayload.WIRE_VERSION,
         deviceId = deviceIdentity.deviceId,
-        name = settingsRepository.settings.value.deviceName,
+        name = Build.MODEL?.takeIf { it.isNotBlank() } ?: "Android phone",
         host = host,
         port = port,
         secret = secret,

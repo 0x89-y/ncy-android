@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3 — 2026-07-24
+
+### Added
+
+- Added installation-owned device names that default from the OS, can be edited locally,
+  and refresh automatically on authenticated paired devices.
+
 ## 0.7.2 — 2026-07-24
 
 ### Added

@@ -14,6 +14,13 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.3",
+        date = "2026-07-24",
+        changes = listOf(
+            "Added editable device names that default from the phone and refresh automatically on authenticated paired devices.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.2",
         date = "2026-07-24",
         changes = listOf(

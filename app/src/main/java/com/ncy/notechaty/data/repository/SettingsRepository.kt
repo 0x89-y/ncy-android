@@ -2,6 +2,8 @@ package com.ncy.notechaty.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
+import android.provider.Settings
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.AppSettings
 import com.ncy.notechaty.data.model.ChatSortMode
@@ -16,7 +18,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SettingsRepository @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext private val context: Context
 ) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("ncy_settings", Context.MODE_PRIVATE)
@@ -30,6 +32,11 @@ class SettingsRepository @Inject constructor(
     private fun loadSettings(): AppSettings {
         return try {
             AppSettings(
+                deviceName = prefs.getString("deviceName", null)
+                    ?.trim()
+                    ?.take(80)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: defaultDeviceName(),
                 themeMode = prefs.getString("themeMode", null)
                     ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                     ?: ThemeMode.SYSTEM,
@@ -65,6 +72,7 @@ class SettingsRepository @Inject constructor(
     suspend fun updateSettings(settings: AppSettings) {
         _settings.value = settings
         prefs.edit()
+            .putString("deviceName", settings.deviceName.trim().take(80))
             .putString("themeMode", settings.themeMode.name)
             .putString("accentColor", settings.accentColor.name)
             .putString("chatSortMode", settings.chatSortMode.name)
@@ -86,6 +94,16 @@ class SettingsRepository @Inject constructor(
             .remove(LEGACY_PEAR_ENABLED)
             .apply()
     }
+
+    private fun defaultDeviceName(): String =
+        runCatching {
+            Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
+        }.getOrNull()
+            ?.trim()
+            ?.take(80)
+            ?.takeIf { it.isNotEmpty() }
+            ?: Build.MODEL?.trim()?.take(80)?.takeIf { it.isNotEmpty() }
+            ?: "Android phone"
 
     private companion object {
         const val KEY_TRANSPORT_MODE = "syncTransportMode"

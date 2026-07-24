@@ -11,6 +11,7 @@ import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
@@ -18,6 +19,7 @@ import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -72,6 +74,22 @@ class SettingsViewModel @Inject constructor(
         } finally {
             syncManager.start()
             if (restartHost) phoneSyncServer.start()
+        }
+    }
+
+    fun setDeviceName(name: String) {
+        val normalized = AuthenticatedDeviceName.refresh(settings.value.deviceName, name)
+        if (normalized == settings.value.deviceName) return
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.updateSettings(settings.value.copy(deviceName = normalized))
+            // Hello/Welcome carry the name only during authentication, so reconnect
+            // both roles to propagate the change without altering stable device IDs.
+            syncManager.stop()
+            syncManager.start()
+            if (phoneSyncServer.enabled.value) {
+                phoneSyncServer.stop()
+                phoneSyncServer.start()
+            }
         }
     }
 

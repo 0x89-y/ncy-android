@@ -18,6 +18,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         date = "2026-07-24",
         changes = listOf(
             "Added editable device names that default from the phone and refresh automatically on authenticated paired devices.",
+            "Consolidated Android sync into one screen, with nearby devices separated from paired devices and JSON options kept under advanced controls.",
         ),
     ),
     ChangelogEntry(

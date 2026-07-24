@@ -44,7 +44,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
-import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
@@ -79,10 +78,7 @@ fun SettingsScreen(
     var showPinSetup by remember { mutableStateOf(false) }
     var showRemovePinConfirm by remember { mutableStateOf(false) }
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
-    var showTransportModeDialog by remember { mutableStateOf(false) }
-    var showFileLimitDialog by remember { mutableStateOf(false) }
     var showDeviceNameDialog by remember { mutableStateOf(false) }
-    var pendingPearMode by remember { mutableStateOf<SyncTransportMode?>(null) }
     var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
     val settings by viewModel.settings.collectAsState()
 
@@ -169,7 +165,12 @@ fun SettingsScreen(
                         Triple("Transcription", Icons.Default.Info, "Voice transcription options"),
                         Triple("Backup", Icons.Default.Backup, "Import, export, and automatic backups"),
                     ).forEachIndexed { index, (title, icon, subtitle) ->
-                        NcySettingsRow(icon = icon, title = title, subtitle = subtitle, onClick = { settingsSection = title })
+                        NcySettingsRow(
+                            icon = icon,
+                            title = title,
+                            subtitle = subtitle,
+                            onClick = { if (title == "Sync") onOpenSync() else settingsSection = title },
+                        )
                         if (index < 4) NcyRowDivider()
                     }
                 }
@@ -251,42 +252,6 @@ fun SettingsScreen(
                     title = "Forget deletion records",
                     subtitle = "Advanced: stale backups may restore deleted chats or messages",
                     onClick = { showPurgeTombstonesConfirm = true },
-                )
-            }
-            }
-
-            // ---- Sync ----
-            if (settingsSection == "Sync") {
-            NcySettingsSection("Sync") {
-                NcySettingsRow(
-                    icon = Icons.Default.Sync,
-                    title = "Paired devices",
-                    subtitle = "Manage devices that synchronize your chats",
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        onOpenSync()
-                    }
-                )
-                NcyRowDivider()
-                NcySettingsRow(
-                    icon = Icons.Default.Public,
-                    title = "Connection mode",
-                    subtitle = "${settings.syncTransportMode.displayName} · ${settings.syncTransportMode.description}",
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        showTransportModeDialog = true
-                    },
-                )
-                NcyRowDivider()
-                NcySettingsRow(
-                    icon = Icons.Default.FileDownload,
-                    title = "Automatic file downloads",
-                    subtitle = if (settings.automaticFileDownloadLimitBytes == 0L) {
-                        "Always ask"
-                    } else {
-                        "Up to ${formatSettingFileSize(settings.automaticFileDownloadLimitBytes)}"
-                    },
-                    onClick = { showFileLimitDialog = true },
                 )
             }
             }
@@ -658,143 +623,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showTransportModeDialog) {
-        NcyAlertDialog(
-            onDismissRequest = { showTransportModeDialog = false },
-            title = { Text("Connection mode") },
-            text = {
-                Column {
-                    SyncTransportMode.entries.forEach { mode ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (mode.usesPear && !settings.syncTransportMode.usesPear) {
-                                        pendingPearMode = mode
-                                    } else {
-                                        viewModel.setSyncTransportMode(mode)
-                                    }
-                                    showTransportModeDialog = false
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(
-                                selected = settings.syncTransportMode == mode,
-                                onClick = null,
-                            )
-                            Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(mode.displayName)
-                                Text(
-                                    mode.description,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showTransportModeDialog = false }) { Text("Cancel") }
-            },
-        )
-    }
-
-    if (showFileLimitDialog) {
-        var customMiB by rememberSaveable {
-            mutableStateOf(
-                (settings.automaticFileDownloadLimitBytes / (1024 * 1024))
-                    .coerceAtLeast(1)
-                    .toString(),
-            )
-        }
-        val presets = listOf(
-            0L to "Always ask",
-            25L to "25 MB",
-            100L to "100 MB",
-            250L to "250 MB",
-            500L to "500 MB",
-            1024L to "1 GB",
-        )
-        NcyAlertDialog(
-            onDismissRequest = { showFileLimitDialog = false },
-            title = { Text("Automatic file downloads") },
-            text = {
-                Column {
-                    presets.forEach { (mib, label) ->
-                        val bytes = mib * 1024 * 1024
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setAutomaticFileDownloadLimit(bytes)
-                                    showFileLimitDialog = false
-                                }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(
-                                selected = settings.automaticFileDownloadLimitBytes == bytes,
-                                onClick = null,
-                            )
-                            Text(label, modifier = Modifier.padding(start = 8.dp))
-                        }
-                    }
-                    OutlinedTextField(
-                        value = customMiB,
-                        onValueChange = { customMiB = it.filter(Char::isDigit).take(4) },
-                        label = { Text("Custom limit (MB)") },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                        ),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = customMiB.toLongOrNull() in 1L..1024L,
-                    onClick = {
-                        val mib = customMiB.toLongOrNull() ?: return@TextButton
-                        viewModel.setAutomaticFileDownloadLimit(mib * 1024 * 1024)
-                        showFileLimitDialog = false
-                    },
-                ) { Text("Use custom") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showFileLimitDialog = false }) { Text("Cancel") }
-            },
-        )
-    }
-
-    pendingPearMode?.let { selectedMode ->
-        NcyAlertDialog(
-            onDismissRequest = { pendingPearMode = null },
-            title = { Text("Enable internet sync?") },
-            text = {
-                Text(
-                    "Pear contacts public discovery infrastructure so your paired devices can " +
-                        "find each other outside the local network. Operators may observe IP " +
-                        "addresses, timing, and traffic volume, but Ncy chat data remains " +
-                        "end-to-end encrypted. No chat history is stored there."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.setSyncTransportMode(selectedMode)
-                        pendingPearMode = null
-                    },
-                ) { Text("Use ${selectedMode.displayName}") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingPearMode = null }) { Text("Cancel") }
-            },
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

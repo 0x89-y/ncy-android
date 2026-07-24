@@ -1,6 +1,5 @@
 package com.ncy.notechaty.ui.sync
 
-import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.sync.DeviceIdentity
@@ -31,7 +30,7 @@ class SyncViewModel @Inject constructor(
     private val pairingClient: PairingClient,
     private val deviceIdentity: DeviceIdentity,
     private val phoneSyncServer: PhoneSyncServer,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     pearRuntimeController: PearRuntimeController,
 ) : ViewModel() {
 
@@ -85,7 +84,7 @@ class SyncViewModel @Inject constructor(
         _pairingMessage.value = null
         _pairingSafetyCode.value = null
         pairingJob = viewModelScope.launch {
-            val phoneName = Build.MODEL ?: "Phone"
+            val phoneName = settings.value.deviceName
             val result = withContext(Dispatchers.IO) {
                 pairingClient.request(
                     host = peer.host,
@@ -162,6 +161,25 @@ class SyncViewModel @Inject constructor(
     fun approvePendingPairing() = phoneSyncServer.approvePendingPairing()
 
     fun rejectPendingPairing() = phoneSyncServer.rejectPendingPairing()
+
+    fun setSyncTransportMode(mode: com.ncy.notechaty.data.model.SyncTransportMode) {
+        viewModelScope.launch {
+            if (settings.value.syncTransportMode == mode) return@launch
+            settingsRepository.updateSettings(settings.value.copy(syncTransportMode = mode))
+            syncManager.stop()
+            syncManager.start()
+        }
+    }
+
+    fun setAutomaticFileDownloadLimit(bytes: Long) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings(
+                settings.value.copy(
+                    automaticFileDownloadLimitBytes = bytes.coerceIn(0L, 1024L * 1024 * 1024),
+                ),
+            )
+        }
+    }
 
     fun setHostingEnabled(enabled: Boolean) = phoneSyncServer.setEnabled(enabled)
 }

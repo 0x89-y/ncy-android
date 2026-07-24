@@ -7,6 +7,13 @@
 - Added installation-owned device names that default from the OS, can be edited locally,
   and refresh automatically on authenticated paired devices.
 
+### Changed
+
+- Consolidated Android sync into one screen for adding and sharing devices, managing paired
+  devices, choosing the connection mode, and configuring automatic file downloads.
+- Nearby unpaired devices now appear separately at the top of Add device, while pairing and
+  sharing JSON are tucked behind advanced options.
+
 ## 0.7.2 — 2026-07-24
 
 ### Added

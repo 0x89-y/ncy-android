@@ -15,12 +15,23 @@ data class ChangelogEntry(
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
         version = "0.7.3",
-        date = "2026-07-24",
+        date = "2026-07-27",
         changes = listOf(
             "Added editable device names that default from the phone and refresh automatically on authenticated paired devices.",
             "Consolidated Android sync into one screen, with nearby devices separated from paired devices and JSON options kept under advanced controls.",
             "Release APK builds now request signing passwords through hidden prompts instead of storing them in the signing properties file.",
-
+            "Added transfer progress for incoming media, with a button to stop a download.",
+            "Added per-message removal of downloaded media that keeps the message and can be downloaded again.",
+            "Added a media storage panel that reclaims files no message refers to any more.",
+            "Added optional per-chat automatic deletion of messages older than a chosen age, keeping starred messages and upcoming reminders.",
+            "Added Force full resync, for a device missing messages or still showing ones deleted elsewhere.",
+            "Deleting a message now removes its text from this device's records instead of only hiding it. Messages deleted earlier are cleaned up on the next launch.",
+            "Protection and profile PINs are now stretched before they are stored. Existing PINs keep working and are upgraded the next time they are entered.",
+            "Restoring a backup now rejects entries pointing outside the import folder, and archives that would expand without bound.",
+            "Fixed images and voice messages being reported missing by a device that still held them.",
+            "Fixed a removed voice message closing the app when played, and a missing image rendering as an empty gap.",
+            "Fixed removed and arriving media only updating after leaving and re-entering a chat.",
+            "Fixed voice messages over three seconds and files of any appreciable size failing to send over Pear.",
         ),
     ),
     ChangelogEntry(

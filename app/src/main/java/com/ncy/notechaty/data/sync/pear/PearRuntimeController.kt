@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +41,10 @@ class PearRuntimeController @Inject constructor(
         Thread(task, "NcyPear-events").apply { isDaemon = true }
     }
     private var allowedPeers: Set<String> = emptySet()
+    /** Set from the worker's `backpressure` signal; read by senders — see [isCongested]. */
+    private val congested = AtomicBoolean(false)
+    /** Frames handed to the worker that it has not yet confirmed are on the wire. */
+    private val inFlight = AtomicInteger(0)
     private val _status = MutableStateFlow<PearRuntimeStatus>(PearRuntimeStatus.Disabled)
     val status: StateFlow<PearRuntimeStatus> = _status.asStateFlow()
 
@@ -91,6 +97,7 @@ class PearRuntimeController @Inject constructor(
 
     fun send(connectionId: String, text: String): Boolean {
         if (text.length > MAX_FRAME_CHARS || ipc == null) return false
+        inFlight.incrementAndGet()
         command(
             "send",
             "id" to connectionId,
@@ -100,6 +107,22 @@ class PearRuntimeController @Inject constructor(
     }
 
     fun close(connectionId: String) = command("close", "id" to connectionId)
+
+    /**
+     * True while the worker has reported that its command queue is backed up.
+     *
+     * The IPC channel to the worker cannot apply normal stream backpressure, so the
+     * worker signals congestion explicitly and senders throttle at the source.
+     * Without it a blob is enqueued in full before any of it reaches the wire, which
+     * buries the connection and stalls every other frame behind it.
+     */
+    fun isCongested(): Boolean = congested.get() || inFlight.get() >= MAX_FRAMES_IN_FLIGHT
+
+    /** Reset after a disconnect so a lost ack cannot wedge the window shut. */
+    private fun resetFlowControl() {
+        inFlight.set(0)
+        congested.set(false)
+    }
 
     fun addListener(listener: PearRuntimeListener) { listeners += listener }
     fun removeListener(listener: PearRuntimeListener) { listeners -= listener }
@@ -147,15 +170,28 @@ class PearRuntimeController @Inject constructor(
                     val connectionId = message["id"].asString
                     listeners.forEach { it.onFrame(connectionId, text) }
                 }
-                "disconnected" -> listeners.forEach {
-                    it.onDisconnected(message["id"].asString, message["publicKey"].asString)
+                "sent" -> if (inFlight.get() > 0) inFlight.decrementAndGet()
+                "log" -> Log.w(TAG, "worker: ${message["message"]?.asString}")
+                "backpressure" -> congested.set(message["active"]?.asBoolean == true)
+                "disconnected" -> {
+                    resetFlowControl()
+                    listeners.forEach {
+                        it.onDisconnected(message["id"].asString, message["publicKey"].asString)
+                    }
                 }
-                "connection-error", "command-error" -> listeners.forEach {
-                    it.onConnectionError(
-                        message["publicKey"]?.takeUnless { value -> value.isJsonNull }?.asString,
-                        message["id"]?.takeUnless { value -> value.isJsonNull }?.asString,
-                        message["message"]?.asString ?: "Pear connection failed",
-                    )
+                "connection-error", "command-error" -> {
+                    // A send that failed will never be acked; release its credit or
+                    // the window stays shut for the life of the connection.
+                    if (message["command"]?.asString == "send" && inFlight.get() > 0) {
+                        inFlight.decrementAndGet()
+                    }
+                    listeners.forEach {
+                        it.onConnectionError(
+                            message["publicKey"]?.takeUnless { value -> value.isJsonNull }?.asString,
+                            message["id"]?.takeUnless { value -> value.isJsonNull }?.asString,
+                            message["message"]?.asString ?: "Pear connection failed",
+                        )
+                    }
                 }
                 "error", "fatal" -> _status.value = PearRuntimeStatus.Failed(
                     message["message"]?.asString ?: "Unknown Pear error"
@@ -200,18 +236,31 @@ class PearRuntimeController @Inject constructor(
         runCatching {
             while (pendingWrites.isNotEmpty()) {
                 val buffer = pendingWrites.first()
+                // Capture the size *before* the call. Bare Kit caps a write at 64 KiB
+                // but drains the buffer to remaining()==0 regardless, so comparing
+                // `written` against the post-write remaining always looked like a
+                // complete write — silently discarding the tail of every frame larger
+                // than 64 KiB. A blob chunk is ~155 KB once base64 has been applied
+                // twice, so most of it never reached the worker and the peer received
+                // a JSON line with no terminating newline.
+                val start = buffer.position()
+                val pending = buffer.remaining()
                 val written = target.write(buffer)
-                Log.d(TAG, "Bare IPC write result=$written remaining=${buffer.remaining()}")
                 if (written <= 0) {
+                    // Backpressure (negative errno) — leave it queued and retry.
+                    buffer.position(start)
                     target.writable { drainWrites(target) }
                     return
                 }
-                if (written >= buffer.remaining()) {
+                if (written >= pending) {
                     pendingWrites.removeFirst()
                 } else {
-                    buffer.position(buffer.position() + written)
-                    pendingWrites.removeFirst()
-                    pendingWrites.addFirst(buffer.slice())
+                    // Partial write: reposition explicitly rather than trusting where
+                    // Bare Kit left it, and wait to be told the pipe is writable again.
+                    Log.d(TAG, "Bare IPC partial write $written/$pending; requeueing tail")
+                    buffer.position(start + written)
+                    target.writable { drainWrites(target) }
+                    return
                 }
             }
             target.writable(null)
@@ -254,6 +303,18 @@ class PearRuntimeController @Inject constructor(
     private companion object {
         const val TAG = "NcyPear"
         const val MEMORY_LIMIT_BYTES = 24 * 1024 * 1024
+
+        /**
+         * Frames the worker may owe an ack for before senders must wait.
+         *
+         * The worklet runs under [MEMORY_LIMIT_BYTES], and one blob chunk is ~155 KB
+         * of IPC JSON — held as a UTF-16 JS string, ~310 KB. Handing over a whole
+         * multi-megabyte blob at once therefore exhausts the worklet's heap and kills
+         * it, which the peer sees as a connection reset and zero bytes delivered.
+         * Four frames is ~1.2 MB in flight: enough to keep the link busy, nowhere
+         * near the ceiling.
+         */
+        const val MAX_FRAMES_IN_FLIGHT = 4
         const val MAX_IPC_CHARS = 2 * 1024 * 1024
         const val MAX_FRAME_CHARS = 1400 * 1024
         const val WORKLET_ASSET = "ncy-pear.bundle"

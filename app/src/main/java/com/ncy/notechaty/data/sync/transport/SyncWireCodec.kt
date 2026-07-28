@@ -77,6 +77,10 @@ class SyncWireCodec(
                 obj.addProperty("type", T_BLOB_MISSING)
                 obj.addProperty("hash", message.hash)
             }
+            is SyncWireMessage.BlobCancel -> {
+                obj.addProperty("type", T_BLOB_CANCEL)
+                obj.addProperty("hash", message.hash)
+            }
         }
         return obj.toString()
     }
@@ -126,6 +130,7 @@ class SyncWireCodec(
                 isLast = obj["isLast"].asBoolean
             )
             T_BLOB_MISSING -> SyncWireMessage.BlobMissing(hash = obj["hash"].asString)
+            T_BLOB_CANCEL -> SyncWireMessage.BlobCancel(hash = obj["hash"].asString)
             else -> throw IllegalArgumentException("Unknown wire message type: $type")
         }
     }
@@ -141,5 +146,6 @@ class SyncWireCodec(
         const val T_BLOB_REQUEST = "BlobRequest"
         const val T_BLOB_CHUNK = "BlobChunk"
         const val T_BLOB_MISSING = "BlobMissing"
+        const val T_BLOB_CANCEL = "BlobCancel"
     }
 }

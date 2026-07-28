@@ -29,7 +29,9 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -62,6 +64,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import com.ncy.notechaty.data.model.*
+import com.ncy.notechaty.data.sync.media.MediaHash
+import com.ncy.notechaty.data.sync.media.MediaTransferState
 import kotlinx.coroutines.launch
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
@@ -89,6 +93,17 @@ fun MessageBubble(
     onToggleTextChecklistBlock: (Int) -> Unit = {},
     automaticFileDownloadLimitBytes: Long = 100L * 1024 * 1024,
     onDownloadFileAnyway: (FileAttachment) -> Unit = {},
+    /** Live progress for a blob hash, or null when nothing is in flight. */
+    transferProgress: (String) -> MediaTransferState.Progress? = { null },
+    /** Why a transfer stopped, or null. Distinguishes dead from merely slow. */
+    transferFailure: (String) -> String? = { null },
+    onCancelDownload: (String) -> Unit = {},
+    /** Drop this device's copy while keeping the message: (hash, mediaType). */
+    onRemoveDownload: (String, String) -> Unit = { _, _ -> },
+    /** Fetch a blob this device does not hold: (hash, mediaType). */
+    onRequestMedia: (String, String) -> Unit = { _, _ -> },
+    /** Bumped when media presence changes, so disk-backed state re-evaluates. */
+    mediaVersion: Int = 0,
     onReply: () -> Unit = {},
     onJumpToReplyTarget: () -> Unit = {},
     /** False when the quoted message has since been deleted — the quote stays, the jump doesn't. */
@@ -108,6 +123,35 @@ fun MessageBubble(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    // Only offer removal for media this device actually holds. A message carries one
+    // media kind, so the first hit is the answer.
+    // Every blob this message points at, with where it would live on disk. Images
+    // arrive as rich-text spans rather than `imageFiles`, so both are walked.
+    val mediaRefs: List<Triple<String, String, File>> = remember(message, chatDir) {
+        fun ref(r: String?, type: String, dir: String, ext: String): Triple<String, String, File>? {
+            val hash = MediaHash.extractHash(r) ?: return null
+            return Triple(hash, type, File(File(chatDir, dir), hash + "." + ext))
+        }
+        buildList {
+            ref(message.voiceFile, "voice", "voice", "m4a")?.let(::add)
+            message.imageFiles.forEach { img -> ref(img, "image", "images", "jpg")?.let(::add) }
+            message.content.forEach { block ->
+                block.spans.forEach { span ->
+                    ref(span.inlineImage, "image", "images", "jpg")?.let(::add)
+                }
+            }
+            message.fileAttachments.forEach { a -> ref(a.file, "file", "files", "bin")?.let(::add) }
+        }.distinctBy { it.first }
+    }
+    // Only offer removal for media actually held here.
+    val localMedia: Pair<String, String>? = remember(mediaRefs, mediaVersion) {
+        mediaRefs.firstOrNull { it.third.isFile }?.let { it.first to it.second }
+    }
+    // Durable, unlike the in-memory transfer state: without it a removed file reads
+    // as "Downloading…" again after a restart.
+    val evictedMedia: Boolean = remember(mediaRefs, mediaVersion) {
+        mediaRefs.any { !it.third.isFile && File(it.third.path + ".evicted").isFile }
+    }
     val view = LocalView.current
 
     // Swipe-to-reply. Bubbles are right-aligned, so the natural pull is rightward,
@@ -245,7 +289,10 @@ fun MessageBubble(
                     )
                 }
                 when (message.type) {
-                    MessageType.TEXT -> RichTextContent(
+                    MessageType.TEXT -> CompositionLocalProvider(
+                        LocalMediaRequest provides onRequestMedia,
+                        LocalMediaVersion provides mediaVersion,
+                    ) { RichTextContent(
                         message.content,
                         chatDir,
                         contentColor,
@@ -253,10 +300,25 @@ fun MessageBubble(
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             onToggleTextChecklistBlock(blockIndex)
                         }
-                    )
+                    ) }
                     MessageType.VOICE -> {
                         val voiceFile = message.voiceFile?.let { File(chatDir, it) }
-                        if (voiceFile != null) {
+                        if (voiceFile != null && !voiceFile.isFile) {
+                            // The player would hand a missing path to MediaPlayer and
+                            // take the app down with it.
+                            val voiceHash = MediaHash.extractHash(message.voiceFile)
+                            MediaStatusCard(
+                                icon = Icons.Default.Mic,
+                                title = "Voice message",
+                                contentColor = contentColor,
+                                progress = voiceHash?.let(transferProgress),
+                                failure = voiceHash?.let(transferFailure)
+                                    ?: if (evictedMedia) MediaTransferState.EVICTED else null,
+                                idleText = "Not on this device",
+                                onDownload = voiceHash?.let { h -> { onRequestMedia(h, "voice") } },
+                                onCancel = voiceHash?.let { h -> { onCancelDownload(h) } },
+                            )
+                        } else if (voiceFile != null) {
                             VoiceMessageBubble(
                                 voiceFile = voiceFile,
                                 durationMs = message.voiceDurationMs ?: 0
@@ -276,7 +338,10 @@ fun MessageBubble(
                             )
                         }
                     }
-                    MessageType.IMAGE -> RichTextContent(message.content, chatDir, contentColor)
+                    MessageType.IMAGE -> CompositionLocalProvider(
+                        LocalMediaRequest provides onRequestMedia,
+                        LocalMediaVersion provides mediaVersion,
+                    ) { RichTextContent(message.content, chatDir, contentColor) }
                     MessageType.FILE -> {
                         val attachment = message.fileAttachments.firstOrNull()
                         if (attachment != null) {
@@ -286,6 +351,10 @@ fun MessageBubble(
                                 contentColor,
                                 automaticFileDownloadLimitBytes,
                                 onDownloadFileAnyway,
+                                transferProgress,
+                                transferFailure,
+                                onCancelDownload,
+                                mediaVersion,
                             )
                         } else {
                             Text("File", color = contentColor)
@@ -384,6 +453,13 @@ fun MessageBubble(
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
                                 Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        localMedia?.let { (hash, mediaType) ->
+                            NcySheetActionRow(Icons.Default.Delete, "Remove download") {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                showMenu = false
+                                onRemoveDownload(hash, mediaType)
                             }
                         }
                         NcySheetActionRow(
@@ -495,10 +571,20 @@ private fun FileAttachmentContent(
     contentColor: Color,
     automaticFileDownloadLimitBytes: Long,
     onDownloadAnyway: (FileAttachment) -> Unit,
+    transferProgress: (String) -> MediaTransferState.Progress? = { null },
+    transferFailure: (String) -> String? = { null },
+    onCancelDownload: (String) -> Unit = {},
+    mediaVersion: Int = 0,
 ) {
     val context = LocalContext.current
     val localFile = remember(chatDir, attachment.file) { File(chatDir, attachment.file) }
-    var available by remember(localFile) { mutableStateOf(localFile.isFile) }
+    val hash = remember(attachment.file) { MediaHash.extractHash(attachment.file) }
+    var available by remember(localFile, mediaVersion) { mutableStateOf(localFile.isFile) }
+    // The marker on disk survives a restart; the in-memory transfer state does not, so
+    // without consulting it a removed file starts claiming it is downloading again.
+    val evicted = remember(localFile, mediaVersion) {
+        !localFile.isFile && File(localFile.path + ".evicted").isFile
+    }
     var manuallyRequested by remember(localFile) { mutableStateOf(false) }
     val deferred = !available && !manuallyRequested &&
         attachment.sizeBytes?.let { it > automaticFileDownloadLimitBytes } == true
@@ -539,6 +625,30 @@ private fun FileAttachmentContent(
             }
         Unit
     }
+    // Absent media reads the same wherever it appears. The rich card below is for a
+    // file that is actually here (or deliberately deferred) — it offers Open and
+    // Save, neither of which means anything without the bytes, and pairing it with a
+    // second Download control was how one row ended up with two of them.
+    if (!available && !deferred) {
+        MediaStatusCard(
+            icon = Icons.Default.AttachFile,
+            title = attachment.name,
+            contentColor = contentColor,
+            progress = hash?.let(transferProgress),
+            // The marker on disk outlives the process; the transfer map does not, so
+            // a removed file must not revert to claiming it is downloading.
+            failure = hash?.let(transferFailure)
+                ?: if (evicted) MediaTransferState.EVICTED else null,
+            idleText = "Downloading…",
+            detail = attachment.sizeBytes?.let { formatFileSize(it) },
+            onDownload = hash?.let { {
+                manuallyRequested = true
+                onDownloadAnyway(attachment)
+            } },
+            onCancel = hash?.let { h -> { onCancelDownload(h) } },
+        )
+        return
+    }
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = contentColor.copy(alpha = 0.14f),
@@ -571,8 +681,6 @@ private fun FileAttachmentContent(
                             if (automaticFileDownloadLimitBytes == 0L) "Automatic downloads are set to Always ask"
                             else "Above your ${formatFileSize(automaticFileDownloadLimitBytes)} automatic download limit",
                         )
-                    } else if (!available) {
-                        add("Downloading…")
                     }
                 }.joinToString(" · ")
                 if (detail.isNotEmpty()) {
@@ -590,7 +698,6 @@ private fun FileAttachmentContent(
                 }
             } else {
                 IconButton(
-                    enabled = available,
                     onClick = { saveLauncher.launch(attachment.name) },
                     modifier = Modifier.size(36.dp),
                 ) {
@@ -628,6 +735,18 @@ private fun withoutChecklistMarker(spans: List<RichTextSpan>): List<RichTextSpan
         }
     }
 }
+
+/**
+ * Lets rich-text content several levels down ask for a blob it does not hold.
+ *
+ * Inline images sit inside spans inside blocks, so passing a callback down would
+ * mean adding a parameter to every block type on the path for the benefit of one
+ * leaf.
+ */
+val LocalMediaRequest = staticCompositionLocalOf<((String, String) -> Unit)?> { null }
+
+/** Bumped when media presence changes, so cached disk lookups re-evaluate. */
+val LocalMediaVersion = compositionLocalOf { 0 }
 
 @Composable
 fun RichTextContent(
@@ -713,8 +832,10 @@ private fun RichTextSpans(
         Column {
             for (span in spans) {
                 if (span.inlineImage != null) {
+                    val mediaVersion = LocalMediaVersion.current
                     val imageFile = File(chatDir, span.inlineImage)
-                    if (imageFile.exists()) {
+                    val present = remember(imageFile, mediaVersion) { imageFile.isFile }
+                    if (present) {
                         AsyncImage(
                             model = imageFile,
                             contentDescription = "Image",
@@ -723,6 +844,12 @@ private fun RichTextSpans(
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { viewingImage = imageFile },
                             contentScale = ContentScale.FillWidth
+                        )
+                    } else {
+                        MissingImagePlaceholder(
+                            imageFile,
+                            span.inlineImage,
+                            if (textColor == Color.Unspecified) LocalContentColor.current else textColor,
                         )
                     }
                 } else if (span.text.isNotEmpty()) {
@@ -1031,4 +1158,32 @@ private fun ReactionChipRow(
             }
         }
     }
+}
+
+/**
+ * Stands in for an inline image this device does not hold.
+ *
+ * Previously the render was guarded by an existence check with no else branch, so
+ * a removed or not-yet-fetched image left a blank gap that read as a broken
+ * message rather than as absent media.
+ */
+@Composable
+private fun MissingImagePlaceholder(imageFile: File, reference: String, contentColor: Color) {
+    val request = LocalMediaRequest.current
+    val hash = remember(reference) { MediaHash.extractHash(reference) }
+    val mediaVersion = LocalMediaVersion.current
+    val evicted = remember(imageFile, mediaVersion) {
+        File(imageFile.path + ".evicted").isFile
+    }
+    MediaStatusCard(
+        icon = Icons.Default.Image,
+        title = "Image",
+        contentColor = contentColor,
+        progress = null,
+        failure = if (evicted) MediaTransferState.EVICTED else null,
+        idleText = "Not on this device",
+        onDownload = if (hash != null && request != null) {
+            { request(hash, "image") }
+        } else null,
+    )
 }

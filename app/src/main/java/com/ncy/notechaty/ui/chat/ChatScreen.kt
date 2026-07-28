@@ -73,6 +73,9 @@ fun ChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
+    val mediaProgress by viewModel.mediaProgress.collectAsState()
+    val mediaFailures by viewModel.mediaFailures.collectAsState()
+    val mediaVersion by viewModel.mediaVersion.collectAsState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val view = LocalView.current
@@ -501,6 +504,12 @@ fun ChatScreen(
                                 automaticFileDownloadLimitBytes =
                                     appSettings.automaticFileDownloadLimitBytes,
                                 onDownloadFileAnyway = viewModel::downloadFileAnyway,
+                                transferProgress = { hash -> mediaProgress[hash] },
+                                transferFailure = { hash -> mediaFailures[hash] },
+                                onCancelDownload = viewModel::cancelMediaDownload,
+                                onRemoveDownload = viewModel::removeMediaDownload,
+                                onRequestMedia = viewModel::requestMedia,
+                                mediaVersion = mediaVersion,
                                 onReply = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     viewModel.startReply(message)

@@ -12,6 +12,17 @@ interface ClientSyncTransport {
     interface Connection {
         fun send(text: String): Boolean
         fun close(code: Int, reason: String): Boolean
+
+        /**
+         * Bytes accepted by [send] but not yet written to the network, or 0 when the
+         * transport cannot report it.
+         *
+         * `send` only enqueues. A blob served at full speed enqueues far faster than
+         * the socket drains, and OkHttp caps its buffer at 16 MiB — past that it does
+         * not block or reject, it *closes the connection*. Blob serving throttles on
+         * this so a large attachment can never take the session down with it.
+         */
+        fun queuedBytes(): Long = 0L
     }
 
     interface Listener {

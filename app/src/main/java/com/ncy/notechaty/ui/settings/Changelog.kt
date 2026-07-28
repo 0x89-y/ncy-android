@@ -19,6 +19,8 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         changes = listOf(
             "Added editable device names that default from the phone and refresh automatically on authenticated paired devices.",
             "Consolidated Android sync into one screen, with nearby devices separated from paired devices and JSON options kept under advanced controls.",
+            "Release APK builds now request signing passwords through hidden prompts instead of storing them in the signing properties file.",
+
         ),
     ),
     ChangelogEntry(

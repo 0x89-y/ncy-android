@@ -7,12 +7,15 @@ import com.google.gson.Gson
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.media.MediaHash
+import com.ncy.notechaty.data.sync.media.MediaRefs
 import com.ncy.notechaty.data.sync.protection.ProtectionCrypto
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventHistory
 import com.ncy.notechaty.data.sync.event.ChatEventCodec
 import com.ncy.notechaty.data.sync.event.ChatEventOp
+import com.ncy.notechaty.data.sync.event.ChatRetention
+import com.ncy.notechaty.data.sync.event.EventLogCompactor
 import com.ncy.notechaty.data.sync.event.EventLog
 import com.ncy.notechaty.data.sync.event.ChatTombstoneGraveyard
 import com.ncy.notechaty.data.sync.event.EventLogMigrator
@@ -30,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.ncy.notechaty.backup.BackupArchive
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -179,6 +183,9 @@ class FileChatRepository @Inject constructor(
             hideName = chat.hideName,
             protectionSalt = nextSalt,
             remoteMessagesOnLeft = chat.remoteMessagesOnLeft,
+            // `ChatMetadataChanged` is whole-record last-write-wins, so a field left
+            // out here is not "unchanged" — it is cleared on every paired device.
+            retentionDays = chat.retentionDays,
         )
         appendAndMaterialize(chat.id, ChatEventOp.ChatMetadataChanged(updated))
         refreshChats()
@@ -235,7 +242,32 @@ class FileChatRepository @Inject constructor(
         val chatDir = File(profileDir, "chat_$chatId")
         if (!chatDir.exists()) return@withContext
         appendAndMaterialize(chatId, ChatEventOp.MessageTombstoned(messageId))
+        // The tombstone hides the message; the `MessageCreated` it replaces still
+        // holds the text. Compaction removes that, but it only runs at app launch,
+        // so without this the note stays readable on disk for the rest of the
+        // session — and "deleted" should not mean "deleted once you restart".
+        runCatching { EventLogCompactor.compactChatDir(chatDir) }
+            .onFailure { Log.w("FileChatRepo", "could not scrub deleted message content", it) }
         refreshChats()
+    }
+
+    override suspend fun applyChatRetention(): Int = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        var deleted = 0
+        for (chat in _chats.value) {
+            if ((chat.retentionDays ?: 0) <= 0) continue
+            // A locked protected chat yields placeholder bodies, so its star flags are
+            // not real. Wait until it is unlocked rather than delete on a guess.
+            // The keystore, not ChatLockState: the latter's zero-grace path *consumes*
+            // the unlock token on read, which a background sweep must never do.
+            if (chat.isProtected && !keyStore.isUnlocked(chat.id)) continue
+            val messages = runCatching { getMessages(chat.id) }.getOrNull() ?: continue
+            for (id in ChatRetention.expiredMessageIds(chat, messages, now)) {
+                runCatching { deleteMessage(chat.id, id) }.onSuccess { deleted += 1 }
+            }
+        }
+        if (deleted > 0) Log.i("FileChatRepo", "retention: deleted $deleted expired message(s)")
+        deleted
     }
 
     override suspend fun setChatAvatar(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
@@ -303,6 +335,138 @@ class FileChatRepository @Inject constructor(
             .firstOrNull()
     }
 
+    /** Marker recording a deliberate local drop; sits beside where the blob lived. */
+    private fun evictionMarkerFor(target: File): File = File(target.parentFile, "${target.name}.evicted")
+
+    /**
+     * Where an eviction marker should live for a blob we may no longer have. Media is
+     * stored per chat, so without the file itself there is no single answer — the
+     * marker goes in the canonical write directory of whichever chat still references
+     * the hash, which is where a re-download would land.
+     */
+    private fun evictionMarkerCandidates(hash: String, mediaType: String, profileId: String?): List<File> {
+        val ext = mediaExt(mediaType) ?: return emptyList()
+        val subdirs = mediaSearchSubdirs(mediaType) ?: return emptyList()
+        return mediaProfileDirs(profileId)
+            .flatMap { dir -> dir.listFiles()?.asSequence() ?: emptySequence() }
+            .filter { it.isDirectory && it.name.startsWith("chat_") }
+            .flatMap { chatDir -> subdirs.asSequence().map { File(File(chatDir, it), "$hash.$ext.evicted") } }
+            .toList()
+    }
+
+    override suspend fun evictMedia(
+        hash: String,
+        mediaType: String,
+        profileId: String?,
+    ): Long = withContext(Dispatchers.IO) {
+        val existing = mediaFileForHash(hash, mediaType, profileId)
+        val freed = existing?.length() ?: 0L
+        if (existing != null) {
+            val marker = evictionMarkerFor(existing)
+            marker.parentFile?.mkdirs()
+            marker.writeBytes(ByteArray(0))
+            existing.delete()
+        } else {
+            // Already absent; still record the choice so it is not fetched back.
+            evictionMarkerCandidates(hash, mediaType, profileId).firstOrNull()?.let { marker ->
+                marker.parentFile?.mkdirs()
+                runCatching { marker.writeBytes(ByteArray(0)) }
+            }
+        }
+        freed
+    }
+
+    override suspend fun isMediaEvicted(
+        hash: String,
+        mediaType: String,
+        profileId: String?,
+    ): Boolean = withContext(Dispatchers.IO) {
+        evictionMarkerCandidates(hash, mediaType, profileId).any { it.isFile }
+    }
+
+    override suspend fun clearMediaEviction(
+        hash: String,
+        mediaType: String,
+        profileId: String?,
+    ): Unit = withContext(Dispatchers.IO) {
+        evictionMarkerCandidates(hash, mediaType, profileId).forEach { runCatching { it.delete() } }
+    }
+
+    override suspend fun collectUnreferencedMedia(
+        dryRun: Boolean,
+    ): MediaCleanupReport = withContext(Dispatchers.IO) {
+        var scanned = 0
+        var deleted = 0
+        var reclaimed = 0L
+        var total = 0L
+        val locked = mutableListOf<String>()
+
+        val chatDirs = mediaProfileDirs(null)
+            .flatMap { dir -> dir.listFiles()?.asSequence() ?: emptySequence() }
+            .filter { it.isDirectory && it.name.startsWith("chat_") }
+            .toList()
+
+        for (chatDir in chatDirs) {
+            val events = runCatching { ChatEventHistory.read(chatDir, eventCodec) }.getOrNull()
+            if (events == null) {
+                locked += chatDir.name
+                continue
+            }
+            // A sealed body hides its media references inside the ciphertext. Treating
+            // them as absent would delete every attachment the chat owns, so a chat
+            // holding any unreadable event is reported and left alone.
+            val sealed = events.any { it.op is ChatEventOp.EncryptedMessage }
+            // Deleting a message does not rewrite the log, so its creating event — and
+            // its references — are still here. Skip those explicitly.
+            val tombstoned = events.mapNotNull { (it.op as? ChatEventOp.MessageTombstoned)?.messageId }.toSet()
+            val referenced = events.asSequence()
+                .filterNot { event ->
+                    val id = when (val op = event.op) {
+                        is ChatEventOp.MessageCreated -> op.message.id
+                        is ChatEventOp.MessageEdited -> op.message.id
+                        else -> null
+                    }
+                    id != null && id in tombstoned
+                }
+                .flatMap { MediaRefs.extract(it).asSequence() }
+                .map { it.hash }
+                .toSet()
+
+            for (sub in MEDIA_SUBDIRS) {
+                val dir = File(chatDir, sub)
+                val files = dir.listFiles() ?: continue
+                for (file in files) {
+                    if (!file.isFile) continue
+                    val name = file.name
+                    if (name.endsWith(".evicted")) {
+                        // Bookkeeping, not media: collectable once nothing refers to it.
+                        val hash = name.substringBefore('.')
+                        if (!sealed && hash !in referenced && !dryRun) file.delete()
+                        continue
+                    }
+                    scanned += 1
+                    total += file.length()
+                    if (sealed || name.substringBefore('.') in referenced) continue
+                    reclaimed += file.length()
+                    deleted += 1
+                    if (!dryRun) file.delete()
+                }
+            }
+            if (sealed) locked += chatDir.name
+        }
+
+        // Unlike the desktop's flat store, media here lives under the chat that owns
+        // it — so a chat whose events cannot be read only blocks its *own* blobs. The
+        // rest still sweep, and `lockedChats` explains the shortfall.
+        MediaCleanupReport(
+            scanned = scanned,
+            deleted = deleted,
+            reclaimedBytes = reclaimed,
+            totalBytes = total,
+            lockedChats = locked,
+        )
+    }
+
     override suspend fun saveMediaBlobFromFile(
         chatId: String,
         hash: String,
@@ -328,6 +492,9 @@ class FileChatRepository @Inject constructor(
             sourceFile.delete()
         }
     }
+
+    /** Every subdirectory blobs can live in, for a whole-chat media sweep. */
+    private val MEDIA_SUBDIRS = listOf("voice", "images", "files", "avatar", "background")
 
     private fun mediaExt(mediaType: String): String? = when (mediaType) {
         "voice" -> "m4a"
@@ -467,11 +634,24 @@ class FileChatRepository @Inject constructor(
         try {
             ZipInputStream(FileInputStream(zipFile)).use { zis ->
                 var entry = zis.nextEntry
+                var entryCount = 0
+                var totalBytes = 0L
                 while (entry != null) {
+                    check(++entryCount <= BackupArchive.MAX_ENTRIES) {
+                        "Backup archive has more than ${BackupArchive.MAX_ENTRIES} entries"
+                    }
                     if (!entry.isDirectory) {
-                        val outFile = File(tempDir, entry.name)
-                        outFile.parentFile?.mkdirs()
-                        outFile.outputStream().use { zis.copyTo(it) }
+                        val outFile = BackupArchive.safeTarget(tempDir, entry.name)
+                        if (outFile == null) {
+                            Log.w("FileChatRepo", "import: rejected unsafe zip entry '${entry.name}'")
+                        } else {
+                            outFile.parentFile?.mkdirs()
+                            outFile.outputStream().use { out ->
+                                totalBytes += BackupArchive.copyAtMost(
+                                    zis, out, BackupArchive.MAX_BYTES - totalBytes
+                                )
+                            }
+                        }
                     }
                     zis.closeEntry()
                     entry = zis.nextEntry
@@ -1275,6 +1455,8 @@ class FileChatRepository @Inject constructor(
             hideName = chat.hideName,
             protectionSalt = chat.protectionSalt,
             remoteMessagesOnLeft = chat.remoteMessagesOnLeft,
+            retentionDays = chat.retentionDays,
         )
     }
+
 }

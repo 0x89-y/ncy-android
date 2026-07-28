@@ -6,6 +6,17 @@ import com.ncy.notechaty.data.sync.event.ChatEvent
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 
+/** Outcome of a [ChatRepository.collectUnreferencedMedia] pass. */
+data class MediaCleanupReport(
+    val scanned: Int = 0,
+    val deleted: Int = 0,
+    val reclaimedBytes: Long = 0,
+    /** Size of all stored media before any deletion. */
+    val totalBytes: Long = 0,
+    /** Chats whose events could not be read; non-empty means nothing was deleted. */
+    val lockedChats: List<String> = emptyList(),
+)
+
 interface ChatRepository {
     fun observeChats(): Flow<List<Chat>>
     suspend fun getChat(chatId: String): Chat?
@@ -66,6 +77,48 @@ interface ChatRepository {
      * can request media for a background profile.
      */
     suspend fun mediaFileForHash(hash: String, mediaType: String, profileId: String? = null): File?
+
+    /**
+     * Drop this device's copy of a blob while keeping the message.
+     *
+     * Deleting the file alone is not enough: it is still referenced by a stored event,
+     * so the sync layer would notice it missing and fetch it straight back. A marker
+     * beside where the blob lived is what makes the choice stick — automatic fetching
+     * skips it until the user asks again. Local by design, so an always-on archive
+     * peer can hold everything while a phone holds a subset. Returns bytes freed.
+     */
+    suspend fun evictMedia(hash: String, mediaType: String, profileId: String? = null): Long
+
+    /** True when this device dropped the blob on purpose and should not re-fetch it. */
+    suspend fun isMediaEvicted(hash: String, mediaType: String, profileId: String? = null): Boolean
+
+    /** Forget an eviction so automatic fetching may bring the blob back. */
+    suspend fun clearMediaEviction(hash: String, mediaType: String, profileId: String? = null)
+
+    /**
+     * Delete media no stored event refers to any more, returning the outcome.
+     *
+     * Nothing has ever removed a blob, so deleting a message leaves its attachment on
+     * disk forever — unbounded growth, and a privacy surprise since "deleted" media is
+     * still readable. Pass `dryRun` to measure without touching anything.
+     *
+     * Media lives per chat here, so a chat's blobs are referenced only by that chat's
+     * events. A protected chat whose events cannot be read is reported rather than
+     * swept: its references are sealed inside the ciphertext, and treating them as
+     * absent would delete every attachment it owns.
+     */
+    suspend fun collectUnreferencedMedia(dryRun: Boolean): MediaCleanupReport
+
+    /**
+     * Delete messages past their chat's retention window, returning how many went.
+     *
+     * Ordinary tombstones, so the deletion syncs exactly like a manual one and every
+     * paired device converges. Any device may run this; a peer that already tombstoned
+     * the same message absorbs the duplicate. A locked protected chat is skipped: its
+     * bodies are placeholders, so `isStarred` cannot be trusted and sweeping blind
+     * would delete exactly the messages the rule promises to keep.
+     */
+    suspend fun applyChatRetention(): Int
 
     /**
      * Persist a freshly-downloaded media blob into the given chat. The file is named

@@ -12,10 +12,16 @@ Copy `android-signing.properties.example` to:
 %USERPROFILE%\.ncy\android-signing.properties
 ```
 
-Fill in the absolute keystore path, alias, and passwords. Alternatively, set
+Fill in only the absolute keystore path and key alias. Alternatively, set
 `NCY_ANDROID_SIGNING_PROPERTIES` to an external properties file. Keep the
 keystore and populated properties file outside this repository and maintain
 encrypted offline backups.
+
+Release builds prompt invisibly for the keystore password and then the key
+password. Press Enter at the second prompt when both passwords are the same.
+Passwords are passed to a no-daemon Gradle process through temporary environment
+variables and are cleared when that process exits. They are not stored in the
+properties file or placed in command-line arguments. Debug builds do not prompt.
 
 ## Build
 

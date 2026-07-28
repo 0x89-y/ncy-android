@@ -72,4 +72,14 @@ sealed class SyncWireMessage {
 
     /** Sender does not have the requested blob. Receiver should drop the pending fetch. */
     data class BlobMissing(val hash: String) : SyncWireMessage()
+
+    /**
+     * Receiver -> sender: stop streaming this blob, it is no longer wanted.
+     *
+     * Without this a cancelled download still costs the sender the full upload;
+     * the receiver just discards what arrives. Peers that predate this frame
+     * ignore it and keep sending, which is the old behaviour, so it is safe in
+     * both directions.
+     */
+    data class BlobCancel(val hash: String) : SyncWireMessage()
 }

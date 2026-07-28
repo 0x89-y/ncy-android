@@ -10,6 +10,9 @@ import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.repository.MediaCleanupReport
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.data.sync.SyncManager
@@ -39,6 +42,34 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = settingsRepository.settings
+
+    /** Last media-storage scan, or null before one has run. */
+    private val _mediaReport = MutableStateFlow<MediaCleanupReport?>(null)
+    val mediaReport: StateFlow<MediaCleanupReport?> = _mediaReport.asStateFlow()
+
+    private val _mediaBusy = MutableStateFlow(false)
+    val mediaBusy: StateFlow<Boolean> = _mediaBusy.asStateFlow()
+
+    /**
+     * Measure the media store, or actually reclaim it.
+     *
+     * Always measure before deleting: nothing has ever removed a blob, so the first
+     * run on a long-lived install can free a surprising amount and the user should
+     * see the number first.
+     */
+    fun scanMedia(dryRun: Boolean = true) {
+        if (_mediaBusy.value) return
+        viewModelScope.launch {
+            _mediaBusy.value = true
+            try {
+                _mediaReport.value = repository.collectUnreferencedMedia(dryRun)
+                // Re-measure after a real sweep so the panel reflects what is left.
+                if (!dryRun) _mediaReport.value = repository.collectUnreferencedMedia(true)
+            } finally {
+                _mediaBusy.value = false
+            }
+        }
+    }
 
     fun hasPin(): Boolean = pinManager.hasPin()
 
@@ -74,6 +105,31 @@ class SettingsViewModel @Inject constructor(
         } finally {
             syncManager.start()
             if (restartHost) phoneSyncServer.start()
+        }
+    }
+
+    /**
+     * Ask every paired device to send its whole history again.
+     *
+     * This has to run here rather than on the desktop. The desktop treats our
+     * `Hello.sinceHlc` as authoritative — only this device knows what actually
+     * survived a reinstall, a restore, or a connection that dropped mid-stream — so
+     * clearing a watermark over there is ignored while ours still says "I have
+     * everything up to X". Anything stranded below X, a deletion included, stays
+     * stranded until we ask from zero.
+     *
+     * Reconnects both roles: the watermark is read when the connection is built, so
+     * a live session would keep using the old one.
+     */
+    fun forceFullResync(onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val restartHost = phoneSyncServer.enabled.value
+            syncManager.stop()
+            if (restartHost) phoneSyncServer.stop()
+            val ok = peerStore.resetAllWatermarks()
+            syncManager.start()
+            if (restartHost) phoneSyncServer.start()
+            onResult(ok)
         }
     }
 

@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.java_websocket.WebSocket
@@ -114,8 +115,18 @@ class PhoneSyncServer @Inject constructor(
     val pendingPairing: StateFlow<PendingPairing?> = _pendingPairing.asStateFlow()
     private var server: Server? = null
 
-    fun downloadFileAnyway(chatId: String, profileId: String, hash: String) {
-        scope.launch { server?.requestFileAnyway(chatId, profileId, hash) }
+    fun downloadFileAnyway(
+        chatId: String,
+        profileId: String,
+        hash: String,
+        mediaType: String = "file",
+    ) {
+        scope.launch { server?.requestFileAnyway(chatId, profileId, hash, mediaType) }
+    }
+
+    /** Stop an in-flight download and ask the sender to stop streaming it. */
+    fun cancelInboundBlob(hash: String) {
+        scope.launch { server?.cancelInboundBlob(hash) }
     }
     private var liveJob: Job? = null
     private var transferCleanupJob: Job? = null
@@ -395,7 +406,20 @@ class PhoneSyncServer @Inject constructor(
             }
             when (msg) {
                 is SyncWireMessage.Event -> scope.launch { receiveEvent(conn, client, msg.event) }
-                is SyncWireMessage.BlobRequest -> scope.launch { serveBlob(conn, client, msg.hash, msg.mediaType) }
+                is SyncWireMessage.BlobRequest -> {
+                    val hash = msg.hash
+                    val job = scope.launch { serveBlob(conn, client, hash, msg.mediaType) }
+                    client.servingJobs[hash] = job
+                    job.invokeOnCompletion { client.servingJobs.remove(hash) }
+                }
+                is SyncWireMessage.BlobCancel -> {
+                    // The peer gave up on this download. Stop mid-stream rather than
+                    // uploading the rest of a file nobody is going to keep.
+                    client.servingJobs.remove(msg.hash)?.let {
+                        Log.i(TAG, "blob ${msg.hash}: peer cancelled; stopping upload")
+                        it.cancel()
+                    }
+                }
                 is SyncWireMessage.BlobChunk -> scope.launch {
                     client.blobMutex.withLock { receiveChunk(client, msg) }
                 }
@@ -604,13 +628,28 @@ class PhoneSyncServer @Inject constructor(
             }
         }
 
-        suspend fun requestFileAnyway(chatId: String, profileId: String, hash: String): Boolean {
+        fun cancelInboundBlob(hash: String) {
+            clients.forEach { (conn, client) ->
+                if (client.pending.remove(hash)?.also { it.discard() } != null) {
+                    // No wire frame would mean uploading the rest of a file nobody
+                    // is going to keep.
+                    sendSecure(conn, client, SyncWireMessage.BlobCancel(hash))
+                }
+            }
+        }
+
+        suspend fun requestFileAnyway(
+            chatId: String,
+            profileId: String,
+            hash: String,
+            mediaType: String = "file",
+        ): Boolean {
             clients.forEach { (conn, client) ->
                 if (client.deviceId == null || client.pending.size >= SyncLimits.MAX_PENDING_BLOBS) {
                     return@forEach
                 }
-                if (repository.mediaFileForHash(hash, "file", profileId) != null) return true
-                val candidate = newPending(chatId, profileId, "file")
+                if (repository.mediaFileForHash(hash, mediaType, profileId) != null) return true
+                val candidate = newPending(chatId, profileId, mediaType)
                 if (client.pending.putIfAbsent(hash, candidate) == null) {
                     sendSecure(conn, client, SyncWireMessage.BlobRequest(hash, "file"))
                     return true
@@ -679,6 +718,13 @@ class PhoneSyncServer @Inject constructor(
                 val buffer = ByteArray(CHUNK_SIZE)
                 var offset = 0
                 while (offset < total && conn.isOpen) {
+                    // Cooperative cancellation *and* fairness. Nothing else in this
+                    // loop suspends when the send queue is draining normally, so a
+                    // `cancel()` would be ignored until the whole file finished, and
+                    // the coroutine would hold its thread — contending on the channel
+                    // lock for every chunk — while ordinary event frames waited behind
+                    // it. `yield` both observes cancellation and lets others run.
+                    yield()
                     val n = input.read(buffer)
                     if (n <= 0) return
                     val encoded = Base64.encodeToString(
@@ -773,6 +819,9 @@ class PhoneSyncServer @Inject constructor(
         val queuedLive: ArrayDeque<ChatEvent> = ArrayDeque(),
         val catchupSentEventIds: MutableSet<String> = HashSet(),
         val pending: java.util.concurrent.ConcurrentHashMap<String, Pending> = java.util.concurrent.ConcurrentHashMap(),
+        /** In-flight uploads by blob hash, so a peer's cancel can interrupt one. */
+        val servingJobs: java.util.concurrent.ConcurrentHashMap<String, Job> =
+            java.util.concurrent.ConcurrentHashMap(),
         val blobMutex: Mutex = Mutex(),
     )
     private data class Pending(

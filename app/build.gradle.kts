@@ -88,7 +88,7 @@ android {
     }
 
     signingConfigs {
-        if (releaseSigningPropertiesFile.isFile) {
+        if (releaseBuildRequested && releaseSigningPropertiesFile.isFile) {
             create("release") {
                 fun requiredProperty(name: String): String =
                     releaseSigningProperties.getProperty(name)
@@ -98,12 +98,20 @@ android {
                                 releaseSigningPropertiesFile.absolutePath
                         )
 
+                fun requiredSecret(name: String): String =
+                    System.getenv(name)
+                        ?.takeIf { it.isNotEmpty() }
+                        ?: error(
+                            "Missing release signing password in environment variable '$name'. " +
+                                "Use build-apks.bat release so it can prompt securely."
+                        )
+
                 storeFile = file(requiredProperty("storeFile")).also {
                     check(it.isFile) { "Release keystore not found: ${it.absolutePath}" }
                 }
-                storePassword = requiredProperty("storePassword")
+                storePassword = requiredSecret("NCY_ANDROID_STORE_PASSWORD")
                 keyAlias = requiredProperty("keyAlias")
-                keyPassword = requiredProperty("keyPassword")
+                keyPassword = requiredSecret("NCY_ANDROID_KEY_PASSWORD")
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true

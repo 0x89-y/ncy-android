@@ -12,6 +12,7 @@ import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.media.MediaHash
+import com.ncy.notechaty.data.sync.media.MediaTransferState
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
 import com.ncy.notechaty.notifications.ReminderScheduler
 import com.ncy.notechaty.security.ChatLockState
@@ -52,6 +53,7 @@ class ChatViewModel @Inject constructor(
     private val deviceIdentity: DeviceIdentity,
     private val syncManager: SyncManager,
     private val phoneSyncServer: PhoneSyncServer,
+    private val transferState: MediaTransferState,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -270,14 +272,52 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Live transfer progress by blob hash — see [MediaTransferState]. */
+    val mediaProgress = transferState.progress
+
+    /** Transfers that gave up, by blob hash, with the reason to show. */
+    val mediaFailures = transferState.failures
+
+    /** Changes when media presence changes, so disk-backed UI state re-checks. */
+    val mediaVersion = transferState.version
+
     fun downloadFileAnyway(attachment: FileAttachment) {
         val hash = MediaHash.extractHash(attachment.file) ?: return
-        syncManager.downloadFileAnyway(
-            chatId,
-            "",
-            hash,
-        )
-        phoneSyncServer.downloadFileAnyway(chatId, "", hash)
+        requestMedia(hash, "file")
+    }
+
+    /**
+     * Ask for a blob explicitly, clearing anything that would suppress the fetch.
+     *
+     * An earlier eviction is deliberately sticky, so it has to be lifted here or the
+     * sync layer keeps skipping the hash; a stale failure has to go too, otherwise
+     * the retry renders as still-broken.
+     */
+    fun requestMedia(hash: String, mediaType: String) {
+        viewModelScope.launch {
+            repository.clearMediaEviction(hash, mediaType)
+            transferState.clear(hash)
+            syncManager.downloadFileAnyway(chatId, "", hash, mediaType)
+            phoneSyncServer.downloadFileAnyway(chatId, "", hash, mediaType)
+        }
+    }
+
+    /** Stop an in-flight download and tell the sender to stop streaming it. */
+    fun cancelMediaDownload(hash: String) {
+        syncManager.cancelInboundBlob(hash)
+        phoneSyncServer.cancelInboundBlob(hash)
+    }
+
+    /**
+     * Drop this device's copy while keeping the message. Local and sticky: the sync
+     * layer will not fetch it back until it is asked for again.
+     */
+    fun removeMediaDownload(hash: String, mediaType: String) {
+        viewModelScope.launch {
+            repository.evictMedia(hash, mediaType)
+            transferState.failed(hash, MediaTransferState.EVICTED)
+            loadChat()
+        }
     }
 
     /**

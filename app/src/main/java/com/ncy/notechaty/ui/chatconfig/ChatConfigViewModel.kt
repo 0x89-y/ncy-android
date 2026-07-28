@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.repository.ChatRepository
+import com.ncy.notechaty.data.sync.event.ChatRetention
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -128,6 +129,35 @@ class ChatConfigViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Set or clear this chat's retention window, then apply it immediately.
+     *
+     * Deletion is a normal tombstone, so it reaches every paired device. Zero clears
+     * the rule. Applying straight away means the confirmation the user just accepted
+     * is what actually happens, rather than waiting for the next periodic sweep.
+     */
+    fun setRetentionDays(days: Int) {
+        viewModelScope.launch {
+            val current = _chat.value ?: return@launch
+            val updated = current.copy(retentionDays = days.takeIf { it > 0 })
+            repository.updateChat(updated)
+            _chat.value = updated
+            repository.applyChatRetention()
+        }
+    }
+
+    /** How many messages a window would delete right now — shown before turning it on. */
+    suspend fun countExpiring(days: Int): Int {
+        val current = _chat.value ?: return 0
+        if (days <= 0) return 0
+        val messages = runCatching { repository.getMessages(current.id) }.getOrNull() ?: return 0
+        return ChatRetention.expiredMessageIds(
+            current.copy(retentionDays = days),
+            messages,
+            System.currentTimeMillis(),
+        ).size
+    }
+
     fun setPinned(enabled: Boolean) {
         viewModelScope.launch {
             val current = _chat.value ?: return@launch
@@ -154,9 +184,18 @@ class ChatConfigViewModel @Inject constructor(
         }
     }
 
-    fun exportChat(outputFile: File) {
+    /**
+     * Write the chat archive to [outputFile], then hand it to [onReady] so the
+     * caller can copy it out. [onReady] runs only after the zip is complete —
+     * previously this was fire-and-forget and the caller copied immediately,
+     * which raced the writer and produced an empty file (or threw, because the
+     * temp file did not exist yet).
+     */
+    fun exportChat(outputFile: File, onReady: (File) -> Unit = {}, onError: (Throwable) -> Unit = {}) {
         viewModelScope.launch {
-            repository.exportChat(chatId, outputFile)
+            runCatching { repository.exportChat(chatId, outputFile) }
+                .onSuccess { onReady(outputFile) }
+                .onFailure(onError)
         }
     }
 

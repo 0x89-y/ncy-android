@@ -11,7 +11,8 @@ object SyncLimits {
     const val MAX_CHUNK_BYTES = 64 * 1024
     const val MAX_BASE64_CHARS = 90 * 1024
     const val MAX_PENDING_BLOBS = 8
-    const val TRANSFER_TIMEOUT_MS = 60_000L
+    /** In step with ncy-core's `TRANSFER_TIMEOUT_SECS` — see the note there. */
+    const val TRANSFER_TIMEOUT_MS = 180_000L
     const val TRANSFER_SWEEP_MS = 15_000L
 
     fun newBlobTempFile(baseDir: File): File {

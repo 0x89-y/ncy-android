@@ -6,14 +6,69 @@ const { IPC } = BareKit
 
 let swarm = null
 let buffered = ''
+let dispatchQueue = Promise.resolve()
+let pendingDispatches = 0
+let backpressureActive = false
+// BareKit's IPC has no pause(), so the worker cannot stop the host writing. Instead
+// it reports congestion and the host throttles at the source. Without this a large
+// blob is enqueued in full before any of it reaches the wire.
+const DISPATCH_HIGH_WATER = 4
+const DISPATCH_LOW_WATER = 1
 let nextConnectionId = 1
 const connections = new Map()
 const allowedPeers = new Set()
 const MAX_IPC_CHARS = 2 * 1024 * 1024
 const MAX_FRAME_BYTES = 1400 * 1024
+/** Cap on waiting for a stream to drain — see `writeBackpressured`. */
+const WRITE_DRAIN_TIMEOUT_MS = 15000
+
+/**
+ * Write, and report whether the caller has to wait.
+ *
+ * `write()` returning false means the stream's buffer is over its high-water mark
+ * and the writer is expected to stop until 'drain'. Ignoring that is fine for one
+ * small frame and fatal for a sustained multi-chunk blob transfer: the buffer grows
+ * without bound and the stream stops making progress, taking every other frame on
+ * the same connection down with it. Returns null when there is room, or a promise
+ * that settles once there is.
+ */
+function writeBackpressured(stream, payload) {
+  if (stream.write(payload)) return null
+  // Bounded wait. A stream whose peer has gone away accepts the write, returns
+  // false, and then never drains — so an unbounded await parks the serial dispatch
+  // queue forever and the host's send window never reopens. Resolving on timeout
+  // keeps things moving; the window still limits how fast a dead link is fed.
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (typeof stream.off === 'function') stream.off('drain', finish)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      reply({ type: 'log', message: 'write drain timed out' })
+      finish()
+    }, WRITE_DRAIN_TIMEOUT_MS)
+    stream.once('drain', finish)
+    if (stream.destroyed) finish()
+  })
+}
 
 function reply(message) {
-  IPC.write(b4a.from(JSON.stringify(message) + '\n'))
+  return writeBackpressured(IPC, b4a.from(JSON.stringify(message) + '\n'))
+}
+
+/** Tell the host to stop or resume feeding commands as the queue fills and drains. */
+function signalBackpressure() {
+  if (!backpressureActive && pendingDispatches > DISPATCH_HIGH_WATER) {
+    backpressureActive = true
+    reply({ type: 'backpressure', active: true })
+  } else if (backpressureActive && pendingDispatches <= DISPATCH_LOW_WATER) {
+    backpressureActive = false
+    reply({ type: 'backpressure', active: false })
+  }
 }
 
 async function start(message) {
@@ -45,7 +100,14 @@ async function start(message) {
         if (frames.byteLength < size + 4) return
         const frame = frames.subarray(4, size + 4)
         frames = frames.subarray(size + 4)
-        reply({ type: 'frame', id, data: b4a.toString(frame, 'base64') })
+        // Frames already in `frames` are in memory, so finish decoding them; but if
+        // the IPC channel is congested, stop pulling *new* data off the peer until
+        // it clears. Without this a large inbound blob outruns the host's reader.
+        const draining = reply({ type: 'frame', id, data: b4a.toString(frame, 'base64') })
+        if (draining) {
+          connection.pause()
+          draining.then(() => connection.resume())
+        }
       }
     })
     connection.on('close', () => {
@@ -98,7 +160,14 @@ async function dispatch(message) {
       if (frame.byteLength > MAX_FRAME_BYTES) throw new Error('Pear frame exceeds limit')
       const header = b4a.alloc(4)
       header.writeUInt32BE(frame.byteLength, 0)
-      entry.connection.write(b4a.concat([header, frame]))
+      // Awaited: the dispatch queue is serial, so waiting here propagates real
+      // backpressure all the way back to the host instead of buffering forever.
+      await writeBackpressured(entry.connection, b4a.concat([header, frame]))
+      // Acknowledge only once the frame is actually on the wire. The host keeps a
+      // bounded number of sends unacknowledged, which is the only thing that stops
+      // it handing over a whole multi-megabyte blob faster than the link can carry
+      // it — an advisory "slow down" signal arrives far too late to help.
+      reply({ type: 'sent', id: String(message.id) })
       return
     }
     case 'close': {
@@ -115,11 +184,6 @@ async function dispatch(message) {
 
 IPC.on('data', (chunk) => {
   buffered += b4a.toString(chunk)
-  if (buffered.length > MAX_IPC_CHARS) {
-    buffered = ''
-    reply({ type: 'error', message: 'IPC command exceeds limit' })
-    return
-  }
 
   while (true) {
     const newline = buffered.indexOf('\n')
@@ -127,7 +191,17 @@ IPC.on('data', (chunk) => {
     const line = buffered.slice(0, newline)
     buffered = buffered.slice(newline + 1)
     if (!line) continue
-    Promise.resolve().then(async () => {
+    if (line.length > MAX_IPC_CHARS) {
+      reply({ type: 'error', message: 'IPC command exceeds limit' })
+      continue
+    }
+    // Serialized, not `Promise.resolve().then(...)` per command: `send` awaits
+    // drain, and independent chains would let a later frame's write overtake an
+    // earlier one. The stream is length-prefixed, so one reordered write
+    // desynchronizes framing for the rest of the connection.
+    pendingDispatches++
+    signalBackpressure()
+    dispatchQueue = dispatchQueue.then(async () => {
       const message = JSON.parse(line)
       try {
         await dispatch(message)
@@ -141,6 +215,18 @@ IPC.on('data', (chunk) => {
         })
       }
     }).catch((error) => reply({ type: 'error', message: error.message }))
+      .then(() => {
+        pendingDispatches--
+        signalBackpressure()
+      })
+  }
+
+  // Only an unfinished command remains here. Complete adjacent commands may
+  // legitimately total more than this limit in one IPC read and were drained
+  // above; the bound applies to one command, never the whole read buffer.
+  if (buffered.length > MAX_IPC_CHARS) {
+    buffered = ''
+    reply({ type: 'error', message: 'IPC command exceeds limit' })
   }
 })
 

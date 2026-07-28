@@ -1,11 +1,32 @@
 # Changelog
 
-## 0.7.3 — 2026-07-24
+## 0.7.3 — 2026-07-27
 
 ### Added
 
 - Added installation-owned device names that default from the OS, can be edited locally,
   and refresh automatically on authenticated paired devices.
+- Added transfer progress for incoming media with a button to stop a download, and
+  per-message removal of a downloaded file that keeps the message and can be downloaded
+  again at any time.
+- Added optional per-chat automatic deletion of messages older than a chosen age, and a
+  media storage panel that reports how much space downloads use and reclaims files no
+  message refers to any more.
+- Added a "Force full resync" action under Troubleshooting that asks paired devices to
+  send their whole history again. This has to be run here rather than on the desktop,
+  which treats this device's record of what it already has as authoritative.
+
+### Security
+
+- Protection and profile PINs are now stretched before they are stored, so the saved
+  verifier no longer falls to a trivial offline guess. Existing PINs keep working and are
+  upgraded the next time they are entered.
+- Restoring a backup now rejects archive entries that point outside the import folder, and
+  refuses archives that would expand without bound.
+- Deleting a message now removes its text from this device's records rather than only
+  hiding it. This previously waited for a log to reach several thousand events, so an
+  ordinary chat kept deleted notes readable on disk indefinitely; existing ones are
+  cleaned up on the next launch.
 
 ### Changed
 
@@ -13,6 +34,24 @@
   devices, choosing the connection mode, and configuring automatic file downloads.
 - Nearby unpaired devices now appear separately at the top of Add device, while pairing and
   sharing JSON are tucked behind advanced options.
+- Release APK builds now request signing passwords through hidden prompts instead of storing
+  them in the signing properties file.
+
+### Fixed
+
+- Fixed voice messages longer than about three seconds, and files of any appreciable size,
+  failing to send over Pear.
+- Fixed images and voice messages reporting that the other device no longer had a file it
+  was still holding, because every manual download asked for it as a file attachment.
+- Fixed a removed voice message closing the app when played, a missing image rendering as
+  an empty gap, and a removed file offering no way to fetch it back.
+- Fixed removed and arriving media only updating after leaving and re-entering a chat.
+- Gave images, voice messages and file attachments one shared presentation when they are
+  not on this device, in place of three different ones.
+- Fixed files larger than roughly nine megabytes ending the sync session on a local network
+  instead of transferring.
+- Fixed sending a large attachment stalling every other message until it finished, and
+  ignoring the receiver's request to stop.
 
 ## 0.7.2 — 2026-07-24
 

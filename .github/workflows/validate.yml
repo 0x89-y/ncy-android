@@ -1,0 +1,60 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+# A newer push makes an in-flight run irrelevant.
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # third_party/bare-kit is a submodule; app/build.gradle.kts resolves the
+          # Bare Kit AAR from inside it.
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      # There is no Gradle wrapper in this repo, so CI brings its own. Keep the
+      # version in step with gradle/wrapper/gradle-wrapper.properties.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.3.1
+
+      # Reuses the checked-in script rather than restating the URL and checksum,
+      # so the pinned Bare Kit version has one definition. `pwsh` is preinstalled
+      # on GitHub's Linux runners and the script uses only portable cmdlets.
+      - name: Fetch Bare Kit prebuilds
+        run: pwsh scripts/setup_bare_kit.ps1
+
+      - name: Unit tests
+        run: gradle :app:testProductionDebugUnitTest
+
+      # Compiling both variants is the point of this workflow: a release-only
+      # breakage still ships a broken build.
+      - name: Compile debug
+        run: gradle :app:compileProductionDebugKotlin
+
+      # No android-signing.properties on CI, so the release signing config stays
+      # inactive and no secrets are needed.
+      - name: Compile release
+        run: gradle :app:compileProductionReleaseKotlin
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: app/build/reports/tests/
+          retention-days: 7

@@ -122,7 +122,11 @@ echo.
 echo [2/3] Running !GRADLE_TASKS!...
 set "GRADLE_ABI_ARG="
 if "%ARM64_ONLY%"=="1" set "GRADLE_ABI_ARG=-PncyAbis=arm64-v8a"
-call "%GRADLE_CMD%" --console=plain !GRADLE_ABI_ARG! !GRADLE_TASKS!
+if /I "%BUILD_MODE%"=="debug" (
+  call "%GRADLE_CMD%" --console=plain !GRADLE_ABI_ARG! !GRADLE_TASKS!
+) else (
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts\invoke-signed-gradle.ps1" -GradleCommand "%GRADLE_CMD%" -Tasks "!GRADLE_TASKS!" -AbiArgument "!GRADLE_ABI_ARG!"
+)
 if errorlevel 1 (
   echo ERROR: Android build failed.
   goto :failed
@@ -197,7 +201,7 @@ if not exist "%SIGNING_PROPERTIES%" (
   echo   %SIGNING_PROPERTIES%
   echo.
   echo Copy android-signing.properties.example to that location and fill in
-  echo the permanent Ncy release-keystore details.
+  echo the permanent keystore path and key alias. Passwords are prompted.
   exit /b 1
 )
 set "NCY_ANDROID_SIGNING_PROPERTIES=%SIGNING_PROPERTIES%"

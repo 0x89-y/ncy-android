@@ -165,6 +165,17 @@ class LanFirstSyncTransport @Inject constructor(
                 pearId?.let { pear.send(it, text) } ?: lanConnection?.send(text) ?: false
             }
 
+            override fun queuedBytes(): Long = synchronized(lock) {
+                // The Pear worker reports congestion as a flag rather than a byte
+                // count, so surface it as "over any threshold" — enough for callers
+                // that only ask whether they should pause.
+                if (pearId != null) {
+                    if (pear.isCongested()) Long.MAX_VALUE else 0L
+                } else {
+                    lanConnection?.queuedBytes() ?: 0L
+                }
+            }
+
             override fun close(code: Int, reason: String): Boolean {
                 synchronized(lock) {
                     if (closed) return false

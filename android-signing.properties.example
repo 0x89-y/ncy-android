@@ -3,8 +3,7 @@
 #
 # Or set NCY_ANDROID_SIGNING_PROPERTIES to another absolute path.
 # Never commit the populated file or the keystore.
+# Release passwords are requested by build-apks.bat and are never stored here.
 
 storeFile=D:/Ncy Secrets/ncy-android-release.jks
-storePassword=replace-with-keystore-password
 keyAlias=ncy-release
-keyPassword=replace-with-key-password

@@ -276,7 +276,11 @@ class ProfileRepository @Inject constructor(
         val profile = _profiles.value.firstOrNull { it.id == id } ?: return false
         val hash = profile.pinHash ?: return false
         val salt = profile.pinSalt ?: return false
-        return PinHasher.verify(pin, hash, salt)
+        if (!PinHasher.verify(pin, hash, salt)) return false
+        // Re-write legacy bare-SHA-256 hashes now that we hold the plaintext PIN;
+        // see PinHasher. `setProfilePin` persists, so this is self-contained.
+        if (PinHasher.needsRehash(hash)) setProfilePin(id, pin)
+        return true
     }
 
     /** Walk every profile directory to find the one owning a given chat id. Profile-agnostic. */

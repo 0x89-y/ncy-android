@@ -31,4 +31,15 @@ data class ChatMetadata(
      */
     val protectionSalt: String? = null,
     val remoteMessagesOnLeft: Boolean = false,
+    /**
+     * Automatic retention: delete messages older than this many days, on every
+     * device. `null` (the default, and what every pre-existing chat decodes to)
+     * keeps messages forever.
+     *
+     * Carried here rather than in local settings so the rule syncs with the chat.
+     * The field must exist even before this platform enforces it: `ChatMetadataChanged`
+     * is whole-record last-write-wins, so a phone that re-authored metadata without
+     * it — renaming the chat, say — would silently clear a rule set elsewhere.
+     */
+    val retentionDays: Int? = null,
 )

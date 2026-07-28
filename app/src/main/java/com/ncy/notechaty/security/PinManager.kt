@@ -1,7 +1,11 @@
 package com.ncy.notechaty.security
 
 import com.ncy.notechaty.data.repository.SettingsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -9,6 +13,9 @@ import javax.inject.Singleton
 class PinManager @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) {
+
+    /** Only used to re-write a legacy PIN hash after a successful unlock. */
+    private val upgradeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun hasPin(): Boolean = settingsRepository.settings.value.protectionPinHash != null
 
@@ -27,7 +34,14 @@ class PinManager @Inject constructor(
         val s = settingsRepository.settings.value
         val savedHash = s.protectionPinHash ?: return false
         val saltB64 = s.protectionPinSalt ?: return false
-        return PinHasher.verify(pin, savedHash, saltB64)
+        if (!PinHasher.verify(pin, savedHash, saltB64)) return false
+        // Stored under the old bare-SHA-256 scheme. We hold the correct plaintext
+        // right now, which is the only moment the hash can be upgraded without
+        // asking the user to re-enter it.
+        if (PinHasher.needsRehash(savedHash)) {
+            upgradeScope.launch { runCatching { setPin(pin) } }
+        }
+        return true
     }
 
     suspend fun clearPin() {

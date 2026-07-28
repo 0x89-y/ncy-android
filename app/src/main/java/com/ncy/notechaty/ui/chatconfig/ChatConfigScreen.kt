@@ -1,6 +1,7 @@
 package com.ncy.notechaty.ui.chatconfig
 
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -32,6 +33,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AutoDelete
+import androidx.compose.material.icons.filled.Check
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
@@ -44,7 +48,18 @@ import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import java.io.File
 
+/** Retention windows offered per chat. 0 is the "keep everything" case. */
+private val RETENTION_CHOICES = listOf(
+    0 to "Keep forever",
+    7 to "7 days",
+    14 to "14 days",
+    30 to "30 days",
+    90 to "90 days",
+    365 to "1 year",
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+
 @Composable
 fun ChatConfigScreen(
     chatId: String,
@@ -56,6 +71,22 @@ fun ChatConfigScreen(
     val appSettings by viewModel.settings.collectAsState()
     val context = LocalContext.current
     val view = LocalView.current
+    // Non-null while the user is confirming a retention window.
+    var retentionMenuOpen by remember { mutableStateOf(false) }
+    var pendingRetention by remember { mutableStateOf<Int?>(null) }
+    var pendingRetentionCount by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(pendingRetention) {
+        val days = pendingRetention
+        // Zero clears the rule and deletes nothing, so it needs no confirmation.
+        if (days == null || days == 0) return@LaunchedEffect
+        pendingRetentionCount = viewModel.countExpiring(days)
+    }
+    LaunchedEffect(pendingRetention) {
+        if (pendingRetention == 0) {
+            viewModel.setRetentionDays(0)
+            pendingRetention = null
+        }
+    }
     var editingName by remember { mutableStateOf(false) }
     var nameText by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -104,15 +135,27 @@ fun ChatConfigScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
-        uri?.let {
-            val outputStream = context.contentResolver.openOutputStream(it)
-            val tempFile = File(context.cacheDir, "export_${chat?.name ?: "chat"}.zip")
-            viewModel.exportChat(tempFile)
-            // Copy to the URI after export
-            outputStream?.use { os ->
-                tempFile.inputStream().use { input -> input.copyTo(os) }
-            }
-            tempFile.delete()
+        uri?.let { target ->
+            // The temp name is only a scratch path, but it is built from a
+            // user-supplied chat name — keep separators and the like out of it.
+            val safeName = (chat?.name ?: "chat").replace(Regex("[^A-Za-z0-9._-]"), "_").take(64)
+            val tempFile = File(context.cacheDir, "export_$safeName.zip")
+            // Copy only once the archive is actually written — see the ViewModel.
+            viewModel.exportChat(
+                tempFile,
+                onReady = { file ->
+                    runCatching {
+                        context.contentResolver.openOutputStream(target)?.use { os ->
+                            file.inputStream().use { input -> input.copyTo(os) }
+                        }
+                    }.onFailure { Log.w("ChatConfig", "export: copy to document failed", it) }
+                    file.delete()
+                },
+                onError = { error ->
+                    Log.w("ChatConfig", "export: writing archive failed", error)
+                    tempFile.delete()
+                },
+            )
         }
     }
 
@@ -227,6 +270,55 @@ fun ChatConfigScreen(
                     )
                 }
             }
+
+            // Auto-delete. Deliberately global: the rule rides in ChatMetadata and
+            // the deletion is an ordinary tombstone, so every paired device converges.
+            NcySettingsSection("Auto-delete old messages") {
+                Box {
+                    NcySettingsRow(
+                        icon = Icons.Default.AutoDelete,
+                        title = "Delete messages after",
+                        subtitle = RETENTION_CHOICES
+                            .firstOrNull { it.first == (chat?.retentionDays ?: 0) }
+                            ?.second ?: "Keep forever",
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            retentionMenuOpen = true
+                        },
+                        trailing = {
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = "Choose a retention window",
+                            )
+                        },
+                    )
+                    DropdownMenu(
+                        expanded = retentionMenuOpen,
+                        onDismissRequest = { retentionMenuOpen = false },
+                    ) {
+                        RETENTION_CHOICES.forEach { (days, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                trailingIcon = {
+                                    if ((chat?.retentionDays ?: 0) == days) {
+                                        Icon(Icons.Default.Check, contentDescription = "Selected")
+                                    }
+                                },
+                                onClick = {
+                                    retentionMenuOpen = false
+                                    pendingRetention = days
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            Text(
+                "Applies on every device. Starred messages and ones with an upcoming reminder are kept.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
 
             // Appearance — background image, bubble color, bubble gradient
             NcySettingsSection("Appearance") {
@@ -450,6 +542,46 @@ fun ChatConfigScreen(
         }
     }
 
+    // Enabling a window deletes everything already past it, immediately and on every
+    // device, so say how much that is before doing it rather than after.
+    pendingRetention?.takeIf { it > 0 }?.let { days ->
+        val count = pendingRetentionCount
+        NcyAlertDialog(
+            onDismissRequest = { pendingRetention = null; pendingRetentionCount = null },
+            title = { Text("Auto-delete old messages") },
+            text = {
+                Text(
+                    if (count == null) "Checking…"
+                    else if (count > 0)
+                        "Delete messages older than $days days? $count existing " +
+                            (if (count == 1) "message is" else "messages are") +
+                            " already older than that and will be deleted on every device. " +
+                            "Starred messages and ones with an upcoming reminder are kept."
+                    else "Nothing in this chat is older than $days days yet."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = count != null,
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        viewModel.setRetentionDays(days)
+                        pendingRetention = null
+                        pendingRetentionCount = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if ((count ?: 0) > 0) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.primary
+                    )
+                ) { Text("Turn on") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRetention = null; pendingRetentionCount = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
     if (showDeleteConfirm) {
         NcyAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },

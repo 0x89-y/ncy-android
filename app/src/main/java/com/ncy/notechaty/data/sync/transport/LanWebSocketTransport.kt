@@ -42,6 +42,7 @@ class LanWebSocketTransport @Inject constructor() : ClientSyncTransport {
         return object : ClientSyncTransport.Connection {
             override fun send(text: String): Boolean = socket.send(text)
             override fun close(code: Int, reason: String): Boolean = socket.close(code, reason)
+            override fun queuedBytes(): Long = socket.queueSize()
         }
     }
 }

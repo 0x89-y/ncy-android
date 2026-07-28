@@ -49,11 +49,27 @@ object EventLogCompactor {
             }
             return
         }
-        if (all.size < THRESHOLD) return
+        // A deleted message keeps its text in the `MessageCreated` that survives it,
+        // so a log holding one is fully recoverable by anyone who reads the file.
+        // The size threshold exists to avoid pointless rewrite I/O — but a rewrite
+        // that removes deleted notes from disk is not pointless, however small the
+        // chat, and gating it on 2,000 events left ordinary chats readable forever.
+        val tombstonedIds = all
+            .mapNotNull { (it.op as? ChatEventOp.MessageTombstoned)?.messageId }
+            .toSet()
+        val holdsDeletedContent = tombstonedIds.isNotEmpty() && active.any { event ->
+            when (val op = event.op) {
+                is ChatEventOp.MessageCreated -> op.message.id in tombstonedIds
+                is ChatEventOp.MessageEdited -> op.message.id in tombstonedIds
+                else -> false
+            }
+        }
+        if (all.size < THRESHOLD && !holdsDeletedContent) return
         val compacted = compact(all)
         val messageTombstones = compacted.filter { it.op is ChatEventOp.MessageTombstoned }
         val compactedActive = compacted.filterNot { it.op is ChatEventOp.MessageTombstoned }
-        if (compactedActive.size >= active.size &&
+        if (!holdsDeletedContent &&
+            compactedActive.size >= active.size &&
             active.none { it.op is ChatEventOp.MessageTombstoned }
         ) return // nothing to gain
         try {

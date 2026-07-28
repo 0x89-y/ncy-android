@@ -59,6 +59,8 @@ import com.ncy.notechaty.util.FileUtils
 import kotlinx.coroutines.launch
 import java.io.File
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.DeleteForever
 
@@ -81,6 +83,10 @@ fun SettingsScreen(
     var showDeviceNameDialog by remember { mutableStateOf(false) }
     var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
     val settings by viewModel.settings.collectAsState()
+    val mediaReport by viewModel.mediaReport.collectAsState()
+    var resyncing by remember { mutableStateOf(false) }
+    var resyncNote by remember { mutableStateOf("Ask every device to resend its history") }
+    val mediaBusy by viewModel.mediaBusy.collectAsState()
 
     // Export all launcher
     val exportAllLauncher = rememberLauncherForActivityResult(
@@ -193,6 +199,84 @@ fun SettingsScreen(
 
             // ---- Backup ----
             if (settingsSection == "Backup") {
+            // Media storage. The blob store is append-only, so deleting a message
+            // never removed its attachment — measure first, then offer to reclaim.
+            NcySettingsSection("Media storage") {
+                val report = mediaReport
+                NcySettingsRow(
+                    icon = Icons.Default.Storage,
+                    title = "Downloaded media",
+                    subtitle = when {
+                        mediaBusy -> "Scanning…"
+                        report == null ->
+                            "Photos, voice messages and attachments kept for your chats"
+                        else ->
+                            formatStorageSize(report.totalBytes) + " across " +
+                                report.scanned + " files"
+                    },
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.scanMedia(dryRun = true)
+                    },
+                )
+                if (report != null && report.lockedChats.isNotEmpty()) {
+                    NcyRowDivider()
+                    Text(
+                        report.lockedChats.size.toString() + " protected " +
+                            (if (report.lockedChats.size == 1) "chat is" else "chats are") +
+                            " locked. Their media references are still encrypted, so their files were left alone.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                if (report != null && report.deleted > 0) {
+                    NcyRowDivider()
+                    NcySettingsRow(
+                        icon = Icons.Default.DeleteSweep,
+                        title = "Free up " + formatStorageSize(report.reclaimedBytes),
+                        subtitle = "Media no message refers to any more",
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            viewModel.scanMedia(dryRun = false)
+                        },
+                    )
+                } else if (report != null) {
+                    NcyRowDivider()
+                    Text(
+                        "Nothing to clean up — every stored file is still in use.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+            }
+
+            // Recovery for a device that is missing messages, or still showing ones
+            // deleted elsewhere. This has to live here, not on the desktop: our
+            // watermark is what the desktop treats as authoritative.
+            NcySettingsSection("Troubleshooting") {
+                NcySettingsRow(
+                    icon = Icons.Default.Sync,
+                    title = "Force full resync",
+                    subtitle = resyncNote,
+                    onClick = {
+                        if (!resyncing) {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            resyncing = true
+                            viewModel.forceFullResync { ok ->
+                                resyncing = false
+                                resyncNote = if (ok) {
+                                    "Sync progress cleared. Every device resends its history on reconnect."
+                                } else {
+                                    "Could not clear sync progress. Try again."
+                                }
+                            }
+                        }
+                    },
+                )
+            }
+
             NcySettingsSection("Backup") {
                 NcySettingsRow(
                     icon = Icons.Default.FileUpload,
@@ -763,3 +847,10 @@ private fun accentPreviewColor(accent: AccentColor): Color = when (accent) {
     AccentColor.TEAL -> Color(0xFF00897B)
 }
 
+
+/** Human-readable byte count for the media storage panel. */
+private fun formatStorageSize(bytes: Long): String = when {
+    bytes < 1024 -> bytes.toString() + " B"
+    bytes < 1024 * 1024 -> (bytes / 1024).toString() + " KB"
+    else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+}

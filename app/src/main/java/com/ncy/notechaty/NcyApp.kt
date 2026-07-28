@@ -13,6 +13,14 @@ import com.ncy.notechaty.migration.ProfileMigration
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
+import android.util.Log
+import com.ncy.notechaty.data.repository.ChatRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
 @HiltAndroidApp
 class NcyApp : Application(), Configuration.Provider {
 
@@ -20,6 +28,7 @@ class NcyApp : Application(), Configuration.Provider {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var profileRepository: ProfileRepository
     @Inject lateinit var deviceIdentity: DeviceIdentity
+    @Inject lateinit var chatRepository: ChatRepository
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -40,6 +49,19 @@ class NcyApp : Application(), Configuration.Provider {
         val settings = settingsRepository.settings.value
         if (settings.autoBackupEnabled) {
             BackupScheduler.schedule(this, settings.autoBackupIntervalHours)
+        }
+
+        // Housekeeping, once per launch and then hourly. Retention windows are measured
+        // in days, so an exact schedule buys nothing; the media sweep runs after it
+        // because expired messages are what orphan their attachments.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            while (true) {
+                runCatching {
+                    chatRepository.applyChatRetention()
+                    chatRepository.collectUnreferencedMedia(dryRun = false)
+                }.onFailure { Log.w("NcyApp", "housekeeping failed", it) }
+                delay(60L * 60L * 1000L)
+            }
         }
     }
 }

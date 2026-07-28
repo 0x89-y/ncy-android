@@ -42,6 +42,8 @@ class SyncClient @Inject constructor(
             val isLast: Boolean
         ) : Event()
         data class BlobMissingReceived(val hash: String) : Event()
+        /** Peer no longer wants a blob we are streaming — stop and free the link. */
+        data class BlobCancelled(val hash: String) : Event()
         data class Failed(val reason: String) : Event()
         data class Disconnected(val reason: String = "") : Event()
     }
@@ -59,7 +61,12 @@ class SyncClient @Inject constructor(
             isLast: Boolean
         ): Boolean
         fun sendBlobMissing(hash: String): Boolean
+        /** Ask the peer to stop streaming this blob. */
+        fun cancelBlob(hash: String): Boolean
         fun sendError(code: String, message: String): Boolean
+
+        /** Bytes queued for the network but not yet written — see [ClientSyncTransport.Connection.queuedBytes]. */
+        fun queuedBytes(): Long
         fun close()
     }
 
@@ -158,6 +165,7 @@ class SyncClient @Inject constructor(
                     is SyncWireMessage.Ack -> onEvent(Event.Acked(msg.upToHlc))
                     is SyncWireMessage.Event -> onEvent(Event.EventReceived(msg.event))
                     is SyncWireMessage.BlobRequest -> onEvent(Event.BlobRequested(msg.hash, msg.mediaType))
+                    is SyncWireMessage.BlobCancel -> onEvent(Event.BlobCancelled(msg.hash))
                     is SyncWireMessage.BlobChunk -> onEvent(
                         Event.BlobChunkReceived(
                             hash = msg.hash,
@@ -217,6 +225,13 @@ class SyncClient @Inject constructor(
                 if (!authenticated || closed) return false
                 return sendSecure(SyncWireMessage.BlobRequest(hash, mediaType))
             }
+
+            override fun cancelBlob(hash: String): Boolean {
+                if (!authenticated || closed) return false
+                return sendSecure(SyncWireMessage.BlobCancel(hash))
+            }
+
+            override fun queuedBytes(): Long = if (closed) 0L else connection.queuedBytes()
 
             override fun sendBlobChunk(
                 hash: String,

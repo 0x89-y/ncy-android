@@ -20,4 +20,7 @@ data class Chat(
     val protectionSalt: String? = null,
     /** Display messages authored on other installations as incoming bubbles. */
     val remoteMessagesOnLeft: Boolean = false,
+    /** Delete messages older than this many days, on every device. Null keeps them
+     *  forever. Mirrors the field on [ChatMetadata]. */
+    val retentionDays: Int? = null,
 )

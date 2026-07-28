@@ -9,6 +9,8 @@ import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.media.MediaHash
+import com.ncy.notechaty.data.sync.media.MediaRefs
+import com.ncy.notechaty.data.sync.media.MediaTransferState
 import com.ncy.notechaty.data.sync.discovery.MdnsDiscovery
 import com.ncy.notechaty.data.sync.discovery.LanNetworkMonitor
 import com.ncy.notechaty.data.sync.discovery.EndpointCandidateTracker
@@ -63,6 +65,7 @@ class SyncManager @Inject constructor(
     private val lanNetworkMonitor: LanNetworkMonitor,
     private val settingsRepository: SettingsRepository,
     private val pearRuntimeController: PearRuntimeController,
+    private val transferState: MediaTransferState,
 ) {
     private val tag = "SyncManager"
 
@@ -74,13 +77,24 @@ class SyncManager @Inject constructor(
     private val _states = MutableStateFlow<Map<String, PeerState>>(emptyMap())
     val states: StateFlow<Map<String, PeerState>> = _states.asStateFlow()
 
-    fun downloadFileAnyway(chatId: String, profileId: String, hash: String) {
+    fun downloadFileAnyway(
+        chatId: String,
+        profileId: String,
+        hash: String,
+        mediaType: String = "file",
+    ) {
         scope.launch {
             val sessions = synchronized(this@SyncManager) { perPeer.values.toList() }
             for (peerSession in sessions) {
-                if (peerSession.requestFileAnyway(chatId, profileId, hash)) break
+                if (peerSession.requestFileAnyway(chatId, profileId, hash, mediaType)) break
             }
         }
+    }
+
+    /** Stop an in-flight download on whichever session owns it. */
+    fun cancelInboundBlob(hash: String) {
+        val sessions = synchronized(this) { perPeer.values.toList() }
+        sessions.forEach { it.cancelInboundBlob(hash) }
     }
 
     private var running = false
@@ -376,7 +390,18 @@ class SyncManager @Inject constructor(
                         scope.launch { handleInbound(event.event) }
                     }
                     is SyncClient.Event.BlobRequested -> {
-                        scope.launch { serveBlob(event.hash, event.mediaType) }
+                        val hash = event.hash
+                        val job = scope.launch { serveBlob(hash, event.mediaType) }
+                        servingJobs[hash] = job
+                        job.invokeOnCompletion { servingJobs.remove(hash) }
+                    }
+                    is SyncClient.Event.BlobCancelled -> {
+                        // The peer gave up on this download. Stop mid-stream rather than
+                        // uploading the rest of a file nobody is going to keep.
+                        servingJobs.remove(event.hash)?.let {
+                            Log.i(tag, "blob ${event.hash}: peer cancelled; stopping upload")
+                            it.cancel()
+                        }
                     }
                     is SyncClient.Event.BlobChunkReceived -> {
                         scope.launch {
@@ -393,7 +418,7 @@ class SyncManager @Inject constructor(
                         }
                     }
                     is SyncClient.Event.BlobMissingReceived -> {
-                        discardPending(event.hash)
+                        discardPending(event.hash, "the other device no longer has this file")
                     }
                     is SyncClient.Event.Failed -> {
                         Log.w(tag, "Peer ${peer.id} failed: ${event.reason}")
@@ -485,9 +510,14 @@ class SyncManager @Inject constructor(
             }
         }
 
-        suspend fun requestFileAnyway(chatId: String, profileId: String, hash: String): Boolean {
+        suspend fun requestFileAnyway(
+            chatId: String,
+            profileId: String,
+            hash: String,
+            mediaType: String = "file",
+        ): Boolean {
             val s = session ?: return false
-            if (chatRepository.mediaFileForHash(hash, "file", profileId) != null) return true
+            if (chatRepository.mediaFileForHash(hash, mediaType, profileId) != null) return true
             val newlyPending = synchronized(this@PeerSession) {
                 if (pendingFetches.containsKey(hash) || pendingFetches.size >= SyncLimits.MAX_PENDING_BLOBS) {
                     false
@@ -496,7 +526,7 @@ class SyncManager @Inject constructor(
                     pendingFetches[hash] = PendingFetch(
                         chatId = chatId,
                         profileId = profileId,
-                        mediaType = "file",
+                        mediaType = mediaType,
                         tempFile = temp,
                         output = BufferedOutputStream(temp.outputStream()),
                     )
@@ -504,10 +534,37 @@ class SyncManager @Inject constructor(
                 }
             }
             if (!newlyPending) return pendingFetches.containsKey(hash)
-            if (s.requestBlob(hash, "file")) return true
+            if (s.requestBlob(hash, mediaType)) return true
             discardPending(hash)
             return false
         }
+
+        /**
+         * Block the serve loop while the transport's send queue is above
+         * [SEND_QUEUE_HIGH_WATER]. Returns false if the session went away while waiting.
+         */
+        /** Give up on an inbound blob and ask the sender to stop streaming it. */
+        fun cancelInboundBlob(hash: String) {
+            discardPending(hash, MediaTransferState.CANCELLED)
+            session?.cancelBlob(hash)
+        }
+
+        private suspend fun awaitSendQueueDrain(s: SyncClient.Session): Boolean {
+            var waited = 0L
+            while (s.queuedBytes() > SEND_QUEUE_HIGH_WATER) {
+                if (session !== s) return false
+                if (waited >= SEND_QUEUE_DRAIN_TIMEOUT_MS) {
+                    Log.w(tag, "send queue did not drain in ${waited}ms; abandoning blob transfer")
+                    return false
+                }
+                delay(SEND_QUEUE_POLL_MS)
+                waited += SEND_QUEUE_POLL_MS
+            }
+            return true
+        }
+
+        /** In-flight uploads by blob hash, so a peer's cancel can interrupt one. */
+        private val servingJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
         private suspend fun serveBlob(hash: String, mediaType: String) {
             val s = session ?: return
@@ -527,18 +584,42 @@ class SyncManager @Inject constructor(
                 s.sendBlobChunk(hash, mediaType, 0, 0, "", isLast = true)
                 return
             }
+            Log.i(tag, "serving blob $hash ($mediaType), $total bytes")
+            val startedAt = System.currentTimeMillis()
             file.inputStream().buffered().use { input ->
                 val buffer = ByteArray(CHUNK_SIZE)
                 var offset = 0
                 while (offset < total) {
+                    // Cooperative cancellation *and* fairness. Nothing else in this
+                    // loop suspends when the send queue is draining normally, so a
+                    // `cancel()` would be ignored until the whole file finished, and
+                    // the coroutine would hold its thread — contending on the channel
+                    // lock for every chunk — while ordinary event frames waited behind
+                    // it. `yield` both observes cancellation and lets others run.
+                    yield()
+                    // `sendBlobChunk` only enqueues. Serving at full speed outruns the
+                    // socket, and OkHttp responds to a full 16 MiB buffer by *closing the
+                    // connection* rather than blocking — which took the whole sync session
+                    // down for any attachment over ~9.4 MB (a chunk is base64'd, then the
+                    // sealed frame is base64'd again, so 16 MiB of queue is 9 MB of file).
+                    // Wait for it to drain instead.
+                    if (!awaitSendQueueDrain(s)) {
+                        Log.w(tag, "blob $hash abandoned at $offset/$total (send queue never drained)")
+                        return
+                    }
                     val n = input.read(buffer)
                     if (n <= 0) return
                     val data = encoder.encodeToString(if (n == buffer.size) buffer else buffer.copyOf(n))
                     val isLast = offset + n >= total
-                    if (!s.sendBlobChunk(hash, mediaType, offset, total, data, isLast)) return
+                    if (!s.sendBlobChunk(hash, mediaType, offset, total, data, isLast)) {
+                        Log.w(tag, "blob $hash send failed at $offset/$total")
+                        return
+                    }
                     offset += n
                 }
             }
+            val elapsed = System.currentTimeMillis() - startedAt
+            Log.i(tag, "served blob $hash: $total bytes in ${elapsed}ms")
         }
 
         private suspend fun handleBlobChunkInbound(
@@ -582,6 +663,7 @@ class SyncManager @Inject constructor(
             pending.output.write(bytes)
             pending.received += bytes.size
             pending.lastActivityAt = System.currentTimeMillis()
+            transferState.advanced(hash, pending.received.toLong(), totalSize.toLong())
             if (!isLast) return
 
             synchronized(this@PeerSession) { pendingFetches.remove(hash) }
@@ -597,6 +679,7 @@ class SyncManager @Inject constructor(
                 pending.tempFile.delete()
                 return
             }
+            transferState.finished(hash)
             chatRepository.saveMediaBlobFromFile(
                 pending.chatId,
                 hash,
@@ -789,10 +872,11 @@ class SyncManager @Inject constructor(
             session?.close()
         }
 
-        private fun discardPending(hash: String) {
+        private fun discardPending(hash: String, reason: String = "transfer failed") {
             val pending = synchronized(this@PeerSession) { pendingFetches.remove(hash) } ?: return
             runCatching { pending.output.close() }
             pending.tempFile.delete()
+            transferState.failed(hash, reason)
         }
 
         private fun startTransferCleanup() {
@@ -807,7 +891,7 @@ class SyncManager @Inject constructor(
                         }
                         stale.forEach { hash ->
                             Log.w(tag, "discarding stalled blob transfer $hash")
-                            discardPending(hash)
+                            discardPending(hash, "no data for ${SyncLimits.TRANSFER_TIMEOUT_MS / 1000}s")
                         }
                     }
                 }
@@ -821,50 +905,22 @@ class SyncManager @Inject constructor(
         const val PHONE_HOST_BACKGROUND_REASON = "phone_host_left_foreground"
 
         /**
-         * Pull every (hash, mediaType) reference out of an event's payload. Skips refs
-         * that don't match the post-phase-2b content-addressed naming pattern (legacy
-         * random-named media stays untransferable).
+         * Pause blob serving once this many bytes are queued but unsent. Well under
+         * OkHttp's 16 MiB ceiling, which it enforces by closing the connection.
          */
-        data class MediaRef(
-            val hash: String,
-            val mediaType: String,
-            val sizeBytes: Long? = null,
-        )
+        const val SEND_QUEUE_HIGH_WATER = 2L * 1024 * 1024
+        const val SEND_QUEUE_POLL_MS = 25L
+        /**
+         * Give up on a transfer rather than hanging forever behind a dead socket.
+         * Matched to [SyncLimits.TRANSFER_TIMEOUT_MS]: a shorter ceiling here abandons
+         * transfers the receiver still considers healthy, which is what capped large
+         * attachments at the point where the in-flight backlog took over a minute to
+         * drain.
+         */
+        const val SEND_QUEUE_DRAIN_TIMEOUT_MS = SyncLimits.TRANSFER_TIMEOUT_MS
 
-        fun extractMediaRefs(event: ChatEvent): List<MediaRef> {
-            val refs = mutableListOf<MediaRef>()
-            when (val op = event.op) {
-                is ChatEventOp.MessageCreated -> collectFromMessage(op.message, refs)
-                is ChatEventOp.MessageEdited -> collectFromMessage(op.message, refs)
-                is ChatEventOp.ChatMetadataChanged -> {
-                    // Phase 2b slice 2: avatars (and backgrounds, even though no client
-                    // renders them yet) carry hashed refs that the receiver fetches.
-                    MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += MediaRef(it, "image") }
-                    MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += MediaRef(it, "image") }
-                }
-                else -> { /* tombstones carry no media refs */ }
-            }
-            return refs.distinctBy { it.hash to it.mediaType }
-        }
-
-        private fun collectFromMessage(
-            message: com.ncy.notechaty.data.model.Message,
-            refs: MutableList<MediaRef>
-        ) {
-            MediaHash.extractHash(message.voiceFile)?.let { refs += MediaRef(it, "voice") }
-            for (img in message.imageFiles) {
-                MediaHash.extractHash(img)?.let { refs += MediaRef(it, "image") }
-            }
-            for (attachment in message.fileAttachments) {
-                MediaHash.extractHash(attachment.file)?.let {
-                    refs += MediaRef(it, "file", attachment.sizeBytes)
-                }
-            }
-            for (block in message.content) {
-                for (span in block.spans) {
-                    MediaHash.extractHash(span.inlineImage)?.let { refs += MediaRef(it, "image") }
-                }
-            }
-        }
+        /** Media a peer should fetch for an event. Shared with storage cleanup so
+         *  "still referenced" means the same thing to both. */
+        fun extractMediaRefs(event: ChatEvent): List<MediaRefs.Ref> = MediaRefs.extract(event)
     }
 }

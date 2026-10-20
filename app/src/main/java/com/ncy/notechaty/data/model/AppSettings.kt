@@ -41,6 +41,17 @@ data class AppSettings(
     val autoBackupIntervalHours: Int = 24,
     /** Local-only threshold for automatically fetching generic file attachments. */
     val automaticFileDownloadLimitBytes: Long = 100L * 1024 * 1024,
+    /**
+     * Media on messages authored before this instant is listed rather than fetched;
+     * the user downloads it on demand. Zero fetches everything.
+     *
+     * Stamped when this device first pairs. Joining an established mesh replays the
+     * whole history at once, and without this the phone would immediately try to
+     * pull down every photo, recording and attachment ever sent — over mobile data,
+     * for content it has never shown. Installation-local, so an always-on peer can
+     * keep everything while a phone keeps what it has actually opened.
+     */
+    val mediaBackfillCutoffMs: Long = 0L,
     /** Installation-local policy. LOCAL_ONLY guarantees no Pear/DHT runtime starts. */
     val syncTransportMode: SyncTransportMode = SyncTransportMode.LOCAL_ONLY,
     val protectionPinHash: String? = null,

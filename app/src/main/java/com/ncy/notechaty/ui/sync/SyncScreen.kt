@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Sync
@@ -39,6 +40,7 @@ import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.data.sync.DeviceNameDisambiguation
 import com.ncy.notechaty.data.sync.SyncFailurePolicy
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
+import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
@@ -81,6 +83,8 @@ fun SyncScreen(
     val pairingBusy by viewModel.pairingBusy.collectAsState()
     val pairingMessage by viewModel.pairingMessage.collectAsState()
     val pairingSafetyCode by viewModel.pairingSafetyCode.collectAsState()
+    val pairingCodeConfirmed by viewModel.pairingCodeConfirmed.collectAsState()
+    val pairingDesktopAccepted by viewModel.pairingDesktopAccepted.collectAsState()
     val hostState by viewModel.hostState.collectAsState()
     val hostingEnabled by viewModel.hostingEnabled.collectAsState()
     val hostedPeers by viewModel.hostedPeers.collectAsState()
@@ -347,8 +351,11 @@ fun SyncScreen(
                                 isBusy = busyForThis,
                                 anyBusy = pairingBusy != null,
                                 safetyCode = if (busyForThis) pairingSafetyCode else null,
+                                codeConfirmed = busyForThis && pairingCodeConfirmed,
+                                desktopAccepted = busyForThis && pairingDesktopAccepted,
                                 onPair = { viewModel.pairViaDiscovery(found) },
                                 onScanQr = launchQrScanner,
+                                onConfirmCode = viewModel::confirmPairingCode,
                                 onCancel = viewModel::cancelPairing,
                             )
                         }
@@ -453,6 +460,21 @@ fun SyncScreen(
                     title = "Automatic file downloads",
                     subtitle = if (settings.automaticFileDownloadLimitBytes == 0L) "Always ask" else "Up to ${formatSyncFileSize(settings.automaticFileDownloadLimitBytes)}",
                     onClick = { showFileLimitDialog = true },
+                )
+                NcyRowDivider()
+                // Pairing into an established mesh replays the whole history at
+                // once. Without a cutoff this device would try to pull every
+                // attachment ever sent, over whatever connection it has.
+                NcySettingsToggleRow(
+                    icon = Icons.Default.History,
+                    title = "Download media from before pairing",
+                    subtitle = if (settings.mediaBackfillCutoffMs == 0L) {
+                        "Fetching everything, including media sent before this device was paired"
+                    } else {
+                        "Older media is listed with a Download button instead"
+                    },
+                    checked = settings.mediaBackfillCutoffMs == 0L,
+                    onCheckedChange = { everything -> viewModel.setMediaBackfill(everything) },
                 )
             }        }
 
@@ -787,6 +809,15 @@ private fun PeerCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
+            } else if (state is SyncManager.PeerState.Failed &&
+                state.reason == SyncFailurePolicy.UNVERIFIED_REJECTION_MESSAGE
+            ) {
+                Text(
+                    "The refusal came before the connection was encrypted, so it can't be confirmed " +
+                        "as coming from your device. Retries continue in case it was spoofed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             } else if (state is SyncManager.PeerState.Unavailable || state is SyncManager.PeerState.Failed) {
                 Text(
                     "If both devices are open, this network may block direct device traffic. " +
@@ -849,10 +880,14 @@ private fun DiscoveredCard(
     isBusy: Boolean,
     anyBusy: Boolean,
     safetyCode: String?,
+    codeConfirmed: Boolean,
+    desktopAccepted: Boolean,
     onPair: () -> Unit,
     onScanQr: () -> Unit,
+    onConfirmCode: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val awaitingCodeCheck = isBusy && !safetyCode.isNullOrBlank() && !codeConfirmed
     NcyDividedCard {
         Column(
             modifier = Modifier
@@ -873,6 +908,10 @@ private fun DiscoveredCard(
             )
             Text(
                 when {
+                    awaitingCodeCheck && desktopAccepted ->
+                        "The desktop accepted. Tap Codes match only if both codes are identical."
+                    awaitingCodeCheck ->
+                        "Compare this code with the desktop's, then tap Codes match. Cancel if they differ."
                     isBusy -> "Waiting for the desktop to confirm…"
                     peer.supportsPairRequest ->
                         "Tap Pair to ask this device to add this phone, then confirm there."
@@ -913,13 +952,21 @@ private fun DiscoveredCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isBusy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(8.dp))
+                    if (!awaitingCodeCheck || !desktopAccepted) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
                     OutlinedButton(onClick = onCancel, shape = NcyButtonShape) {
                         Text("Cancel")
+                    }
+                    if (awaitingCodeCheck) {
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = onConfirmCode, shape = NcyButtonShape) {
+                            Text("Codes match")
+                        }
                     }
                 } else if (peer.supportsPairRequest) {
                     Button(onClick = onPair, shape = NcyButtonShape, enabled = !anyBusy) {

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -67,6 +69,7 @@ import com.ncy.notechaty.data.model.*
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.media.MediaTransferState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
 import com.ncy.notechaty.ui.voicemessage.VoiceMessageBubble
@@ -151,6 +154,26 @@ fun MessageBubble(
     // as "Downloading…" again after a restart.
     val evictedMedia: Boolean = remember(mediaRefs, mediaVersion) {
         mediaRefs.any { !it.third.isFile && File(it.third.path + ".evicted").isFile }
+    }
+    // An image this message holds locally, if any — what save and share act on.
+    val localImage: File? = remember(mediaRefs, mediaVersion) {
+        mediaRefs.firstOrNull { it.second == "image" && it.third.isFile }?.third
+    }
+    val imageSaveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/jpeg"),
+    ) { destination ->
+        val source = localImage
+        if (destination != null && source != null && source.isFile) {
+            runCatching {
+                context.contentResolver.openOutputStream(destination)?.use { output ->
+                    source.inputStream().use { input -> input.copyTo(output) }
+                } ?: error("Cannot open destination")
+            }.onSuccess {
+                Toast.makeText(context, "Image saved", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "Could not save image", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
     val view = LocalView.current
 
@@ -319,10 +342,14 @@ fun MessageBubble(
                                 onCancel = voiceHash?.let { h -> { onCancelDownload(h) } },
                             )
                         } else if (voiceFile != null) {
-                            VoiceMessageBubble(
-                                voiceFile = voiceFile,
-                                durationMs = message.voiceDurationMs ?: 0
-                            )
+                            // Sealed in a protected chat: played from an opened copy,
+                            // which takes a moment the first time.
+                            rememberReadable(voiceFile)?.let { playable ->
+                                VoiceMessageBubble(
+                                    voiceFile = playable,
+                                    durationMs = message.voiceDurationMs ?: 0
+                                )
+                            }
                         }
                         // Transcript rides on the Message and is populated by
                         // whichever paired device ran whisper on the audio
@@ -453,6 +480,43 @@ fun MessageBubble(
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
                                 Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        localImage?.let { source ->
+                            NcySheetActionRow(Icons.Default.Download, "Save image") {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                showMenu = false
+                                // The blob is named by hash, which is no use to
+                                // anyone looking for it later.
+                                imageSaveLauncher.launch(
+                                    "Ncy-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+                                        .format(Date(source.lastModified())) + ".jpg",
+                                )
+                            }
+                            NcySheetActionRow(Icons.Default.Share, "Share image") {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                showMenu = false
+                                runCatching {
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        source,
+                                    )
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "image/jpeg"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(intent, "Share image"),
+                                    )
+                                }.onFailure {
+                                    Toast.makeText(
+                                        context,
+                                        "Could not share image",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
                             }
                         }
                         localMedia?.let { (hash, mediaType) ->
@@ -594,14 +658,40 @@ private fun FileAttachmentContent(
             available = localFile.isFile
         }
     }
+    // Android works out where the extension starts from the MIME type, not the
+    // filename:  asks MimeTypeMap what extension the type implies,
+    // and only splits the name there. Handed "application/octet-stream" it cannot
+    // derive ".apk", treats "app-release.apk" as one indivisible name, and on a
+    // collision produces "app-release.apk (1)" — which the system will then refuse
+    // to open. Deriving the type from the extension keeps the suffix in the right
+    // place, and describes the file more honestly besides.
+    val saveMimeType = remember(attachment.name, attachment.mimeType) {
+        val declared = attachment.mimeType?.takeIf {
+            it.isNotBlank() && it != "application/octet-stream"
+        }
+        val fromExtension = attachment.name
+            .substringAfterLast('.', "")
+            .lowercase(Locale.US)
+            .takeIf { it.isNotEmpty() }
+            ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+        declared ?: fromExtension ?: "application/octet-stream"
+    }
+    // In a protected chat the stored file is sealed; open and save hand out its
+    // readable contents, never the ciphertext.
+    val reader = LocalMediaReader.current
+    val scope = rememberCoroutineScope()
     val saveLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(attachment.mimeType ?: "application/octet-stream")
+        ActivityResultContracts.CreateDocument(saveMimeType)
     ) { destination ->
-        if (destination != null && localFile.isFile) {
+        if (destination != null && localFile.isFile) scope.launch {
+            val readable = reader.readable(localFile)
             runCatching {
-                context.contentResolver.openOutputStream(destination)?.use { output ->
-                    localFile.inputStream().use { input -> input.copyTo(output) }
-                } ?: error("Cannot open destination")
+                checkNotNull(readable) { "Cannot open the attachment" }
+                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(destination)?.use { output ->
+                        readable.inputStream().use { input -> input.copyTo(output) }
+                    } ?: error("Cannot open destination")
+                }
             }.onSuccess {
                 Toast.makeText(context, "File saved", Toast.LENGTH_SHORT).show()
             }.onFailure {
@@ -610,19 +700,26 @@ private fun FileAttachmentContent(
         }
     }
     val openFile: () -> Unit = {
-        val uri = androidx.core.content.FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            localFile,
-        )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, attachment.mimeType ?: "application/octet-stream")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        runCatching { context.startActivity(Intent.createChooser(intent, "Open file")) }
-            .onFailure {
-                Toast.makeText(context, "No app can open this file", Toast.LENGTH_SHORT).show()
+        scope.launch {
+            val readable = reader.readable(localFile)
+            if (readable == null) {
+                Toast.makeText(context, "Could not open this file", Toast.LENGTH_SHORT).show()
+                return@launch
             }
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                readable,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, attachment.mimeType ?: "application/octet-stream")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            runCatching { context.startActivity(Intent.createChooser(intent, "Open file")) }
+                .onFailure {
+                    Toast.makeText(context, "No app can open this file", Toast.LENGTH_SHORT).show()
+                }
+        }
         Unit
     }
     // Absent media reads the same wherever it appears. The rich card below is for a
@@ -639,7 +736,10 @@ private fun FileAttachmentContent(
             // a removed file must not revert to claiming it is downloading.
             failure = hash?.let(transferFailure)
                 ?: if (evicted) MediaTransferState.EVICTED else null,
-            idleText = "Downloading…",
+            // Not "Downloading…": nothing is in flight in this state, and since the
+            // backfill cutoff leaves older media deliberately unfetched, it is now
+            // the common one. A live transfer shows its progress instead.
+            idleText = "Not on this device",
             detail = attachment.sizeBytes?.let { formatFileSize(it) },
             onDownload = hash?.let { {
                 manuallyRequested = true
@@ -836,13 +936,16 @@ private fun RichTextSpans(
                     val imageFile = File(chatDir, span.inlineImage)
                     val present = remember(imageFile, mediaVersion) { imageFile.isFile }
                     if (present) {
+                        // A sealed image is shown, and opened full-size, from its
+                        // opened copy; the stored file is ciphertext.
+                        val shown = rememberReadable(imageFile, present)
                         AsyncImage(
-                            model = imageFile,
+                            model = shown,
                             contentDescription = "Image",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { viewingImage = imageFile },
+                                .clickable { if (shown != null) viewingImage = shown },
                             contentScale = ContentScale.FillWidth
                         )
                     } else {

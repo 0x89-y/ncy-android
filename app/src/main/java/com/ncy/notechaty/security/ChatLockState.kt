@@ -32,9 +32,13 @@ class ChatLockState @Inject constructor() {
             if (removed) _timestamps.value = unlockedAt.toMap()
             return removed
         }
-        if (_appUnlockedAt.value > 0L) return true
+        val now = System.currentTimeMillis()
+        // The app unlock counts for the same grace window as a chat's own unlock.
+        // It used to count forever, so one PIN at start opened every protected chat
+        // for as long as the process lived.
+        if (isWithinGrace(_appUnlockedAt.value, gracePeriodMinutes, now)) return true
         val ts = unlockedAt[chatId] ?: return false
-        val ok = System.currentTimeMillis() - ts < gracePeriodMinutes * 60_000L
+        val ok = isWithinGrace(ts, gracePeriodMinutes, now)
         if (!ok) {
             unlockedAt.remove(chatId)
             _timestamps.value = unlockedAt.toMap()
@@ -55,6 +59,11 @@ class ChatLockState @Inject constructor() {
         unlockedAt.clear()
         _timestamps.value = emptyMap()
         _appUnlockedAt.value = 0L
+    }
+
+    companion object {
+        fun isWithinGrace(unlockedAt: Long, gracePeriodMinutes: Int, now: Long): Boolean =
+            unlockedAt > 0L && now - unlockedAt < gracePeriodMinutes * 60_000L
     }
 
     /** Clear per-chat unlocks without touching the app-wide unlock. Used on profile switch. */

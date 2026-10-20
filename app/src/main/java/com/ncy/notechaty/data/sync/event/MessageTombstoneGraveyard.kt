@@ -36,6 +36,7 @@ object MessageTombstoneGraveyard {
         val prior = records(chatDir)
         if (prior.any { it.messageId == op.messageId }) return false
         writeRecords(chatDir, (prior + event.toRecord(op.messageId)).sortedBy { it.hlc })
+        Receipts.record(event)
         return true
     }
 
@@ -43,15 +44,17 @@ object MessageTombstoneGraveyard {
     fun merge(chatDir: File, incoming: List<ChatEvent>): Int {
         val prior = records(chatDir)
         val known = prior.mapTo(HashSet()) { it.messageId }
-        val added = incoming.mapNotNull { event ->
-            val op = event.op as? ChatEventOp.MessageTombstoned ?: return@mapNotNull null
-            if (event.chatId != chatDir.name.removePrefix("chat_") || !known.add(op.messageId)) {
-                null
-            } else {
-                event.toRecord(op.messageId)
-            }
+        val addedEvents = incoming.filter { event ->
+            val op = event.op as? ChatEventOp.MessageTombstoned ?: return@filter false
+            event.chatId == chatDir.name.removePrefix("chat_") && known.add(op.messageId)
         }
-        if (added.isNotEmpty()) writeRecords(chatDir, (prior + added).sortedBy { it.hlc })
+        val added = addedEvents.map { event ->
+            event.toRecord((event.op as ChatEventOp.MessageTombstoned).messageId)
+        }
+        if (added.isNotEmpty()) {
+            writeRecords(chatDir, (prior + added).sortedBy { it.hlc })
+            addedEvents.forEach { Receipts.record(it) }
+        }
         return added.size
     }
 

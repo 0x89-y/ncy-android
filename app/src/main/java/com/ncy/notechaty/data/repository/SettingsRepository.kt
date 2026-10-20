@@ -53,6 +53,7 @@ class SettingsRepository @Inject constructor(
                     "automaticFileDownloadLimitBytes",
                     100L * 1024 * 1024,
                 ).coerceIn(0L, 1024L * 1024 * 1024),
+                mediaBackfillCutoffMs = prefs.getLong("mediaBackfillCutoffMs", 0L),
                 syncTransportMode = transportPrefs.getString(KEY_TRANSPORT_MODE, null)
                     ?.let { runCatching { SyncTransportMode.valueOf(it) }.getOrNull() }
                     ?: if (transportPrefs.getBoolean(LEGACY_PEAR_ENABLED, false)) {
@@ -69,6 +70,20 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * Record that this device has joined a mesh, so media predating the moment is
+     * listed rather than downloaded.
+     *
+     * Only the first pairing takes effect. Once stamped, the value is the instant
+     * this device became part of the mesh; a later pairing must not move it forward
+     * or it would re-classify media that has already arrived.
+     */
+    suspend fun stampMediaBackfillCutoff() {
+        val current = _settings.value
+        if (current.mediaBackfillCutoffMs > 0L) return
+        updateSettings(current.copy(mediaBackfillCutoffMs = System.currentTimeMillis()))
+    }
+
     suspend fun updateSettings(settings: AppSettings) {
         _settings.value = settings
         prefs.edit()
@@ -83,6 +98,7 @@ class SettingsRepository @Inject constructor(
                 "automaticFileDownloadLimitBytes",
                 settings.automaticFileDownloadLimitBytes.coerceIn(0L, 1024L * 1024 * 1024),
             )
+            .putLong("mediaBackfillCutoffMs", settings.mediaBackfillCutoffMs)
             .putString("protectionPinHash", settings.protectionPinHash)
             .putString("protectionPinSalt", settings.protectionPinSalt)
             .putBoolean("protectionUseBiometric", settings.protectionUseBiometric)

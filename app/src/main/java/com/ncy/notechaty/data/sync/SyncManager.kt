@@ -7,7 +7,9 @@ import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
+import com.ncy.notechaty.data.sync.event.Receipts
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
+import com.ncy.notechaty.data.sync.media.MediaBackfill
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.media.MediaRefs
 import com.ncy.notechaty.data.sync.media.MediaTransferState
@@ -22,8 +24,10 @@ import com.ncy.notechaty.data.sync.transport.SyncClient
 import com.ncy.notechaty.data.sync.transport.SyncCatchupPolicy
 import com.ncy.notechaty.data.sync.transport.SyncLimits
 import com.ncy.notechaty.data.sync.transport.ClientSyncTransport
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -312,10 +316,18 @@ class SyncManager @Inject constructor(
         val profileId: String,
         val mediaType: String,
         val tempFile: File,
-        val output: BufferedOutputStream,
+        var output: BufferedOutputStream,
         var received: Int = 0,
         var lastActivityAt: Long = System.currentTimeMillis(),
-    )
+    ) {
+        // Shutdown can race the final chunk; only the first release may drop the
+        // claim, or it could drop one another transfer has taken since.
+        private val released = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        fun releaseClaim() {
+            if (released.compareAndSet(false, true)) SyncLimits.releasePartial(tempFile)
+        }
+    }
 
     private inner class PeerSession(
         private val peer: SyncPeer,
@@ -342,13 +354,31 @@ class SyncManager @Inject constructor(
         // as `Hello.sinceHlc` so the peer knows where to resume sending us.
         @Volatile private var lastReceivedHlc: HlcTimestamp? = peerStore.lastReceivedHlc(peer)
 
+        // Receipt positions (§10.9), mirrored from the store like the HLC watermarks.
+        @Volatile private var remoteReceiptEpoch: String? = peer.remoteReceiptEpoch
+        @Volatile private var lastReceivedReceipt: Long? = peer.lastReceivedReceipt
+        @Volatile private var ackedReceiptEpoch: String? = peer.ackedReceiptEpoch
+        @Volatile private var lastAckedReceipt: Long? = peer.lastAckedReceipt
+        /** This connection's server numbers what it sends and echoes our receipts. */
+        @Volatile private var receiptMode = false
+        /** Highest of our receipts sent on this connection; dedupes catch-up vs live. */
+        private var lastSentReceipt = 0L
+
         fun run() {
             peerStore.recordRetry(peer.id, null)
             startTransferCleanup()
+            receiptMode = false
+            // A full replay (no HLC watermark) must not carry a receipt position, or
+            // the server would send only what follows it.
+            val (helloEpoch, helloSince) =
+                if (lastReceivedHlc == null) "" to null
+                else (remoteReceiptEpoch ?: "") to lastReceivedReceipt
             session = syncClient.connect(
                 peer = peer,
                 localDeviceId = deviceIdentity.deviceId,
-                sinceHlc = lastReceivedHlc
+                sinceHlc = lastReceivedHlc,
+                receiptEpoch = helloEpoch,
+                sinceReceipt = helloSince,
             ) { event ->
                 when (event) {
                     is SyncClient.Event.Connecting -> {
@@ -372,6 +402,15 @@ class SyncManager @Inject constructor(
                         peerName = AuthenticatedDeviceName.refresh(peer.name, event.peerName)
                         peerStore.updateAuthenticatedName(peer.id, peerName)
                         peerStore.recordAuthenticated(peer.id, peer.host, peer.port)
+                        event.receiptEpoch?.let { epoch ->
+                            val fullReplay = lastReceivedHlc == null
+                            if (fullReplay || remoteReceiptEpoch != epoch) {
+                                remoteReceiptEpoch = epoch
+                                lastReceivedReceipt = null
+                            }
+                            peerStore.adoptRemoteReceiptEpoch(peer.id, epoch, fullReplay)
+                        }
+                        receiptMode = event.receiptEpoch != null && Receipts.epoch() != null
                         reconnectAttempt = 0 // healthy session — reset backoff
                         updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
                         startCatchupAndLiveForwarding(checkNotNull(session))
@@ -384,14 +423,26 @@ class SyncManager @Inject constructor(
                             peerStore.updateLastSent(peer.id, event.upToHlc, now)
                             val cur = lastAckedHlc
                             if (cur == null || event.upToHlc > cur) lastAckedHlc = event.upToHlc
+                            val ownEpoch = Receipts.epoch()
+                            val acked = event.upToReceipt
+                            if (acked != null && ownEpoch != null) {
+                                val same = ackedReceiptEpoch == ownEpoch
+                                if (!same || (lastAckedReceipt ?: 0L) < acked) {
+                                    ackedReceiptEpoch = ownEpoch
+                                    lastAckedReceipt = acked
+                                }
+                                peerStore.updateLastAckedReceipt(peer.id, acked, ownEpoch)
+                            }
                         }
                     }
                     is SyncClient.Event.EventReceived -> {
-                        scope.launch { handleInbound(event.event) }
+                        inbound.trySend(event)
                     }
                     is SyncClient.Event.BlobRequested -> {
                         val hash = event.hash
-                        val job = scope.launch { serveBlob(hash, event.mediaType) }
+                        val job = scope.launch {
+                            serveBlob(hash, event.mediaType, event.offset.toInt())
+                        }
                         servingJobs[hash] = job
                         job.invokeOnCompletion { servingJobs.remove(hash) }
                     }
@@ -422,8 +473,10 @@ class SyncManager @Inject constructor(
                     }
                     is SyncClient.Event.Failed -> {
                         Log.w(tag, "Peer ${peer.id} failed: ${event.reason}")
-                        identityFailure = SyncFailurePolicy.stopsAutomaticRetry(event.reason)
-                        val displayReason = SyncFailurePolicy.userFacingReason(event.reason)
+                        identityFailure =
+                            SyncFailurePolicy.stopsAutomaticRetry(event.reason, event.authenticated)
+                        val displayReason =
+                            SyncFailurePolicy.userFacingReason(event.reason, event.authenticated)
                         peerStore.recordError(peer.id, displayReason)
                         updateState(
                             peer.id,
@@ -457,7 +510,40 @@ class SyncManager @Inject constructor(
         // is implicit (this PeerSession owns it).
         private val pendingFetches = mutableMapOf<String, PendingFetch>()
 
-        private suspend fun handleInbound(event: ChatEvent) {
+        /**
+         * Inbound events, applied one at a time in arrival order. Each used to get its
+         * own coroutine, and the watermark only moves forward — so a later event that
+         * finished first could carry it past one that then failed, or was lost to the
+         * process dying, and catch-up would never resend it. Outlives reconnects;
+         * closed by [shutdown], which lets what already arrived finish applying.
+         */
+        private val inbound = Channel<SyncClient.Event.EventReceived>(Channel.UNLIMITED)
+
+        init {
+            scope.launch { applyInboundInOrder() }
+        }
+
+        private suspend fun applyInboundInOrder() {
+            for (frame in inbound) {
+                val event = frame.event
+                val applied = try {
+                    handleInbound(event, frame.receipt)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Unacked, so the reconnect's Hello.sinceHlc asks for it again.
+                    Log.w(tag, "could not apply event ${event.eventId}; reconnecting", e)
+                    session?.close()
+                    false
+                }
+                // Nothing queued behind a rejected event may be acked, or the
+                // watermark would skip it. The peer resends all of it.
+                if (!applied) while (inbound.tryReceive().isSuccess) Unit
+            }
+        }
+
+        /** False when the event was rejected and the session is being torn down. */
+        private suspend fun handleInbound(event: ChatEvent, receipt: Long?): Boolean {
             // Defensive loop guard: an event that originated from this device should never
             // be applied (the peer is echoing it back). Should not happen if the peer
             // implements its own sender-side loop guard, but cheap to check.
@@ -465,24 +551,37 @@ class SyncManager @Inject constructor(
             // echo is rejected by eventId; a reinstall that lost the event recovers it.
             if (!HlcTimestamp.isAcceptableRemote(event.hlc, System.currentTimeMillis())) {
                 rejectClockSkew("event")
-                return
+                return false
             }
             val routedEvent = chatRepository.canonicalizeInboundEvent(event)
             val newlyApplied = chatRepository.applyExternalEvent(routedEvent)
-            session?.ack(routedEvent.hlc)
+            session?.ack(routedEvent.hlc, receipt)
             peerStore.updateLastReceived(peer.id, routedEvent.hlc)
             val cur = lastReceivedHlc
             if (cur == null || routedEvent.hlc > cur) lastReceivedHlc = routedEvent.hlc
-            if (!newlyApplied) return
+            // Applied strictly in arrival order, so this never passes an unstored event.
+            if (receipt != null && receiptMode && receipt > (lastReceivedReceipt ?: 0L)) {
+                lastReceivedReceipt = receipt
+                peerStore.updateLastReceivedReceipt(peer.id, receipt)
+            }
+            if (!newlyApplied) return true
             receivedCount++
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
 
             // Phase 2b: kick off blob fetches for any media references we don't have yet.
             scope.launch { fetchMissingMedia(routedEvent) }
+            return true
         }
 
         private suspend fun fetchMissingMedia(event: ChatEvent) {
             val s = session ?: return
+            // Predates this device joining the mesh, so it is history rather than
+            // something just sent: list it, do not pull it.
+            if (!MediaBackfill.wantsAutomaticFetch(
+                    event.hlc.physicalMs,
+                    settingsRepository.settings.value.mediaBackfillCutoffMs,
+                )
+            ) return
             for (ref in extractMediaRefs(event)) {
                 val hash = ref.hash
                 val mediaType = ref.mediaType
@@ -494,19 +593,13 @@ class SyncManager @Inject constructor(
                 ) continue
                 val newlyPending = synchronized(this@PeerSession) {
                     if (pendingFetches.containsKey(hash) || pendingFetches.size >= SyncLimits.MAX_PENDING_BLOBS) false
-                    else {
-                        val temp = SyncLimits.newBlobTempFile(chatRepository.getBaseDir())
-                        pendingFetches[hash] = PendingFetch(
-                            chatId = event.chatId,
-                            profileId = event.profileId,
-                            mediaType = mediaType,
-                            tempFile = temp,
-                            output = BufferedOutputStream(temp.outputStream())
-                        )
-                        true
-                    }
+                    else openPendingFetch(event.chatId, event.profileId, hash, mediaType)
+                        ?.also { pendingFetches[hash] = it } != null
                 }
-                if (newlyPending) s.requestBlob(hash, mediaType)
+                if (newlyPending) {
+                    val from = pendingFetches[hash]?.received?.toLong() ?: 0L
+                    s.requestBlob(hash, mediaType, from)
+                }
             }
         }
 
@@ -517,26 +610,50 @@ class SyncManager @Inject constructor(
             mediaType: String = "file",
         ): Boolean {
             val s = session ?: return false
+            if (!MediaHash.isValidHash(hash)) return false
             if (chatRepository.mediaFileForHash(hash, mediaType, profileId) != null) return true
             val newlyPending = synchronized(this@PeerSession) {
                 if (pendingFetches.containsKey(hash) || pendingFetches.size >= SyncLimits.MAX_PENDING_BLOBS) {
                     false
                 } else {
-                    val temp = SyncLimits.newBlobTempFile(chatRepository.getBaseDir())
-                    pendingFetches[hash] = PendingFetch(
-                        chatId = chatId,
-                        profileId = profileId,
-                        mediaType = mediaType,
-                        tempFile = temp,
-                        output = BufferedOutputStream(temp.outputStream()),
-                    )
-                    true
+                    openPendingFetch(chatId, profileId, hash, mediaType)
+                        ?.also { pendingFetches[hash] = it } != null
                 }
             }
             if (!newlyPending) return pendingFetches.containsKey(hash)
-            if (s.requestBlob(hash, mediaType)) return true
+            val from = pendingFetches[hash]?.received?.toLong() ?: 0L
+            if (s.requestBlob(hash, mediaType, from)) return true
             discardPending(hash)
             return false
+        }
+
+        /**
+         * Start tracking a fetch into its hash-named partial, resuming from whatever an
+         * earlier attempt kept. Null when another transfer — this role or the phone
+         * host, any peer — already owns that partial. Caller holds the session lock.
+         */
+        private fun openPendingFetch(
+            chatId: String,
+            profileId: String,
+            hash: String,
+            mediaType: String,
+        ): PendingFetch? {
+            val temp = SyncLimits.blobPartialFile(chatRepository.getBaseDir(), hash, mediaType)
+            if (!SyncLimits.claimPartial(temp)) return null
+            return runCatching {
+                val alreadyHave = if (temp.isFile) temp.length() else 0L
+                PendingFetch(
+                    chatId = chatId,
+                    profileId = profileId,
+                    mediaType = mediaType,
+                    tempFile = temp,
+                    output = BufferedOutputStream(java.io.FileOutputStream(temp, true)),
+                    received = alreadyHave.toInt(),
+                )
+            }.getOrElse {
+                SyncLimits.releasePartial(temp)
+                throw it
+            }
         }
 
         /**
@@ -566,7 +683,7 @@ class SyncManager @Inject constructor(
         /** In-flight uploads by blob hash, so a peer's cancel can interrupt one. */
         private val servingJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
-        private suspend fun serveBlob(hash: String, mediaType: String) {
+        private suspend fun serveBlob(hash: String, mediaType: String, resumeFrom: Int = 0) {
             val s = session ?: return
             val file = chatRepository.mediaFileForHash(hash, mediaType)
             if (file == null || !file.isFile) {
@@ -588,7 +705,10 @@ class SyncManager @Inject constructor(
             val startedAt = System.currentTimeMillis()
             file.inputStream().buffered().use { input ->
                 val buffer = ByteArray(CHUNK_SIZE)
-                var offset = 0
+                // Resume where the receiver stopped. Past the end it is clamped, so
+                // a stale offset simply sends the whole blob again.
+                var offset = resumeFrom.coerceIn(0, total)
+                if (offset > 0) input.skip(offset.toLong())
                 while (offset < total) {
                     // Cooperative cancellation *and* fairness. Nothing else in this
                     // loop suspends when the send queue is draining normally, so a
@@ -655,9 +775,17 @@ class SyncManager @Inject constructor(
             }
             // Expect strictly in-order chunks. Drop the fetch if the sender deviates so we
             // don't end up with garbage assembled bytes.
+            if (offset == 0 && pending.received > 0) {
+                // Older peer ignoring the resume offset. Start the file over in place:
+                // abandoning the fetch left the sender streaming a file nobody kept,
+                // and the user retrying by hand.
+                runCatching { pending.output.close() }
+                pending.output = BufferedOutputStream(java.io.FileOutputStream(pending.tempFile, false))
+                pending.received = 0
+            }
             if (offset != pending.received) {
                 Log.w(tag, "out-of-order blob chunk for $hash (got $offset, expected ${pending.received})")
-                discardPending(hash)
+                discardPending(hash, keepPartial = false)
                 return
             }
             pending.output.write(bytes)
@@ -667,39 +795,67 @@ class SyncManager @Inject constructor(
             if (!isLast) return
 
             synchronized(this@PeerSession) { pendingFetches.remove(hash) }
-            pending.output.close()
-            if (pending.received != totalSize) {
-                Log.w(tag, "blob $hash size mismatch: got ${pending.received} expected $totalSize")
-                pending.tempFile.delete()
-                return
+            // Hold the claim until the file is moved or deleted, so nothing reopens
+            // the partial while it is being hashed.
+            try {
+                pending.output.close()
+                if (pending.received != totalSize) {
+                    Log.w(tag, "blob $hash size mismatch: got ${pending.received} expected $totalSize")
+                    pending.tempFile.delete()
+                    return
+                }
+                val computed = MediaHash.ofFile(pending.tempFile)
+                if (computed != hash) {
+                    Log.w(tag, "blob hash mismatch: expected=$hash got=$computed")
+                    pending.tempFile.delete()
+                    return
+                }
+                transferState.finished(hash)
+                chatRepository.saveMediaBlobFromFile(
+                    pending.chatId,
+                    hash,
+                    pending.mediaType,
+                    pending.tempFile,
+                    pending.profileId,
+                )
+                // Tell any open ChatScreen to re-render — the materialized message hasn't
+                // changed but the file it references now exists on disk.
+                eventBus.notifyMediaArrived(pending.chatId)
+            } finally {
+                pending.releaseClaim()
             }
-            val computed = MediaHash.ofFile(pending.tempFile)
-            if (computed != hash) {
-                Log.w(tag, "blob hash mismatch: expected=$hash got=$computed")
-                pending.tempFile.delete()
-                return
-            }
-            transferState.finished(hash)
-            chatRepository.saveMediaBlobFromFile(
-                pending.chatId,
-                hash,
-                pending.mediaType,
-                pending.tempFile,
-                pending.profileId,
-            )
-            // Tell any open ChatScreen to re-render — the materialized message hasn't
-            // changed but the file it references now exists on disk.
-            eventBus.notifyMediaArrived(pending.chatId)
         }
 
         private fun pushCatchup() {
             val s = session ?: return
-            val fullReplay = lastAckedHlc == null
-            val pending = snapshot.eventsSince(lastAckedHlc)
-            for (event in pending) {
-                if (!sendEvent(s, event, fullReplay)) return
+            if (receiptMode) {
+                pushReceiptCatchup(s)
+            } else {
+                val fullReplay = lastAckedHlc == null
+                val pending = snapshot.eventsSince(lastAckedHlc)
+                for (event in pending) {
+                    if (!sendEvent(s, event, fullReplay)) return
+                }
             }
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
+        }
+
+        /**
+         * Toward a server that follows receipts (§10.9): everything after its last
+         * acknowledged receipt while our epoch is unchanged; otherwise one transition
+         * pass that sends what HLC catch-up would have, numbered, so the
+         * acknowledgements set the position from then on.
+         */
+        private fun pushReceiptCatchup(s: SyncClient.Session) {
+            val resume = lastAckedReceipt.takeIf { ackedReceiptEpoch == Receipts.epoch() }
+            val floor = if (resume == null) lastAckedHlc else null
+            // Never acknowledged anything: the server may be empty, so include what it
+            // authored too, as HLC catch-up's full replay does.
+            val fullReplay = resume == null && lastAckedHlc == null
+            lastSentReceipt = resume ?: 0L
+            for ((receipt, event) in snapshot.eventsAfterReceipt(resume ?: 0L, hlcFloor = floor)) {
+                if (!sendEvent(s, event, fullReplay, receipt)) return
+            }
         }
 
         private fun startCatchupAndLiveForwarding(s: SyncClient.Session) {
@@ -742,16 +898,26 @@ class SyncManager @Inject constructor(
             s: SyncClient.Session,
             event: ChatEvent,
             fullReplay: Boolean = false,
+            knownReceipt: Long? = null,
         ): Boolean {
             // Loop prevention: don't send events back to the peer that authored them.
             // (Matters once events from peer A get republished to the bus by `applyExternalEvent`
             // and would otherwise be forwarded straight back to A.)
             if (!SyncCatchupPolicy.shouldSend(event.originDevice, peer.id, fullReplay)) return true
-            // Skip events the peer already acked (cheap dedupe; the receiver also tolerates
-            // duplicates by event id, but we save bandwidth).
-            val acked = lastAckedHlc
-            if (acked != null && event.hlc <= acked) return true
-            if (!s.send(event)) return false
+            val receipt = if (receiptMode) knownReceipt ?: Receipts.receiptOf(event.eventId) else null
+            if (receiptMode) {
+                // No HLC filter: an event relayed here late with an old clock (from a
+                // phone this device hosts) is exactly what that filter used to drop.
+                // The receipt only removes the catch-up/live overlap.
+                if (receipt != null && receipt <= lastSentReceipt) return true
+            } else {
+                // Skip events the peer already acked (cheap dedupe; the receiver also tolerates
+                // duplicates by event id, but we save bandwidth).
+                val acked = lastAckedHlc
+                if (acked != null && event.hlc <= acked) return true
+            }
+            if (!s.send(event, receipt)) return false
+            if (receipt != null && receipt > lastSentReceipt) lastSentReceipt = receipt
             sentCount++
             updateState(peer.id, PeerState.Connected(peerName, sentCount, receivedCount, activeTransport))
             return true
@@ -857,6 +1023,7 @@ class SyncManager @Inject constructor(
 
         fun shutdown() {
             canceled = true
+            inbound.close()
             reconnectJob?.cancel()
             reconnectJob = null
             liveJob?.cancel()
@@ -864,18 +1031,32 @@ class SyncManager @Inject constructor(
             transferCleanupJob = null
             synchronized(this@PeerSession) {
                 pendingFetches.values.forEach { pending ->
+                    // Kept on purpose: the next connection resumes from here.
                     runCatching { pending.output.close() }
-                    pending.tempFile.delete()
+                    pending.releaseClaim()
                 }
                 pendingFetches.clear()
             }
             session?.close()
         }
 
-        private fun discardPending(hash: String, reason: String = "transfer failed") {
+        /**
+         * Stop tracking a transfer, keeping what it received unless the bytes are
+         * known to be bad.
+         *
+         * A stall or a dropped connection leaves a usable prefix, and discarding it
+         * is what made a large transfer over a flaky link unable to finish: every
+         * attempt started from zero and met the same timeout.
+         */
+        private fun discardPending(
+            hash: String,
+            reason: String = "transfer failed",
+            keepPartial: Boolean = true,
+        ) {
             val pending = synchronized(this@PeerSession) { pendingFetches.remove(hash) } ?: return
             runCatching { pending.output.close() }
-            pending.tempFile.delete()
+            if (!keepPartial) pending.tempFile.delete()
+            pending.releaseClaim()
             transferState.failed(hash, reason)
         }
 

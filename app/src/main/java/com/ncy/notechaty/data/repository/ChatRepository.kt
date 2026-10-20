@@ -71,6 +71,15 @@ interface ChatRepository {
     suspend fun migrateProtectedChat(chatId: String)
 
     /**
+     * Move every protected chat, in every profile, from the key of [oldPin] to the
+     * key of [newPin] — messages and attachments — or, with [newPin] null, open
+     * them back to plain and unprotect the chats. The PIN is what each chat key is
+     * derived from, so changing it without this leaves every protected chat
+     * unreadable. Returns how many chats changed.
+     */
+    suspend fun rekeyProtectedChats(oldPin: String, newPin: String?): Int
+
+    /**
      * Locate a content-addressed media blob by its SHA-256 hash. `mediaType` is `"voice"`,
      * `"image"`, or `"file"`. Returns null if no matching file exists in any chat under the active
      * profile. When [profileId] is null, all local profiles are searched so a peer

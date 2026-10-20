@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.7.4 — 2026-10-20
+
+### Added
+
+- Added a Codes match step to pairing with a nearby desktop. Nothing is paired until both
+  safety codes are confirmed, and the code can no longer be forced to match by a device
+  relaying between the two.
+- Images, voice notes and files in protected chats are now encrypted with the chat's PIN,
+  on this phone and on paired devices. Existing attachments are encrypted the next time
+  the chat is unlocked.
+- The app lock and protected chats now lock again once Ncy has been in the background
+  longer than the re-lock period (at least a minute).
+- Wrong PIN entries now trigger a growing wait after the fourth attempt, up to 30 minutes.
+
+### Security
+
+- Paired devices can no longer request files from outside a chat's media, and identifiers
+  received from peers or backups are checked before they become folder names.
+- Phone sync hosting now limits connections that have not authenticated yet and the size
+  of incoming messages.
+- A device waiting for pairing approval can no longer receive messages before it is
+  approved.
+
+### Changed
+
+- Reminders without exact-alarm permission now fire within minutes instead of possibly
+  hours late.
+
+### Fixed
+
+- Fixed Change PIN and Remove PIN leaving every protected chat unreadable. Both now ask
+  for the current PIN and re-encrypt or decrypt the chats.
+- Fixed notes written on a device while it was offline never reaching devices that had
+  synced in the meantime. Requires the updated desktop app too.
+- Fixed messages that could be skipped for good when sync was interrupted partway through.
+- Fixed a refusal that arrives before the connection is encrypted stopping sync for good;
+  it now shows a warning and keeps retrying.
+- Fixed interrupted downloads never finishing when this phone hosts sync, and Download
+  failing for images and voice notes in that case.
+- Fixed unlocking the app inside a protected chat asking for the PIN twice.
+
 ## 0.7.3 — 2026-07-27
 
 ### Added

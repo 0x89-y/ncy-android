@@ -27,12 +27,18 @@ class SyncClient @Inject constructor(
     sealed class Event {
         object Connecting : Event()
         data class TransportSelected(val kind: ClientSyncTransport.Kind) : Event()
-        data class Authenticated(val peerName: String) : Event()
-        data class Acked(val upToHlc: HlcTimestamp) : Event()
+        /** @param receiptEpoch the server's receipt epoch; null when it has none (§10.9). */
+        data class Authenticated(val peerName: String, val receiptEpoch: String? = null) : Event()
+        data class Acked(val upToHlc: HlcTimestamp, val upToReceipt: Long? = null) : Event()
         /** Server pushed an event back at us (phase 2 bidirectional). */
-        data class EventReceived(val event: ChatEvent) : Event()
+        data class EventReceived(val event: ChatEvent, val receipt: Long? = null) : Event()
         // Phase 2b — media blob wire frames surfaced to SyncManager for handling.
-        data class BlobRequested(val hash: String, val mediaType: String) : Event()
+        data class BlobRequested(
+            val hash: String,
+            val mediaType: String,
+            /** Byte to stream from, so a broken transfer resumes. */
+            val offset: Long = 0L,
+        ) : Event()
         data class BlobChunkReceived(
             val hash: String,
             val mediaType: String,
@@ -44,14 +50,18 @@ class SyncClient @Inject constructor(
         data class BlobMissingReceived(val hash: String) : Event()
         /** Peer no longer wants a blob we are streaming — stop and free the link. */
         data class BlobCancelled(val hash: String) : Event()
-        data class Failed(val reason: String) : Event()
+        /**
+         * @param authenticated false for an Error frame that arrived in plaintext,
+         *   before the encrypted session — unverifiable, so never a trust failure.
+         */
+        data class Failed(val reason: String, val authenticated: Boolean = true) : Event()
         data class Disconnected(val reason: String = "") : Event()
     }
 
     interface Session {
-        fun send(event: ChatEvent): Boolean
-        fun ack(upToHlc: HlcTimestamp): Boolean
-        fun requestBlob(hash: String, mediaType: String): Boolean
+        fun send(event: ChatEvent, receipt: Long? = null): Boolean
+        fun ack(upToHlc: HlcTimestamp, upToReceipt: Long? = null): Boolean
+        fun requestBlob(hash: String, mediaType: String, offset: Long = 0L): Boolean
         fun sendBlobChunk(
             hash: String,
             mediaType: String,
@@ -70,10 +80,17 @@ class SyncClient @Inject constructor(
         fun close()
     }
 
+    /**
+     * @param receiptEpoch the server epoch last seen, `""` before any; always sent,
+     *   which declares that this client follows receipts (§10.9).
+     * @param sinceReceipt highest server receipt applied in [receiptEpoch].
+     */
     fun connect(
         peer: SyncPeer,
         localDeviceId: String,
         sinceHlc: HlcTimestamp?,
+        receiptEpoch: String = "",
+        sinceReceipt: Long? = null,
         onEvent: (Event) -> Unit
     ): Session {
         onEvent(Event.Connecting)
@@ -141,6 +158,8 @@ class SyncClient @Inject constructor(
                                 deviceName = settingsRepository.settings.value.deviceName,
                                 transport = TransportCrypto.TRANSPORT,
                                 clientNonce = clientNonce,
+                                receiptEpoch = receiptEpoch,
+                                sinceReceipt = sinceReceipt,
                             )
                         ))
                     }
@@ -160,11 +179,12 @@ class SyncClient @Inject constructor(
                             return
                         }
                         authenticated = true
-                        onEvent(Event.Authenticated(msg.name))
+                        onEvent(Event.Authenticated(msg.name, msg.receiptEpoch))
                     }
-                    is SyncWireMessage.Ack -> onEvent(Event.Acked(msg.upToHlc))
-                    is SyncWireMessage.Event -> onEvent(Event.EventReceived(msg.event))
-                    is SyncWireMessage.BlobRequest -> onEvent(Event.BlobRequested(msg.hash, msg.mediaType))
+                    is SyncWireMessage.Ack -> onEvent(Event.Acked(msg.upToHlc, msg.upToReceipt))
+                    is SyncWireMessage.Event -> onEvent(Event.EventReceived(msg.event, msg.receipt))
+                    is SyncWireMessage.BlobRequest ->
+                        onEvent(Event.BlobRequested(msg.hash, msg.mediaType, msg.offset))
                     is SyncWireMessage.BlobCancel -> onEvent(Event.BlobCancelled(msg.hash))
                     is SyncWireMessage.BlobChunk -> onEvent(
                         Event.BlobChunkReceived(
@@ -178,7 +198,10 @@ class SyncClient @Inject constructor(
                     )
                     is SyncWireMessage.BlobMissing -> onEvent(Event.BlobMissingReceived(msg.hash))
                     is SyncWireMessage.Error -> {
-                        onEvent(Event.Failed("${msg.code}: ${msg.message}"))
+                        onEvent(Event.Failed(
+                            "${msg.code}: ${msg.message}",
+                            authenticated = outer is SyncWireMessage.Secure,
+                        ))
                         connection.close(CLOSE_PROTOCOL_ERROR, msg.code)
                     }
                     is SyncWireMessage.Hello -> {
@@ -211,19 +234,19 @@ class SyncClient @Inject constructor(
                 }
             }
 
-            override fun send(event: ChatEvent): Boolean {
+            override fun send(event: ChatEvent, receipt: Long?): Boolean {
                 if (!authenticated || closed) return false
-                return sendSecure(SyncWireMessage.Event(event))
+                return sendSecure(SyncWireMessage.Event(event, receipt))
             }
 
-            override fun ack(upToHlc: HlcTimestamp): Boolean {
+            override fun ack(upToHlc: HlcTimestamp, upToReceipt: Long?): Boolean {
                 if (!authenticated || closed) return false
-                return sendSecure(SyncWireMessage.Ack(upToHlc))
+                return sendSecure(SyncWireMessage.Ack(upToHlc, upToReceipt))
             }
 
-            override fun requestBlob(hash: String, mediaType: String): Boolean {
+            override fun requestBlob(hash: String, mediaType: String, offset: Long): Boolean {
                 if (!authenticated || closed) return false
-                return sendSecure(SyncWireMessage.BlobRequest(hash, mediaType))
+                return sendSecure(SyncWireMessage.BlobRequest(hash, mediaType, offset))
             }
 
             override fun cancelBlob(hash: String): Boolean {

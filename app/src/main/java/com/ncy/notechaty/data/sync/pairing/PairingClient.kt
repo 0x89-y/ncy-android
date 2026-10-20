@@ -17,6 +17,7 @@ import okhttp3.WebSocketListener
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
+import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.interfaces.ECPublicKey
@@ -45,6 +46,11 @@ import javax.inject.Singleton
  * shown in the desktop's confirm modal (defeats active MITM: an attacker
  * doing two separate ECDHs produces different codes on the two sides).
  *
+ * The phone commits to its key in `PairRequest` and reveals it only after the
+ * desktop's key arrives (`PairReveal`). A 6-digit code is only 20 bits; without
+ * the commitment, a relay posing as the desktop saw the phone's key first and
+ * could try keys until its code matched the real desktop's in about a second.
+ *
  * See `ncy-core/src/sync/{wire.rs, pair_crypto.rs, server.rs}` for the
  * matching server code.
  */
@@ -58,6 +64,22 @@ class PairingClient @Inject constructor() {
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(70, TimeUnit.SECONDS) // > server's 60s decision window
         .build()
+
+    companion object {
+        private val COMMIT_LABEL = "ncy-pair-commit-v1\u0000".toByteArray(Charsets.UTF_8)
+
+        /**
+         * base64(SHA-256(label || SEC1 key)) — `PairRequest.phonePubKeyCommit`.
+         * Matches `commit_to_pub_key` in ncy-core's `pair_crypto.rs`.
+         */
+        fun commitToPubKey(pubKeySec1: ByteArray): String {
+            val digest = MessageDigest.getInstance("SHA-256").run {
+                update(COMMIT_LABEL)
+                digest(pubKeySec1)
+            }
+            return java.util.Base64.getEncoder().encodeToString(digest)
+        }
+    }
 
     sealed class Result {
         /** Handshake complete; pairing JSON is plaintext, ready for import. */
@@ -104,11 +126,14 @@ class PairingClient @Inject constructor() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.i(tag, "connected to $host:$port")
                 socket = webSocket
+                // Commit, don't send: the key goes out only after the desktop's
+                // arrives (PairReveal). Sent first, it let a relay posing as the
+                // desktop try keys until its code matched the real desktop's.
                 val frame = JsonObject().apply {
                     addProperty("type", "PairRequest")
                     addProperty("phoneId", phoneId)
                     addProperty("phoneName", phoneName)
-                    addProperty("phonePubKey", phonePubB64)
+                    addProperty("phonePubKeyCommit", commitToPubKey(phonePubBytes))
                 }
                 webSocket.send(gson.toJson(frame))
             }
@@ -138,6 +163,11 @@ class PairingClient @Inject constructor() {
                             val shared = ecdhSharedSecret(phoneKeyPair.private, desktopPub)
                             val (aesKey, safetyCode) = hkdfKeyAndCode(shared)
                             storedAesKey = aesKey
+                            val reveal = JsonObject().apply {
+                                addProperty("type", "PairReveal")
+                                addProperty("phonePubKey", phonePubB64)
+                            }
+                            webSocket.send(gson.toJson(reveal))
                             onSafetyCode(safetyCode)
                         } catch (e: Exception) {
                             Log.w(tag, "ECDH failed", e)
@@ -177,7 +207,15 @@ class PairingClient @Inject constructor() {
                     }
                     "Error" -> {
                         val msg = obj["message"]?.asString ?: "server error"
-                        outcome.complete(Result.Failed(msg))
+                        // A desktop that predates the commitment cannot parse the
+                        // request. Falling back to the old form is exactly the
+                        // downgrade an attacker would force, so ask for an update.
+                        outcome.complete(Result.Failed(
+                            if (storedAesKey == null && obj["code"]?.asString == "bad_hello") {
+                                "This desktop needs an update to pair this way. Update Ncy " +
+                                    "on the desktop, or scan its QR code instead."
+                            } else msg
+                        ))
                         webSocket.close(1000, "done")
                     }
                     else -> Unit

@@ -6,6 +6,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.ncy.notechaty.data.model.Profile
+import com.ncy.notechaty.security.PinAttempts
 import com.ncy.notechaty.security.PinHasher
 import com.ncy.notechaty.data.sync.event.ChatEventHistory
 import com.ncy.notechaty.data.sync.event.ProfileRoutingPolicy
@@ -276,7 +277,12 @@ class ProfileRepository @Inject constructor(
         val profile = _profiles.value.firstOrNull { it.id == id } ?: return false
         val hash = profile.pinHash ?: return false
         val salt = profile.pinSalt ?: return false
-        if (!PinHasher.verify(pin, hash, salt)) return false
+        if (PinAttempts.isLockedOut()) return false
+        if (!PinHasher.verify(pin, hash, salt)) {
+            PinAttempts.recordFailure()
+            return false
+        }
+        PinAttempts.recordSuccess()
         // Re-write legacy bare-SHA-256 hashes now that we hold the plaintext PIN;
         // see PinHasher. `setProfilePin` persists, so this is self-contained.
         if (PinHasher.needsRehash(hash)) setProfilePin(id, pin)

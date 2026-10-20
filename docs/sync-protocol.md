@@ -330,6 +330,11 @@ server-side cached acknowledgement must never replace it or raise it. In particu
 `deviceName` is an optional friendly label. Receivers must accept it when absent for
 compatibility with older clients.
 
+Receipt-capable clients (§10.9) also send `receiptEpoch` — the server epoch they last
+saw in `Welcome`, or `""` before they have seen one — and `sinceReceipt`, the highest
+server receipt they have applied in that epoch. A present `receiptEpoch`, even empty,
+declares support; servers treat a Hello without it exactly as before.
+
 > Note for phase 1 servers: an old phase-1 phone client sent its *outbound* watermark
 > here (a holdover from the unidirectional days). Phase-1-only servers ignored the
 > field entirely, so the meaning was unobserved. Phase 2 phones send the inbound
@@ -348,14 +353,19 @@ server's first inner message. Inner messages may not themselves be `Secure`.
 ### 6.3 `Welcome` (server → client, inside `Secure`)
 
 ```json
-{ "type": "Welcome", "deviceId": "<desktop uuid>", "name": "My Laptop" }
+{ "type": "Welcome", "deviceId": "<desktop uuid>", "name": "My Laptop", "receiptEpoch": "<random id>" }
 ```
+
+`receiptEpoch` (§10.9) is optional; servers without a receipt log omit it.
 
 ### 6.4 `Event` (either direction, inside `Secure`)
 
 ```json
-{ "type": "Event", "event": { /* see §7 */ } }
+{ "type": "Event", "event": { /* see §7 */ }, "receipt": 1842 }
 ```
+
+`receipt` (§10.9) is the sender's local receipt number for the event, outside the
+event itself so the event stays byte-identical to its log line. Optional.
 
 ### 6.5 `Ack` (server → client)
 
@@ -373,6 +383,11 @@ event for simplicity.
 
 The phone refuses to regress its watermark — out-of-order acks for older HLCs are
 ignored, never destructive.
+
+When the acknowledged `Event` carried a `receipt`, the Ack also carries
+`"upToReceipt": <that receipt>` (§10.9). Receivers process a connection's events one
+at a time in arrival order and acknowledge each only after storing it, so an Ack
+covers every earlier event of the same connection.
 
 ### 6.6 `Error` (either side)
 
@@ -997,6 +1012,59 @@ content-addressed naming convention; they remain placeholder-rendered on the
 receiver. The protocol above is forward-compatible — once the author also
 content-addresses those files, no wire change is needed.
 
+### 10.9 Receipt sequence (catch-up by arrival, not by timestamp)
+
+An HLC says when an event was *written*, not when this device *got* it. A device that
+was offline for a day brings day-old events to the hub; every peer whose HLC
+watermark has moved past them would never receive them by HLC catch-up, and a hub
+that filtered live forwarding by HLC dropped them even for connected peers. So
+catch-up and forwarding follow a per-installation **receipt sequence** instead.
+
+**Receipt log.** Every installation numbers each event it newly stores — authored
+here, received from any peer, restored from a backup — with the next receipt
+(1, 2, 3, …, never reused) and records `(receipt, chatId, eventId)` in an
+append-only log. The log carries a random **epoch**. A lost, unreadable or
+first-created log starts a new epoch; existing events are then numbered in HLC
+order. On startup an implementation numbers any stored event the log lacks (a crash
+between the event write and its receipt, a file restored by copying), so an event
+can be numbered late but never left unnumbered. Receipts are installation-local:
+they are excluded from backups and OS transfer like the other watermarks (§2).
+
+**Wire.** `Welcome.receiptEpoch`, `Hello.receiptEpoch` + `Hello.sinceReceipt`,
+`Event.receipt` and `Ack.upToReceipt` (§6). All are optional; a peer that sends none
+of them gets exactly the HLC behaviour of §10.1–10.7.
+
+**Server → client.** A Hello without `receiptEpoch` gets HLC catch-up, as before.
+Otherwise the server streams, in receipt order:
+
+| Hello                                   | Events sent                                   |
+|-----------------------------------------|-----------------------------------------------|
+| `receiptEpoch` = the server's epoch     | receipt > `sinceReceipt`                      |
+| `receiptEpoch` differs or is `""`       | HLC > `sinceHlc` (all when null) — transition |
+
+The transition row is how an upgraded pair moves over without a full replay: it sends
+what HLC catch-up would have sent, but numbered, and from then on only receipts
+matter. Live forwarding sends every newly stored event in receipt order, with no
+HLC filter; the origin loop guard of §10.6 still applies. A hub forwards events it
+receives from one peer to its other live peers, not only events it authors.
+
+**Client receipts.** The client takes the server's epoch from `Welcome`; when it
+differs from the stored one it resets its stored server position to zero. After
+applying an Event that carries a `receipt`, it stores that receipt as
+`sinceReceipt` for the next Hello. Events are applied strictly in arrival order, so
+the stored receipt never passes an event that has not been stored.
+
+**Client → server.** The client remembers the highest `upToReceipt` the server has
+acknowledged, together with its own epoch at the time. On reconnect, if that epoch
+is still its own, it sends every event with receipt > that value in receipt order;
+otherwise it sends HLC > `lastAckedHlc` in receipt order (the same transition) and
+the acknowledgements re-establish the position.
+
+**Recovery.** A full resync (`sinceHlc: null`) also clears the receipt positions. A
+restore follows the restore invariant above: receipt positions are cleared with the
+HLC watermarks, and restored events receive new receipts so they are offered to
+every peer.
+
 ## 11. Protected chats
 
 A chat is "protected" when `ChatMetadata.isProtected == true`. Through phases 1
@@ -1163,6 +1231,54 @@ replacement has been durably stored, so no content is lost; a peer that never
 receives the re-issue (e.g. an older build) simply keeps rendering the plaintext
 as a `[locked]` placeholder per §11.4, exactly as before. Re-running the scrub is
 idempotent (the superseded id is already gone).
+
+### 11.8 Sealed attachments
+
+Attachments of a protected chat — voice notes, images (attached or inline) and
+files — are sealed with the same chat key as its messages. Avatars and
+backgrounds are not: like the chat name they belong to the cleartext metadata a
+locked chat list still shows.
+
+**Format.** The STREAM construction over AES-256-GCM, so arbitrarily large files
+stream in bounded memory and no segment can be dropped, reordered or truncated:
+
+```text
+"NCYS" 0x01 | prefix (8 random bytes) | segment 0 | segment 1 | …
+segment i = AES-256-GCM(key, nonce = prefix ‖ be32(i),
+                        aad = "NCYS" 0x01 ‖ be32(i) ‖ (1 if last else 0))
+```
+
+Each segment holds 65 536 plaintext bytes (65 552 sealed) except the last, which
+holds the remainder — possibly a full segment, possibly nothing. The last-segment
+flag in the AAD is what makes a cut at a segment boundary fail to open.
+Implementations share test vectors (`sealed_blob.rs`, `SealedBlobTest.kt`).
+
+**Sealed before hashing.** A sealed attachment is named, referenced, transferred
+and verified by the SHA-256 of its *sealed* bytes, so §10.8 is unchanged and a
+device without the key stores and relays it like any other blob. Readers recognise
+the `NCYS\x01` prefix and open it with the chat key; a plain file that happens to
+start with those bytes simply fails to open and is treated as plain.
+
+**Envelope list.** A sealed message envelope (§11.3) carries
+`"blobs": [{"hash": "<sealed hash>", "mediaType": "voice|image|file", "sizeBytes": n}]`
+in the clear — always present, possibly empty, in envelopes written by current
+implementations. Receivers use it to fetch and keep attachments without the key,
+and blob collection treats it as the chat's references. An envelope without the
+field predates it: its attachments are knowable only by opening it, so a collector
+must leave a chat holding one alone while it is locked.
+
+**Changing keys.** Protecting a chat (§11.7), changing its PIN, and removing
+protection all re-issue every message, attachments included: plain attachments are
+sealed, a PIN change re-seals them under the new key (new hashes), and removing
+protection opens them back to plain. Sealed re-issues carry `supersedes` as in
+§11.7. Media not present on the re-issuing device is left referenced as it was.
+Plain or old-key originals are deleted once nothing references them. Apps must
+require the current PIN for a change or removal: replacing only the verifier
+leaves every chat sealed under a key nobody can derive any more.
+
+**Opened copies.** A view that needs a real file (an image loader, a media
+player, a share target) opens the sealed attachment into a cache that is cleared
+when the app locks and at every start, never next to the sealed original.
 
 ## 12. Implementation checklist for a desktop client
 

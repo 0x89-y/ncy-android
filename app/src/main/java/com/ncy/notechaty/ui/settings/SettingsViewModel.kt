@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.data.sync.SyncManager
+import com.ncy.notechaty.data.sync.event.SyncSnapshot
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.security.ChatLockState
@@ -24,7 +25,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -38,6 +39,7 @@ class SettingsViewModel @Inject constructor(
     private val syncManager: SyncManager,
     private val peerStore: SyncPeerStore,
     private val phoneSyncServer: PhoneSyncServer,
+    private val syncSnapshot: SyncSnapshot,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -73,19 +75,45 @@ class SettingsViewModel @Inject constructor(
 
     fun hasPin(): Boolean = pinManager.hasPin()
 
-    fun setPin(pin: String) {
-        viewModelScope.launch { pinManager.setPin(pin) }
+    /**
+     * Set the PIN, or change it. Every protected chat's key is derived from the PIN,
+     * so a change re-seals them all from the current PIN to the new one first —
+     * replacing only the verifier, as this used to, left them unreadable for good.
+     * The new PIN is stored last, and the re-seal skips what is already done, so an
+     * interrupted change completes by simply running it again.
+     * [onResult] gets null on success, or what went wrong.
+     */
+    fun setPin(currentPin: String?, newPin: String, onResult: (String?) -> Unit = {}) {
+        viewModelScope.launch {
+            val error = withContext(Dispatchers.IO) {
+                if (pinManager.hasPin()) {
+                    if (currentPin == null || !pinManager.verifyPin(currentPin)) {
+                        return@withContext "The current PIN is wrong."
+                    }
+                    repository.rekeyProtectedChats(currentPin, newPin)
+                }
+                pinManager.setPin(newPin)
+                null
+            }
+            onResult(error)
+        }
     }
 
-    fun clearPin() {
+    /**
+     * Remove the PIN. Protected chats are opened back to plain first: they were
+     * sealed under a key derived from it, and merely un-flagging them, as this used
+     * to, left their messages encrypted with nothing able to read them.
+     */
+    fun clearPin(currentPin: String, onResult: (String?) -> Unit = {}) {
         viewModelScope.launch {
-            pinManager.clearPin()
-            // Unprotect every chat so they remain accessible.
-            val chats = repository.observeChats().first()
-            chats.filter { it.isProtected }.forEach { c ->
-                repository.updateChat(c.copy(isProtected = false, hideName = false))
+            val error = withContext(Dispatchers.IO) {
+                if (!pinManager.verifyPin(currentPin)) return@withContext "The current PIN is wrong."
+                repository.rekeyProtectedChats(currentPin, newPin = null)
+                pinManager.clearPin()
+                chatLockState.lockAll()
+                null
             }
-            chatLockState.lockAll()
+            onResult(error)
         }
     }
 
@@ -102,6 +130,9 @@ class SettingsViewModel @Inject constructor(
                 "Could not persist sync progress reset before restore"
             }
             repository.importChat(zipFile)
+            // A fresh restore copies chat folders as files, past every receipt hook.
+            // Number them before sync resumes so they are offered to every peer.
+            syncSnapshot.numberUnreceiptedEvents()
         } finally {
             syncManager.start()
             if (restartHost) phoneSyncServer.start()

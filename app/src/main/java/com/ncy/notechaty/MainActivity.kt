@@ -4,18 +4,17 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -25,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
+import com.ncy.notechaty.security.AppLockCoordinator
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
@@ -59,13 +59,19 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var pearRuntimeController: PearRuntimeController
 
+    @Inject
+    lateinit var appLockCoordinator: AppLockCoordinator
+
     override fun onStart() {
         super.onStart()
+        appLockCoordinator.onForeground()
         phoneSyncServer.start()
         syncManager.start()
     }
 
     override fun onStop() {
+        // A rotation stops and restarts the activity without the user leaving.
+        if (!isChangingConfigurations) appLockCoordinator.onBackground()
         pearRuntimeController.stop()
         syncManager.stop()
         phoneSyncServer.stop()
@@ -119,27 +125,43 @@ class MainActivity : FragmentActivity() {
                     }
                 }
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var appUnlocked by remember { mutableStateOf(chatLockState.isAppUnlocked()) }
+                    // Observed, not remembered once: a re-lock after time in the
+                    // background resets it, and the prompt has to come back.
+                    val appUnlockedAt by chatLockState.appUnlockedAt.collectAsState()
                     val needsAppLock = settings.lockOnAppStart &&
                         pinManager.hasPin() &&
-                        !appUnlocked
+                        appUnlockedAt == 0L
 
-                    if (needsAppLock) {
-                        PinPromptContent(
-                            title = "Ncy",
-                            subtitle = "Enter your PIN to continue",
-                            biometricTitle = "Unlock Ncy",
-                            biometricSubtitle = "Verify to open the app",
-                            useBiometric = settings.protectionUseBiometric,
-                            onVerify = { pin -> pinManager.verifyPin(pin) },
-                            onUnlocked = {
-                                chatLockState.unlockApp()
-                                appUnlocked = true
-                            }
-                        )
-                    } else {
+                    // The prompt covers the app rather than replacing it, so a re-lock
+                    // returns the user where they were instead of to the chat list.
+                    Box(Modifier.fillMaxSize()) {
                         val navController = rememberNavController()
-                        NcyNavGraph(navController = navController)
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                // Keep a screen reader out of what the lock hides.
+                                .then(if (needsAppLock) Modifier.clearAndSetSemantics {} else Modifier)
+                        ) {
+                            NcyNavGraph(navController = navController)
+                        }
+                        if (needsAppLock) {
+                            // An opaque Surface also swallows touches meant for the app below.
+                            Surface(modifier = Modifier.fillMaxSize()) {
+                                PinPromptContent(
+                                    title = "Ncy",
+                                    subtitle = "Enter your PIN to continue",
+                                    biometricTitle = "Unlock Ncy",
+                                    biometricSubtitle = "Verify to open the app",
+                                    useBiometric = settings.protectionUseBiometric,
+                                    onVerify = { pin ->
+                                        pinManager.verifyPin(pin).also { ok ->
+                                            if (ok) appLockCoordinator.appUnlockedWithPin(pin)
+                                        }
+                                    },
+                                    onUnlocked = { chatLockState.unlockApp() }
+                                )
+                            }
+                        }
                     }
                 }
             }

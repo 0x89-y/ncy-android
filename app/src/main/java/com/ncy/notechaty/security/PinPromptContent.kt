@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,6 +56,8 @@ fun PinPromptContent(
     val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+    var failedAttempts by remember { mutableIntStateOf(0) }
+    val lockoutSeconds = rememberPinLockoutSeconds(failedAttempts)
 
     LaunchedEffect(canUseBio) {
         // `canUseBio` already includes `activity != null` at construction — the
@@ -113,7 +116,7 @@ fun PinPromptContent(
             isError = error,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            supportingText = if (error) { { Text("Wrong PIN") } } else null,
+            supportingText = pinSupportingText(error, lockoutSeconds),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -124,9 +127,10 @@ fun PinPromptContent(
                 } else {
                     error = true
                     pin = ""
+                    failedAttempts++
                 }
             },
-            enabled = pin.isNotEmpty(),
+            enabled = pin.isNotEmpty() && lockoutSeconds == 0,
             shape = NcyButtonShape,
             modifier = Modifier.fillMaxWidth()
         ) {

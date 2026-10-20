@@ -14,6 +14,24 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.4",
+        date = "2026-10-20",
+        changes = listOf(
+            "Added a Codes match step to pairing with a nearby desktop, so nothing is paired until both safety codes are confirmed.",
+            "Images, voice notes and files in protected chats are now encrypted with the chat's PIN, here and on paired devices.",
+            "The app lock and protected chats now lock again after Ncy has been in the background longer than the re-lock period.",
+            "Wrong PIN entries now trigger a growing wait after the fourth attempt.",
+            "Paired devices can no longer request files from outside a chat's media.",
+            "Reminders without exact-alarm permission now fire within minutes instead of possibly hours late.",
+            "Fixed Change PIN and Remove PIN leaving every protected chat unreadable.",
+            "Fixed notes written while a device was offline never reaching devices that had synced in the meantime.",
+            "Fixed messages that could be skipped for good when sync was interrupted partway through.",
+            "Fixed a refusal sent before the connection is encrypted stopping sync for good.",
+            "Fixed interrupted downloads never finishing when this phone hosts sync.",
+            "Fixed unlocking the app inside a protected chat asking for the PIN twice.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.3",
         date = "2026-07-27",
         changes = listOf(

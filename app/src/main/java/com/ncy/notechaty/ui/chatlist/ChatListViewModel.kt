@@ -132,7 +132,7 @@ class ChatListViewModel @Inject constructor(
             .filter { (_, ts) -> now - ts < grace * 60_000L }
             .map { it.key }
             .toMutableSet()
-        if (appUnlockedAt > 0L) {
+        if (ChatLockState.isWithinGrace(appUnlockedAt, grace, now)) {
             chats.asSequence().filter { it.isProtected }.forEach { perChat.add(it.id) }
         }
         perChat

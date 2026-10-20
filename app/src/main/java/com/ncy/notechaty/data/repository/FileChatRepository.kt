@@ -6,10 +6,13 @@ import com.ncy.notechaty.data.serialization.ChatSerializer
 import com.google.gson.Gson
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.DeviceIdentity
+import com.ncy.notechaty.data.sync.SafeId
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.media.MediaRefs
+import com.ncy.notechaty.data.sync.protection.ProtectedMedia
 import com.ncy.notechaty.data.sync.protection.ProtectionCrypto
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
+import com.ncy.notechaty.data.sync.protection.SealedBlob
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventHistory
 import com.ncy.notechaty.data.sync.event.ChatEventCodec
@@ -321,6 +324,9 @@ class FileChatRepository @Inject constructor(
         mediaType: String,
         profileId: String?,
     ): File? = withContext(Dispatchers.IO) {
+        // A peer's BlobRequest names the hash, and it becomes part of a path. Anything
+        // but 64 hex characters could walk out of chat storage (`../../DCIM/...`).
+        if (!MediaHash.isValidHash(hash)) return@withContext null
         val subdirs = mediaSearchSubdirs(mediaType) ?: return@withContext null
         val ext = mediaExt(mediaType) ?: return@withContext null
         val needle = "$hash.$ext"
@@ -345,6 +351,7 @@ class FileChatRepository @Inject constructor(
      * the hash, which is where a re-download would land.
      */
     private fun evictionMarkerCandidates(hash: String, mediaType: String, profileId: String?): List<File> {
+        if (!MediaHash.isValidHash(hash)) return emptyList()
         val ext = mediaExt(mediaType) ?: return emptyList()
         val subdirs = mediaSearchSubdirs(mediaType) ?: return emptyList()
         return mediaProfileDirs(profileId)
@@ -412,10 +419,11 @@ class FileChatRepository @Inject constructor(
                 locked += chatDir.name
                 continue
             }
-            // A sealed body hides its media references inside the ciphertext. Treating
-            // them as absent would delete every attachment the chat owns, so a chat
-            // holding any unreadable event is reported and left alone.
-            val sealed = events.any { it.op is ChatEventOp.EncryptedMessage }
+            // A sealed body lists its attachments in the clear (§11.8) — except one
+            // sealed before that list existed, which hides them in the ciphertext.
+            // Treating those as absent would delete attachments the chat still owns,
+            // so a chat holding any such event is reported and left alone.
+            val sealed = events.any { val op = it.op; op is ChatEventOp.EncryptedMessage && op.blobs == null }
             // Deleting a message does not rewrite the log, so its creating event — and
             // its references — are still here. Skip those explicitly.
             val tombstoned = events.mapNotNull { (it.op as? ChatEventOp.MessageTombstoned)?.messageId }.toSet()
@@ -424,6 +432,7 @@ class FileChatRepository @Inject constructor(
                     val id = when (val op = event.op) {
                         is ChatEventOp.MessageCreated -> op.message.id
                         is ChatEventOp.MessageEdited -> op.message.id
+                        is ChatEventOp.EncryptedMessage -> op.messageId
                         else -> null
                     }
                     id != null && id in tombstoned
@@ -474,6 +483,11 @@ class FileChatRepository @Inject constructor(
         sourceFile: File,
         profileId: String?,
     ): Unit = withContext(Dispatchers.IO) {
+        if (!MediaHash.isValidHash(hash) || !SafeId.isValid(chatId)) {
+            Log.w("FileChatRepo", "refusing to store blob under an unsafe hash or chat id")
+            sourceFile.delete()
+            return@withContext
+        }
         val ext = mediaExt(mediaType) ?: run {
             sourceFile.delete()
             return@withContext
@@ -764,6 +778,12 @@ class FileChatRepository @Inject constructor(
                 // keeps eventId dedup working and syncs merge cleanly.
                 val chatId = data?.chat?.id ?: firstEvent?.chatId
                     ?: throw IllegalArgumentException("Backup chat has no stable chat ID")
+                // The zip-slip guard covers entry *names*; this id comes from file
+                // *contents* and becomes `chat_<id>`, so it needs its own check.
+                if (!SafeId.isValid(chatId)) {
+                    Log.w("FileChatRepo", "import: skipped chat with an unsafe id")
+                    continue
+                }
 
                 // Restore into the profile the chat came from. exportEveryProfile
                 // records a `profile_<id>/` path segment; honor it so a multi-profile
@@ -1038,6 +1058,12 @@ class FileChatRepository @Inject constructor(
 
     @Synchronized
     private fun applyExternalEventLocked(event: ChatEvent): Boolean {
+        // The id becomes `chat_<id>` below. Dropped, not retried: the caller still
+        // acks, so a peer does not resend an event that can never apply.
+        if (!SafeId.isValid(event.chatId)) {
+            Log.w("FileChatRepo", "dropped inbound event ${event.eventId} with an unsafe chat id")
+            return false
+        }
         if (ChatTombstoneGraveyard.contains(rootDir, event.chatId)) return false
         val targetProfileDir = profileDirForInbound(event)
         consolidateChatCopies(event.chatId, targetProfileDir)
@@ -1189,10 +1215,7 @@ class FileChatRepository @Inject constructor(
         return File(rootDir, "profile_$id").also { it.mkdirs() }
     }
 
-    private fun safeProfileId(id: String?): String? = id?.takeIf { value ->
-        value.isNotEmpty() && value.length <= 128 &&
-            value.all { it.isLetterOrDigit() || it == '-' || it == '_' }
-    }
+    private fun safeProfileId(id: String?): String? = id?.takeIf(SafeId::isValid)
 
     private fun mediaProfileDirs(profileId: String?): Sequence<File> {
         val id = safeProfileId(profileId)
@@ -1217,11 +1240,16 @@ class FileChatRepository @Inject constructor(
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
 
         val priorEvents = ChatEventHistory.read(chatDir, eventCodec)
-        // Phase 3: if this chat is protected and we have a cached key, encrypt the
-        // payload before persisting. Skipped silently if the chat has no salt or no
-        // unlocked key in memory — those cases happen before the user has finished
-        // setting up protection, and the message simply persists in plaintext.
-        val effectiveOp = encryptIfProtected(chatId, op)
+        // Phase 3: if this chat is protected, encrypt the payload before persisting.
+        // A chat with no salt yet predates phase 3 and still writes plaintext, which
+        // migrateProtectedChat seals on the next unlock.
+        val effectiveOp = encryptIfProtected(chatDir, chatId, op, priorEvents) ?: run {
+            // Salted but locked — the app re-locked while the chat was open. Writing
+            // plaintext would leak the message to disk and to every paired device.
+            Log.w("FileChatRepo", "refused a message write to locked protected chat $chatId")
+            discardUnsentPlainMedia(chatDir, op, priorEvents)
+            return MaterializedView.fold(priorEvents)
+        }
         // Profile sync: stamp which profile this chat lives in so a paired desktop can
         // group by profile. The mutated chat is always in the active profile (the
         // repository is active-profile-scoped).
@@ -1259,13 +1287,19 @@ class FileChatRepository @Inject constructor(
         return materialized
     }
 
-    private fun encryptIfProtected(chatId: String, op: ChatEventOp): ChatEventOp {
+    /** The op to persist, or null when it must not be written: protected, salted, and locked. */
+    private fun encryptIfProtected(
+        chatDir: File,
+        chatId: String,
+        op: ChatEventOp,
+        priorEvents: List<ChatEvent>,
+    ): ChatEventOp? {
         val (message, innerType) = when (op) {
             is ChatEventOp.MessageCreated -> op.message to ChatEventCodec.TYPE_MESSAGE_CREATED
             is ChatEventOp.MessageEdited -> op.message to ChatEventCodec.TYPE_MESSAGE_EDITED
             else -> return op
         }
-        val metaFile = File(File(profileDir, "chat_$chatId"), "chat.json")
+        val metaFile = File(chatDir, "chat.json")
         if (!metaFile.exists()) return op
         val meta = try {
             serializer.readFromFile(metaFile).chat
@@ -1274,16 +1308,62 @@ class FileChatRepository @Inject constructor(
         }
         if (!meta.isProtected) return op
         meta.protectionSalt ?: return op
-        val key = keyStore.keyFor(chatId) ?: return op
+        val key = keyStore.keyFor(chatId) ?: return null
+        val used = plainMediaInUse(priorEvents, except = message.id)
+        return sealMessage(chatDir, message, innerType, key, oldKey = null, stillUsed = { it in used })
+    }
 
-        val plaintext = gson.toJson(message).toByteArray(Charsets.UTF_8)
+    /**
+     * Seal [message] — attachments first, then the body — as an [ChatEventOp.EncryptedMessage]
+     * that lists the sealed attachments in the clear (§11.8).
+     */
+    private fun sealMessage(
+        chatDir: File,
+        message: Message,
+        innerType: String,
+        key: ByteArray,
+        oldKey: ByteArray?,
+        stillUsed: (String) -> Boolean,
+        supersedes: String? = null,
+        memo: MutableMap<String, String>? = null,
+    ): ChatEventOp.EncryptedMessage {
+        val withSealedMedia = ProtectedMedia.rewrite(chatDir, message, key, oldKey, stillUsed, memo)
+        val plaintext = gson.toJson(withSealedMedia).toByteArray(Charsets.UTF_8)
         val sealed = ProtectionCrypto.seal(key, plaintext)
         return ChatEventOp.EncryptedMessage(
             innerType = innerType,
             nonce = sealed.nonce,
             ciphertext = sealed.ciphertext,
             messageId = message.id,
+            supersedes = supersedes,
+            blobs = ProtectedMedia.blobRefs(chatDir, withSealedMedia),
         )
+    }
+
+    /** Attachment hashes a plain message other than [except] still points at. */
+    private fun plainMediaInUse(events: List<ChatEvent>, except: String?): Set<String> = events
+        .filter { event ->
+            when (val op = event.op) {
+                is ChatEventOp.MessageCreated -> op.message.id != except
+                is ChatEventOp.MessageEdited -> op.message.id != except
+                else -> false
+            }
+        }
+        .flatMapTo(HashSet()) { MediaRefs.extract(it).map { ref -> ref.hash } }
+
+    /** A refused message's media was copied in plain for it; nothing else wants it. */
+    private fun discardUnsentPlainMedia(chatDir: File, op: ChatEventOp, priorEvents: List<ChatEvent>) {
+        val message = (op as? ChatEventOp.MessageCreated)?.message ?: return
+        val used = plainMediaInUse(priorEvents, except = message.id)
+        listOfNotNull(message.voiceFile)
+            .plus(message.imageFiles)
+            .plus(message.fileAttachments.map { it.file })
+            .plus(message.content.flatMap { block -> block.spans.mapNotNull { it.inlineImage } })
+            .forEach { reference ->
+                val hash = MediaHash.extractHash(reference) ?: return@forEach
+                val file = File(chatDir, reference)
+                if (hash !in used && file.isFile && !SealedBlob.isSealed(file)) file.delete()
+            }
     }
 
     /**
@@ -1320,10 +1400,97 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun migrateProtectedChat(chatId: String): Unit = withContext(Dispatchers.IO) {
         val key = keyStore.keyFor(chatId) ?: return@withContext
-        val chatDir = File(profileDir, "chat_$chatId")
+        synchronized(this@FileChatRepository) {
+            reissueMessages(File(profileDir, "chat_$chatId"), chatId, oldKey = key, newKey = key, migrateOnly = true)
+        }
+    }
+
+    override suspend fun rekeyProtectedChats(oldPin: String, newPin: String?): Int = withContext(Dispatchers.IO) {
+        var changed = 0
+        synchronized(this@FileChatRepository) {
+            val parents = listOf(rootDir) + (rootDir.listFiles()
+                ?.filter { it.isDirectory && it.name.startsWith("profile_") }
+                .orEmpty())
+            for (parent in parents) {
+                parent.listFiles()
+                    ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+                    ?.forEach { chatDir ->
+                        val chatId = chatDir.name.removePrefix("chat_")
+                        val meta = runCatching { serializer.readFromFile(File(chatDir, "chat.json")).chat }
+                            .getOrNull() ?: return@forEach
+                        if (!meta.isProtected) return@forEach
+                        val salt = meta.protectionSalt
+                        if (salt != null) {
+                            val oldKey = ProtectionCrypto.deriveKey(oldPin, salt)
+                            val newKey = newPin?.let { ProtectionCrypto.deriveKey(it, salt) }
+                            reissueMessages(chatDir, chatId, oldKey, newKey)
+                        }
+                        if (newPin == null) {
+                            // Plain again, so the chat itself stops being protected. The
+                            // salt stays: a message the old PIN could not open keeps a
+                            // way back if that PIN is ever found.
+                            appendIn(chatDir, chatId, ChatEventOp.ChatMetadataChanged(
+                                meta.copy(isProtected = false, hideName = false)
+                            ))
+                        }
+                        changed++
+                    }
+            }
+        }
+        // Every cached key came from the old PIN, and so did every opened copy.
+        keyStore.lockAll()
+        com.ncy.notechaty.data.sync.protection.UnsealedMedia.clear()
+        chatLockState.lockAll()
+        refreshChats()
+        changed
+    }
+
+    /** Append [op] to the chat in [chatDir], whatever profile it lives in. Caller holds the lock. */
+    private fun appendIn(chatDir: File, chatId: String, op: ChatEventOp) {
+        val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
+        val prior = ChatEventHistory.read(chatDir, eventCodec)
+        val stamp = prior.lastOrNull { it.profileId.isNotEmpty() }
+        val event = ChatEvent(
+            eventId = UUID.randomUUID().toString(),
+            hlc = HlcTimestamp.tick(
+                previous = prior.maxByOrNull { it.hlc }?.hlc,
+                nowMs = System.currentTimeMillis(),
+                nodeId = deviceIdentity.deviceId
+            ),
+            originDevice = deviceIdentity.deviceId,
+            chatId = chatId,
+            op = op,
+            profileId = stamp?.profileId ?: chatDir.parentFile?.name?.removePrefix("profile_").orEmpty(),
+            profileName = stamp?.profileName.orEmpty(),
+        )
+        eventLog.append(event)
+        MaterializedView.fold(prior + event)?.let { serializer.writeToFile(File(chatDir, "chat.json"), it) }
+        eventBus.publish(event)
+    }
+
+    /**
+     * Re-issue a chat's messages under another key, the one routine behind three
+     * changes:
+     * - **protect / upgrade** ([migrateOnly]): plain messages, and sealed ones from
+     *   before attachments were sealed, are sealed under [newKey] — attachments too;
+     * - **PIN change**: everything is re-sealed from [oldKey] to [newKey];
+     * - **protection removed** ([newKey] null): sealed messages are opened back to plain.
+     *
+     * Each re-issued event is fresh (new eventId, HLC past everything) so it
+     * propagates; sealed ones carry `supersedes`, which tells peers to drop the event
+     * they replace. A message [oldKey] cannot open is left exactly as it is.
+     * Returns how many messages were re-issued.
+     */
+    private fun reissueMessages(
+        chatDir: File,
+        chatId: String,
+        oldKey: ByteArray?,
+        newKey: ByteArray?,
+        migrateOnly: Boolean = false,
+    ): Int {
         val chatFile = File(chatDir, "chat.json")
         val eventLog = EventLog(File(chatDir, "events.ndjson"), eventCodec)
-        if (!eventLog.exists()) return@withContext
+        if (!eventLog.exists()) return 0
 
         val compactTombstones = MessageTombstoneGraveyard.events(chatDir)
         val tombstonedIds = compactTombstones.mapNotNullTo(HashSet()) {
@@ -1331,55 +1498,62 @@ class FileChatRepository @Inject constructor(
         }
         val events = eventLog.readAll()
         val passthrough = ArrayList<ChatEvent>(events.size)
-        val plaintextMsgs = ArrayList<ChatEvent>()
+        // (original event, readable message, wire type)
+        val work = ArrayList<Triple<ChatEvent, Message, String>>()
         for (ev in events) {
-            when (ev.op) {
-                is ChatEventOp.MessageCreated ->
-                    if (ev.op.message.id !in tombstonedIds) plaintextMsgs += ev
-                is ChatEventOp.MessageEdited ->
-                    if (ev.op.message.id !in tombstonedIds) plaintextMsgs += ev
-                // Tombstones, metadata, and already-encrypted ops pass through —
-                // re-running migration is therefore idempotent (no plaintext left).
+            when (val op = ev.op) {
+                is ChatEventOp.MessageCreated, is ChatEventOp.MessageEdited -> {
+                    val message = (op as? ChatEventOp.MessageCreated)?.message
+                        ?: (op as ChatEventOp.MessageEdited).message
+                    val type = if (op is ChatEventOp.MessageCreated) ChatEventCodec.TYPE_MESSAGE_CREATED
+                    else ChatEventCodec.TYPE_MESSAGE_EDITED
+                    // Plain stays plain when protection is being removed.
+                    if (message.id in tombstonedIds || newKey == null) passthrough += ev
+                    else work += Triple(ev, message, type)
+                }
+                is ChatEventOp.EncryptedMessage -> {
+                    // A migration leaves current envelopes alone; a key change or
+                    // removal has to open every one.
+                    val current = migrateOnly && op.blobs != null
+                    val opened = if (current || op.messageId in tombstonedIds) null
+                    else decryptOpIfPossible(ev, oldKey).op
+                    val message = (opened as? ChatEventOp.MessageCreated)?.message
+                        ?: (opened as? ChatEventOp.MessageEdited)?.message
+                    if (message == null) passthrough += ev else work += Triple(ev, message, op.innerType)
+                }
                 else -> passthrough += ev
             }
         }
-        if (plaintextMsgs.isEmpty()) return@withContext
+        if (work.isEmpty()) return 0
 
-        // Re-issue each plaintext message as a *fresh* sealed event: a new eventId
-        // and an HLC ticked past everything, so it actually propagates. Peers dedupe
-        // by eventId and would otherwise never replace the plaintext they already
-        // synced; the `supersedes` pointer names the exact stale plaintext event for
-        // them to drop. The old plaintext events are not retained — the sealed ones
-        // carry the same content (same messageId, higher HLC) so the fold replaces
-        // them locally too.
+        val memo = HashMap<String, String>()
         var maxHlc: HlcTimestamp? = events.maxByOrNull { it.hlc }?.hlc
-        val reissued = ArrayList<ChatEvent>(plaintextMsgs.size)
-        for (ev in plaintextMsgs) {
-            val (message, innerType) = when (val op = ev.op) {
-                is ChatEventOp.MessageCreated -> op.message to ChatEventCodec.TYPE_MESSAGE_CREATED
-                is ChatEventOp.MessageEdited -> op.message to ChatEventCodec.TYPE_MESSAGE_EDITED
-                else -> continue
-            }
-            val plaintext = gson.toJson(message).toByteArray(Charsets.UTF_8)
-            val sealed = ProtectionCrypto.seal(key, plaintext)
+        val reissued = ArrayList<ChatEvent>(work.size)
+        for ((ev, message, innerType) in work) {
             val hlc = HlcTimestamp.tick(
                 previous = maxHlc,
                 nowMs = System.currentTimeMillis(),
                 nodeId = deviceIdentity.deviceId
             )
             maxHlc = hlc
+            // Originals are only deleted once the batch is written (below); until
+            // then a later edit of the same message may still point at one.
+            val op: ChatEventOp = if (newKey != null) {
+                sealMessage(
+                    chatDir, message, innerType, newKey, oldKey,
+                    stillUsed = { true }, supersedes = ev.eventId, memo = memo,
+                )
+            } else {
+                val plain = ProtectedMedia.rewrite(chatDir, message, null, oldKey, stillUsed = { true }, memo = memo)
+                if (innerType == ChatEventCodec.TYPE_MESSAGE_CREATED) ChatEventOp.MessageCreated(plain)
+                else ChatEventOp.MessageEdited(plain)
+            }
             reissued += ChatEvent(
                 eventId = UUID.randomUUID().toString(),
                 hlc = hlc,
                 originDevice = deviceIdentity.deviceId,
                 chatId = chatId,
-                op = ChatEventOp.EncryptedMessage(
-                    innerType = innerType,
-                    nonce = sealed.nonce,
-                    ciphertext = sealed.ciphertext,
-                    messageId = message.id,
-                    supersedes = ev.eventId
-                ),
+                op = op,
                 profileId = ev.profileId,
                 profileName = ev.profileName
             )
@@ -1389,10 +1563,38 @@ class FileChatRepository @Inject constructor(
         eventLog.replaceAll(migrated)
         val materialized = MaterializedView.fold(migrated + compactTombstones)
         if (materialized != null) serializer.writeToFile(chatFile, materialized)
+        dropReplacedMedia(chatDir, migrated, newKey ?: oldKey)
 
-        // Live peers get the sealed replacements immediately; reconnect catchup
-        // re-streams them too (their HLC is past every peer's watermark).
+        // Live peers get the replacements immediately; reconnect catchup re-streams
+        // them too (their HLC is past every peer's watermark).
         reissued.forEach { eventBus.publish(it) }
+        return reissued.size
+    }
+
+    /**
+     * After a re-issue, delete message attachments nothing in [events] points at any
+     * more — the plain or old-key copies that were replaced. Skipped while an event
+     * remains whose attachments cannot be listed (sealed before the list existed and
+     * not openable with [key]): it might still need one.
+     */
+    private fun dropReplacedMedia(chatDir: File, events: List<ChatEvent>, key: ByteArray?) {
+        val referenced = HashSet<String>()
+        for (event in events) {
+            val op = event.op
+            if (op is ChatEventOp.EncryptedMessage && op.blobs == null) {
+                val opened = decryptOpIfPossible(event, key)
+                if (opened.op is ChatEventOp.EncryptedMessage) return
+                MediaRefs.extract(opened).mapTo(referenced) { it.hash }
+            } else {
+                MediaRefs.extract(event).mapTo(referenced) { it.hash }
+            }
+        }
+        listOf("voice", "images", "files").forEach { sub ->
+            File(chatDir, sub).listFiles()?.forEach { file ->
+                val hash = MediaHash.extractHash(file.name) ?: return@forEach
+                if (file.isFile && hash !in referenced) file.delete()
+            }
+        }
     }
 
     private fun decryptOpIfPossible(event: ChatEvent, key: ByteArray?): ChatEvent {

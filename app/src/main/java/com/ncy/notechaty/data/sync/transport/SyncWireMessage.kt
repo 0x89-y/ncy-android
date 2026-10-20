@@ -27,19 +27,39 @@ sealed class SyncWireMessage {
         val deviceName: String = "",
         val transport: String = "",
         val clientNonce: String = "",
+        /**
+         * Receipts (§10.9): the server epoch last seen, `""` before any. Non-null
+         * declares that this client follows receipts; null means HLC only.
+         */
+        val receiptEpoch: String? = null,
+        /** Highest server receipt applied in [receiptEpoch]. */
+        val sinceReceipt: Long? = null,
     ) : SyncWireMessage()
 
     /** Server → client. Authentication accepted; client may begin streaming. */
-    data class Welcome(val deviceId: String, val name: String) : SyncWireMessage()
+    data class Welcome(
+        val deviceId: String,
+        val name: String,
+        /** The server's receipt epoch; null from a server without receipts. */
+        val receiptEpoch: String? = null,
+    ) : SyncWireMessage()
 
     /** Client → server. A single chat event. */
-    data class Event(val event: ChatEvent) : SyncWireMessage()
+    data class Event(
+        val event: ChatEvent,
+        /** The sender's receipt, outside the event so it stays byte-identical. */
+        val receipt: Long? = null,
+    ) : SyncWireMessage()
 
     /**
      * Server → client. Acknowledges that all events up to and including this HLC have been
      * persisted. Client may advance its `lastSentHlc` watermark for this peer.
      */
-    data class Ack(val upToHlc: HlcTimestamp) : SyncWireMessage()
+    data class Ack(
+        val upToHlc: HlcTimestamp,
+        /** Echo of the acknowledged Event's [Event.receipt]. */
+        val upToReceipt: Long? = null,
+    ) : SyncWireMessage()
 
     /** Either side. Aborts the session with a human-readable reason. */
     data class Error(val code: String, val message: String) : SyncWireMessage()
@@ -54,7 +74,16 @@ sealed class SyncWireMessage {
      * `mediaType` is a hint for how the receiver should store/render the bytes
      * (currently `"voice"` or `"image"`).
      */
-    data class BlobRequest(val hash: String, val mediaType: String) : SyncWireMessage()
+    /**
+     * @param offset byte the sender should stream from, so a transfer that died
+     *   part-way resumes instead of starting again. Defaults to zero, which is
+     *   also what a peer built before this field sends.
+     */
+    data class BlobRequest(
+        val hash: String,
+        val mediaType: String,
+        val offset: Long = 0L,
+    ) : SyncWireMessage()
 
     /**
      * One chunk of a previously-requested blob. Receivers concatenate by `offset`,

@@ -55,6 +55,8 @@ import com.ncy.notechaty.ui.search.SearchViewModel
 import com.ncy.notechaty.ui.starred.StarredMessage
 import com.ncy.notechaty.ui.starred.StarredMessagesViewModel
 import com.ncy.notechaty.security.BiometricHelper
+import com.ncy.notechaty.security.pinSupportingText
+import com.ncy.notechaty.security.rememberPinLockoutSeconds
 import com.ncy.notechaty.util.gibberishFor
 import java.io.File
 import java.text.SimpleDateFormat
@@ -689,6 +691,8 @@ private fun ChatUnlockDialog(
 ) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+    var failedAttempts by remember { mutableIntStateOf(0) }
+    val lockoutSeconds = rememberPinLockoutSeconds(failedAttempts)
     val context = LocalContext.current
     val activity = context as? FragmentActivity
     val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
@@ -731,9 +735,7 @@ private fun ChatUnlockDialog(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = KeyboardType.Password
                     ),
-                    supportingText = if (error) {
-                        { Text("Wrong PIN") }
-                    } else null,
+                    supportingText = pinSupportingText(error, lockoutSeconds),
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (canUseBio) {
@@ -763,9 +765,10 @@ private fun ChatUnlockDialog(
                     } else {
                         error = true
                         pin = ""
+                        failedAttempts++
                     }
                 },
-                enabled = pin.isNotEmpty()
+                enabled = pin.isNotEmpty() && lockoutSeconds == 0
             ) {
                 Text("Unlock")
             }
@@ -786,6 +789,8 @@ private fun ProfileUnlockDialog(
 ) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+    var failedAttempts by remember { mutableIntStateOf(0) }
+    val lockoutSeconds = rememberPinLockoutSeconds(failedAttempts)
     val context = LocalContext.current
     val activity = context as? FragmentActivity
     val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
@@ -828,7 +833,7 @@ private fun ProfileUnlockDialog(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = KeyboardType.Password
                     ),
-                    supportingText = if (error) { { Text("Wrong PIN") } } else null,
+                    supportingText = pinSupportingText(error, lockoutSeconds),
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (canUseBio) {
@@ -858,9 +863,10 @@ private fun ProfileUnlockDialog(
                     } else {
                         error = true
                         pin = ""
+                        failedAttempts++
                     }
                 },
-                enabled = pin.isNotEmpty()
+                enabled = pin.isNotEmpty() && lockoutSeconds == 0
             ) { Text("Switch") }
         },
         dismissButton = {

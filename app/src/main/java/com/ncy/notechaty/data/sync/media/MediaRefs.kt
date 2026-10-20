@@ -34,10 +34,23 @@ object MediaRefs {
                 MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += Ref(it, "image") }
                 MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += Ref(it, "image") }
             }
-            else -> { /* tombstones and sealed bodies carry no readable refs */ }
+            // A sealed body lists its sealed attachments in the clear (§11.8); one
+            // written before that list existed says nothing without the key.
+            is ChatEventOp.EncryptedMessage -> op.blobs?.forEach { blob ->
+                if (MediaHash.isValidHash(blob.hash) && blob.mediaType in MEDIA_TYPES) {
+                    refs += Ref(blob.hash, blob.mediaType, blob.sizeBytes)
+                }
+            }
+            else -> { /* tombstones carry no refs */ }
         }
         return refs.distinctBy { it.hash to it.mediaType }
     }
+
+    private val MEDIA_TYPES = setOf("voice", "image", "file")
+
+    /** The refs of a plain message — what a sealed envelope lists for it. */
+    fun of(message: Message): List<Ref> =
+        mutableListOf<Ref>().also { collectFromMessage(message, it) }.distinctBy { it.hash to it.mediaType }
 
     private fun collectFromMessage(message: Message, refs: MutableList<Ref>) {
         MediaHash.extractHash(message.voiceFile)?.let { refs += Ref(it, "voice") }

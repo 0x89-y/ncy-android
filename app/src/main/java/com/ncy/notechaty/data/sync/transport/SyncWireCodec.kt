@@ -35,19 +35,24 @@ class SyncWireCodec(
                 } else {
                     obj.add("sinceHlc", null)
                 }
+                message.receiptEpoch?.let { obj.addProperty("receiptEpoch", it) }
+                message.sinceReceipt?.let { obj.addProperty("sinceReceipt", it) }
             }
             is SyncWireMessage.Welcome -> {
                 obj.addProperty("type", T_WELCOME)
                 obj.addProperty("deviceId", message.deviceId)
                 obj.addProperty("name", message.name)
+                message.receiptEpoch?.let { obj.addProperty("receiptEpoch", it) }
             }
             is SyncWireMessage.Event -> {
                 obj.addProperty("type", T_EVENT)
                 obj.add("event", JsonParser.parseString(eventCodec.encode(message.event)))
+                message.receipt?.let { obj.addProperty("receipt", it) }
             }
             is SyncWireMessage.Ack -> {
                 obj.addProperty("type", T_ACK)
                 obj.add("upToHlc", gson.toJsonTree(message.upToHlc))
+                message.upToReceipt?.let { obj.addProperty("upToReceipt", it) }
             }
             is SyncWireMessage.Error -> {
                 obj.addProperty("type", T_ERROR)
@@ -63,6 +68,7 @@ class SyncWireCodec(
                 obj.addProperty("type", T_BLOB_REQUEST)
                 obj.addProperty("hash", message.hash)
                 obj.addProperty("mediaType", message.mediaType)
+                obj.addProperty("offset", message.offset)
             }
             is SyncWireMessage.BlobChunk -> {
                 obj.addProperty("type", T_BLOB_CHUNK)
@@ -101,16 +107,21 @@ class SyncWireCodec(
                 deviceName = obj["deviceName"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
                 transport = obj["transport"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
                 clientNonce = obj["clientNonce"]?.takeIf { !it.isJsonNull }?.asString.orEmpty(),
+                receiptEpoch = obj["receiptEpoch"]?.takeIf { !it.isJsonNull }?.asString,
+                sinceReceipt = obj["sinceReceipt"]?.takeIf { !it.isJsonNull }?.asLong,
             )
             T_WELCOME -> SyncWireMessage.Welcome(
                 deviceId = obj["deviceId"].asString,
-                name = obj["name"].asString
+                name = obj["name"].asString,
+                receiptEpoch = obj["receiptEpoch"]?.takeIf { !it.isJsonNull }?.asString,
             )
             T_EVENT -> SyncWireMessage.Event(
-                event = eventCodec.decode(obj["event"].toString())
+                event = eventCodec.decode(obj["event"].toString()),
+                receipt = obj["receipt"]?.takeIf { !it.isJsonNull }?.asLong,
             )
             T_ACK -> SyncWireMessage.Ack(
-                upToHlc = gson.fromJson(obj["upToHlc"], HlcTimestamp::class.java)
+                upToHlc = gson.fromJson(obj["upToHlc"], HlcTimestamp::class.java),
+                upToReceipt = obj["upToReceipt"]?.takeIf { !it.isJsonNull }?.asLong,
             )
             T_ERROR -> SyncWireMessage.Error(
                 code = obj["code"].asString,
@@ -119,7 +130,9 @@ class SyncWireCodec(
             T_SECURE -> SyncWireMessage.Secure(obj["seq"].asLong, obj["data"].asString)
             T_BLOB_REQUEST -> SyncWireMessage.BlobRequest(
                 hash = obj["hash"].asString,
-                mediaType = obj["mediaType"].asString
+                mediaType = obj["mediaType"].asString,
+                // Absent from peers that predate resuming.
+                offset = obj["offset"]?.takeIf { !it.isJsonNull }?.asLong ?: 0L,
             )
             T_BLOB_CHUNK -> SyncWireMessage.BlobChunk(
                 hash = obj["hash"].asString,

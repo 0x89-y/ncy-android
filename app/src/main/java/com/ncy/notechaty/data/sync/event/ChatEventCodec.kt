@@ -53,7 +53,12 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
                         messageId = po["messageId"]
                             ?.takeIf { !it.isJsonNull }?.asString,
                         supersedes = po["supersedes"]
-                            ?.takeIf { !it.isJsonNull }?.asString
+                            ?.takeIf { !it.isJsonNull }?.asString,
+                        // Absent from envelopes that predate the list; empty is a real answer.
+                        blobs = po["blobs"]?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { element ->
+                            runCatching { gson.fromJson(element, SealedBlobRef::class.java) }.getOrNull()
+                                ?.takeIf { it.hash.isNotEmpty() && it.mediaType.isNotEmpty() }
+                        },
                     )
                 } else if (type == TYPE_MESSAGE_CREATED) {
                     ChatEventOp.MessageCreated(
@@ -110,6 +115,7 @@ class ChatEventCodec(private val gson: Gson = Gson()) {
             addProperty("ct", Base64.getEncoder().encodeToString(op.ciphertext))
             op.messageId?.let { addProperty("messageId", it) }
             op.supersedes?.let { addProperty("supersedes", it) }
+            op.blobs?.let { add("blobs", gson.toJsonTree(it)) }
         }
     }
 

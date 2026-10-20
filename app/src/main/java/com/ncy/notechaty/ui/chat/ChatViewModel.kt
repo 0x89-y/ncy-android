@@ -14,14 +14,19 @@ import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.media.MediaTransferState
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
+import com.ncy.notechaty.data.sync.protection.UnsealedMedia
 import com.ncy.notechaty.notifications.ReminderScheduler
+import com.ncy.notechaty.security.AppLockCoordinator
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.io.File
@@ -54,6 +59,7 @@ class ChatViewModel @Inject constructor(
     private val syncManager: SyncManager,
     private val phoneSyncServer: PhoneSyncServer,
     private val transferState: MediaTransferState,
+    appLockCoordinator: AppLockCoordinator,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -99,6 +105,27 @@ class ChatViewModel @Inject constructor(
             eventBus.mediaArrived
                 .filter { it == chatId }
                 .collect { loadChat() }
+        }
+        // The app re-locked while this chat stayed open. The key is gone, so reload:
+        // decrypted messages give way to placeholders and the PIN prompt returns.
+        viewModelScope.launch {
+            appLockCoordinator.lockCount
+                .drop(1)
+                .collect {
+                    hasUnlockToken = false
+                    loadChat()
+                }
+        }
+        // The app lock just took the PIN; reuse it rather than ask again for this chat.
+        viewModelScope.launch {
+            appLockCoordinator.verifiedAppPin.collect { pin ->
+                val chat = _uiState.value.chat ?: return@collect
+                if (!chat.isProtected || !_uiState.value.unlockRequired) return@collect
+                chat.protectionSalt?.let { salt ->
+                    withContext(Dispatchers.Default) { keyStore.unlock(chatId, pin, salt) }
+                }
+                markUnlocked()
+            }
         }
     }
 
@@ -576,5 +603,10 @@ class ChatViewModel @Inject constructor(
 
     fun getChatDir(): File {
         return File(repository.getBaseDir(), "chat_$chatId")
+    }
+
+    /** A sealed attachment opened with this chat's key; a plain one as it is. */
+    suspend fun readableMedia(file: File): File? = withContext(Dispatchers.IO) {
+        UnsealedMedia.readable(file, keyStore.keyFor(chatId))
     }
 }

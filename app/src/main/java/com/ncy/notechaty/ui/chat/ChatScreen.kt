@@ -80,6 +80,11 @@ fun ChatScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val chatDir = viewModel.getChatDir()
+    // A protected chat's attachments are sealed on disk (§11.8); bubbles show opened copies.
+    val chatProtected = uiState.chat?.isProtected == true
+    val mediaReader = remember(chatProtected) {
+        if (chatProtected) MediaReader { viewModel.readableMedia(it) } else PlainMediaReader
+    }
 
     if (uiState.unlockRequired) {
         ChatLockOverlay(
@@ -485,6 +490,7 @@ fun ChatScreen(
                                 tween(300)
                             ) { it / 2 } else fadeIn(tween(0))
                         ) {
+                            CompositionLocalProvider(LocalMediaReader provides mediaReader) {
                             MessageBubble(
                                 message = message,
                                 chatDir = chatDir,
@@ -544,6 +550,7 @@ fun ChatScreen(
                                     selectedIds = setOf(message.id)
                                 }
                             )
+                            }
                         }
                         // Show date header below (visually above due to reverseLayout)
                         // when the next message in the reversed list is from a different day

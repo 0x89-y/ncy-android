@@ -28,11 +28,22 @@ class EventLog(
             fos.flush()
             fos.fd.sync()
         }
+        // After the event is durable: a crash in between leaves it unnumbered, and
+        // startup numbers it; the reverse would number an event that never existed.
+        Receipts.record(event)
     }
 
     /** Atomically write the full log (used by migration, snapshotting, import). */
     @Synchronized
     fun replaceAll(events: List<ChatEvent>) {
+        // A replacement can bring events this store never had (import, re-sealing);
+        // those need receipts. Existing ones keep theirs.
+        val before = if (Receipts.log() != null) readAll().mapTo(HashSet()) { it.eventId } else emptySet()
+        replaceAllUnnumbered(events)
+        events.filter { it.eventId !in before }.forEach { Receipts.record(it) }
+    }
+
+    private fun replaceAllUnnumbered(events: List<ChatEvent>) {
         file.parentFile?.mkdirs()
         val tmp = File(file.parentFile, file.name + ".tmp")
         FileOutputStream(tmp).use { fos ->

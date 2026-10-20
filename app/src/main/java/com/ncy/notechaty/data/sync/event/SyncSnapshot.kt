@@ -45,6 +45,71 @@ class SyncSnapshot @Inject constructor(
         return all
     }
 
+    /**
+     * Receipt catch-up (§10.9): every event numbered after [after], in receipt
+     * order, paired with its receipt. [hlcFloor] is set only for the one transition
+     * session of a peer with no position in this epoch: it then gets what HLC
+     * catch-up would have sent, but numbered. Events since dropped (compaction,
+     * deletion scrubbing) are simply absent.
+     */
+    fun eventsAfterReceipt(after: Long, hlcFloor: HlcTimestamp? = null): List<Pair<Long, ChatEvent>> {
+        val receipts = Receipts.log()?.after(after).orEmpty()
+        if (receipts.isEmpty()) return emptyList()
+        val wanted = receipts.mapTo(HashSet()) { it.chatId }
+        val byId = HashMap<String, ChatEvent>()
+        forEachLocation { dir, profileId, profileName ->
+            fun stamp(ev: ChatEvent) =
+                if (profileId.isNotEmpty()) ev.copy(profileId = profileId, profileName = profileName) else ev
+            ChatTombstoneGraveyard.events(dir).forEach { byId[it.eventId] = stamp(it) }
+            dir.listFiles()
+                ?.filter { it.isDirectory && it.name.startsWith("chat_") && it.name.removePrefix("chat_") in wanted }
+                ?.forEach { chatDir ->
+                    (EventLog(File(chatDir, "events.ndjson"), codec).readAll() +
+                        MessageTombstoneGraveyard.events(chatDir))
+                        .forEach { byId[it.eventId] = stamp(it) }
+                }
+        }
+        return receipts.mapNotNull { receipt ->
+            val event = byId.remove(receipt.eventId) ?: return@mapNotNull null
+            if (hlcFloor != null && event.hlc <= hlcFloor) null else receipt.seq to event
+        }
+    }
+
+    /**
+     * Give a receipt to every stored event that lacks one, oldest HLC first. Covers
+     * a new epoch (everything), a crash between an event write and its receipt, and
+     * files restored by copying. An event can be numbered late, never left out.
+     */
+    fun numberUnreceiptedEvents(): Int {
+        val log = Receipts.log() ?: return 0
+        val missing = ArrayList<ChatEvent>()
+        forEachLocation { dir, _, _ ->
+            ChatTombstoneGraveyard.events(dir).filterTo(missing) { log.receiptOf(it.eventId) == null }
+            dir.listFiles()
+                ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+                ?.forEach { chatDir ->
+                    (EventLog(File(chatDir, "events.ndjson"), codec).readAll() +
+                        MessageTombstoneGraveyard.events(chatDir))
+                        .filterTo(missing) { log.receiptOf(it.eventId) == null }
+                }
+        }
+        missing.sortedBy { it.hlc }.forEach { log.record(it.chatId, it.eventId) }
+        return missing.size
+    }
+
+    /** Every directory that holds chats: each profile, then the pre-profile root. */
+    private fun forEachLocation(block: (dir: File, profileId: String, profileName: String) -> Unit) {
+        val rootDir = profileRepository.rootDir()
+        if (!rootDir.exists()) return
+        rootDir.listFiles()
+            ?.filter { it.isDirectory && it.name.startsWith("profile_") }
+            ?.forEach { profileDir ->
+                val profileId = profileDir.name.removePrefix("profile_")
+                block(profileDir, profileId, profileRepository.profileById(profileId)?.name ?: "")
+            }
+        block(rootDir, "", "")
+    }
+
     private fun collectFrom(
         dir: File,
         profileId: String,

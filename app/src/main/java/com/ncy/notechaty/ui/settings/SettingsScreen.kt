@@ -79,6 +79,9 @@ fun SettingsScreen(
     var showChangelog by remember { mutableStateOf(false) }
     var showPinSetup by remember { mutableStateOf(false) }
     var showRemovePinConfirm by remember { mutableStateOf(false) }
+    // A PIN change or removal re-encrypts every protected chat, so it reports back.
+    var pinBusy by remember { mutableStateOf(false) }
+    var pinError by remember { mutableStateOf<String?>(null) }
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
     var showDeviceNameDialog by remember { mutableStateOf(false) }
     var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
@@ -408,7 +411,8 @@ fun SettingsScreen(
                     NcySettingsPanel {
                         Text("Re-lock chats", style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            "How long an unlock stays valid",
+                            "How long an unlock stays valid. Leaving Ncy for longer than this " +
+                                "(at least a minute) locks everything again.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -643,34 +647,72 @@ fun SettingsScreen(
     if (showPinSetup) {
         PinSetupDialog(
             isChange = viewModel.hasPin(),
-            onDismiss = { showPinSetup = false },
-            onConfirm = { newPin ->
-                viewModel.setPin(newPin)
-                showPinSetup = false
-                Toast.makeText(context, "PIN saved", Toast.LENGTH_SHORT).show()
+            error = pinError,
+            busy = pinBusy,
+            onDismiss = { if (!pinBusy) { showPinSetup = false; pinError = null } },
+            onConfirm = { currentPin, newPin ->
+                pinBusy = true
+                viewModel.setPin(currentPin, newPin) { error ->
+                    pinBusy = false
+                    pinError = error
+                    if (error == null) {
+                        showPinSetup = false
+                        Toast.makeText(context, "PIN saved", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         )
     }
 
     if (showRemovePinConfirm) {
+        var currentPin by remember { mutableStateOf("") }
         NcyAlertDialog(
-            onDismissRequest = { showRemovePinConfirm = false },
+            onDismissRequest = { if (!pinBusy) { showRemovePinConfirm = false; pinError = null } },
             title = { Text("Remove PIN?") },
-            text = { Text("Removing the PIN will unprotect every chat that's currently protected. Continue?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Every protected chat is decrypted and stops being protected, here and " +
+                            "on paired devices. Enter the PIN to continue."
+                    )
+                    OutlinedTextField(
+                        value = currentPin,
+                        onValueChange = { currentPin = it.take(64) },
+                        label = { Text("Current PIN") },
+                        singleLine = true,
+                        isError = pinError != null,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = KeyboardType.Password
+                        ),
+                        supportingText = pinError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.clearPin()
-                        showRemovePinConfirm = false
-                        Toast.makeText(context, "PIN removed", Toast.LENGTH_SHORT).show()
+                        pinBusy = true
+                        viewModel.clearPin(currentPin) { error ->
+                            pinBusy = false
+                            pinError = error
+                            if (error == null) {
+                                showRemovePinConfirm = false
+                                Toast.makeText(context, "PIN removed", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     },
+                    enabled = !pinBusy && currentPin.isNotEmpty(),
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text("Remove") }
+                ) { Text(if (pinBusy) "Removing…" else "Remove") }
             },
             dismissButton = {
-                TextButton(onClick = { showRemovePinConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showRemovePinConfirm = false; pinError = null }, enabled = !pinBusy) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -713,9 +755,12 @@ fun SettingsScreen(
 @Composable
 private fun PinSetupDialog(
     isChange: Boolean,
+    error: String?,
+    busy: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (current: String?, new: String) -> Unit
 ) {
+    var current by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     val mismatch = confirm.isNotEmpty() && pin != confirm
@@ -734,10 +779,27 @@ private fun PinSetupDialog(
         ) {
             Text(if (isChange) "Change PIN" else "Set PIN", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Choose a PIN of at least 4 characters.",
+                if (isChange) {
+                    "Protected chats are re-encrypted with the new PIN, which can take a moment."
+                } else "Choose a PIN of at least 4 characters.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (isChange) {
+                OutlinedTextField(
+                    value = current,
+                    onValueChange = { current = it.take(64) },
+                    label = { Text("Current PIN") },
+                    singleLine = true,
+                    isError = error != null,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.Password
+                    ),
+                    supportingText = error?.let { { Text(it) } },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             OutlinedTextField(
                 value = pin,
                 onValueChange = { pin = it.take(64) },
@@ -765,11 +827,11 @@ private fun PinSetupDialog(
                 modifier = Modifier.fillMaxWidth()
             )
             Button(
-                onClick = { onConfirm(pin) },
-                enabled = pin.length >= 4 && pin == confirm,
+                onClick = { onConfirm(current.takeIf { isChange }, pin) },
+                enabled = !busy && pin.length >= 4 && pin == confirm && (!isChange || current.isNotEmpty()),
                 shape = NcyButtonShape,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Save") }
+            ) { Text(if (busy) "Saving…" else "Save") }
         }
     }
 }

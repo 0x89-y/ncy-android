@@ -34,7 +34,12 @@ class PinManager @Inject constructor(
         val s = settingsRepository.settings.value
         val savedHash = s.protectionPinHash ?: return false
         val saltB64 = s.protectionPinSalt ?: return false
-        if (!PinHasher.verify(pin, savedHash, saltB64)) return false
+        if (PinAttempts.isLockedOut()) return false
+        if (!PinHasher.verify(pin, savedHash, saltB64)) {
+            PinAttempts.recordFailure()
+            return false
+        }
+        PinAttempts.recordSuccess()
         // Stored under the old bare-SHA-256 scheme. We hold the correct plaintext
         // right now, which is the only moment the hash can be upgraded without
         // asking the user to re-enter it.

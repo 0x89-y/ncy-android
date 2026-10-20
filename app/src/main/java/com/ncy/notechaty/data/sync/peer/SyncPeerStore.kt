@@ -153,7 +153,6 @@ class SyncPeerStore @Inject constructor(
     fun resetAllWatermarks(): Boolean {
         val previous = _peers.value
         val reset = previous.map { peer ->
-            if (peer.lastSentHlcMs == null && peer.lastReceivedHlcMs == null) return@map peer
             peer.copy(
                 lastSentHlcMs = null,
                 lastSentHlcLogical = null,
@@ -161,6 +160,11 @@ class SyncPeerStore @Inject constructor(
                 lastReceivedHlcMs = null,
                 lastReceivedHlcLogical = null,
                 lastReceivedHlcNode = null,
+                // Receipt positions describe the same progress and go with it.
+                remoteReceiptEpoch = null,
+                lastReceivedReceipt = null,
+                ackedReceiptEpoch = null,
+                lastAckedReceipt = null,
             )
         }
         if (reset == previous) return true
@@ -229,6 +233,27 @@ class SyncPeerStore @Inject constructor(
             }
         }
         if (changed) persist()
+    }
+
+    /**
+     * Adopt the peer's receipt epoch from `Welcome`. A changed epoch makes the stored
+     * position meaningless, and so does a full replay, which asked from the start.
+     */
+    fun adoptRemoteReceiptEpoch(peerId: String, epoch: String, fullReplay: Boolean) = updatePeer(peerId) {
+        if (!fullReplay && it.remoteReceiptEpoch == epoch) it
+        else it.copy(remoteReceiptEpoch = epoch, lastReceivedReceipt = null)
+    }
+
+    /** Advance the highest of the peer's receipts applied here; never regresses. */
+    fun updateLastReceivedReceipt(peerId: String, receipt: Long) = updatePeer(peerId) {
+        if ((it.lastReceivedReceipt ?: 0L) >= receipt) it else it.copy(lastReceivedReceipt = receipt)
+    }
+
+    /** The peer acked our [receipt] while our epoch was [ownEpoch]. */
+    fun updateLastAckedReceipt(peerId: String, receipt: Long, ownEpoch: String) = updatePeer(peerId) {
+        val sameEpoch = it.ackedReceiptEpoch == ownEpoch
+        if (sameEpoch && (it.lastAckedReceipt ?: 0L) >= receipt) it
+        else it.copy(ackedReceiptEpoch = ownEpoch, lastAckedReceipt = receipt)
     }
 
     private companion object {

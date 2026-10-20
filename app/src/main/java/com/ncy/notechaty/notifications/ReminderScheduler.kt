@@ -31,15 +31,17 @@ object ReminderScheduler {
         )
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        try {
+        val exact = alarmManager.canScheduleExactAlarms() && runCatching {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
                 pendingIntent
             )
-        } catch (_: SecurityException) {
-            // Fallback to inexact alarm if exact alarms are not permitted
-            alarmManager.set(
+        }.isSuccess
+        if (!exact) {
+            // Exact alarms need the user's grant from Android 14 on. Still fire in
+            // Doze, a few minutes late at worst; plain `set` could defer for hours.
+            alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
                 pendingIntent

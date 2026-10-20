@@ -12,7 +12,6 @@ import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
 import com.ncy.notechaty.data.sync.ChatEventBus
@@ -21,15 +20,19 @@ import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.data.sync.discovery.MdnsPrivacyLabel
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventOp
+import com.ncy.notechaty.data.sync.event.Receipts
 import com.ncy.notechaty.data.sync.event.SyncSnapshot
+import com.ncy.notechaty.data.sync.media.MediaBackfill
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.peer.PhonePairingIdentity
 import com.ncy.notechaty.data.sync.peer.PairingPayload
 import com.ncy.notechaty.data.sync.pear.PearRuntimeController
 import com.ncy.notechaty.data.sync.pear.PearRuntimeListener
 import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +45,8 @@ import kotlinx.coroutines.yield
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.java_websocket.WebSocket
+import org.java_websocket.drafts.Draft
+import org.java_websocket.drafts.Draft_6455
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.io.BufferedOutputStream
@@ -134,6 +139,8 @@ class PhoneSyncServer @Inject constructor(
     private var advertisingRestartJob: Job? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val knownNetworks = java.util.concurrent.ConcurrentHashMap.newKeySet<Network>()
+    /** Incoming Pear streams the worker has reported connected and not yet closed. */
+    private val openPearConnections = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private var familyRestartPending = false
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var advertisedHost: String? = null
@@ -203,7 +210,10 @@ class PhoneSyncServer @Inject constructor(
             current.closeAll(reason)
             current.stopPearSessions()
             runCatching { current.stop(500) }
+            // Pear sessions lose their listener above, so their onClose never comes.
+            current.releaseSessions()
         }
+        openPearConnections.clear()
         server = null
         _pendingPairing.value = null
         _hostedPeers.value = _hostedPeers.value.map { it.copy(connected = false) }
@@ -255,13 +265,18 @@ class PhoneSyncServer @Inject constructor(
     private inner class Server(val boundPort: Int, val ipv6: Boolean) :
         WebSocketServer(
             if (ipv6) InetSocketAddress(InetAddress.getByName("::"), boundPort)
-            else InetSocketAddress(boundPort)
+            else InetSocketAddress(boundPort),
+            // The library's default has no ceiling and buffers a whole message before
+            // onMessage runs, so one unauthenticated sender could exhaust memory.
+            listOf<Draft>(Draft_6455(emptyList(), SyncLimits.MAX_WIRE_FRAME_BYTES)),
         ) {
         private val clients = java.util.concurrent.ConcurrentHashMap<ServerFrameConnection, Client>()
         @Volatile private var pendingApproval: PendingApproval? = null
         private val pearListener = object : PearRuntimeListener {
             override fun onConnected(connectionId: String, publicKey: String, outgoing: Boolean) {
-                if (!outgoing) openConnection(PearFrameConnection(connectionId))
+                if (outgoing) return
+                openPearConnections += connectionId
+                openConnection(PearFrameConnection(connectionId))
             }
 
             override fun onFrame(connectionId: String, text: String) {
@@ -270,6 +285,7 @@ class PhoneSyncServer @Inject constructor(
             }
 
             override fun onDisconnected(connectionId: String, publicKey: String) {
+                openPearConnections -= connectionId
                 closeConnection(PearFrameConnection(connectionId))
             }
         }
@@ -294,10 +310,28 @@ class PhoneSyncServer @Inject constructor(
         }
 
         private fun openConnection(conn: ServerFrameConnection) {
+            // Anyone on the LAN (or the Pear DHT) can open a connection. Until it
+            // authenticates it proves nothing, so bound how many may wait at once.
+            if (clients.values.count { it.deviceId == null } >= MAX_UNAUTHENTICATED_CONNECTIONS) {
+                conn.close(CLOSE_TRY_AGAIN_LATER, "too many pending connections")
+                return
+            }
             val nonce = ByteArray(16).also(SecureRandom()::nextBytes)
             val nonce64 = Base64.encodeToString(nonce, Base64.NO_WRAP)
-            clients[conn] = Client(nonce64)
+            val client = Client(nonce64)
+            clients[conn] = client
             conn.send(codec.encode(SyncWireMessage.Challenge(nonce64, TransportCrypto.TRANSPORT)))
+            // A real client answers the Challenge immediately; one that never does
+            // would otherwise hold its slot for good. Pairings awaiting the user's
+            // approval are unauthenticated too, but have their own longer timeout.
+            scope.launch {
+                delay(AUTH_TIMEOUT_MS)
+                if (clients[conn] === client && client.deviceId == null &&
+                    pendingApproval?.connection != conn
+                ) {
+                    conn.close(1008, "authentication timed out")
+                }
+            }
         }
 
         override fun onMessage(conn: WebSocket, text: String) {
@@ -371,7 +405,13 @@ class PhoneSyncServer @Inject constructor(
                     conn.close(1008, "identity collision")
                     return
                 }
-                val collision = claimClientIdentity(client, hello.deviceId)
+                // An invitation claim stays unbound until the user approves it: a set
+                // deviceId is what lets broadcastEvent stream live chat events to it.
+                val collision = if (auth.claimedInvitation) {
+                    identityCollision(client, hello.deviceId)
+                } else {
+                    claimClientIdentity(client, hello.deviceId)
+                }
                 if (collision != null) {
                     sendSecure(conn, client, SyncWireMessage.Error("identity_collision", collision))
                     conn.close(1008, "identity collision")
@@ -380,7 +420,6 @@ class PhoneSyncServer @Inject constructor(
                 if (auth.claimedInvitation) {
                     // Proving possession of a QR credential is necessary but does not
                     // authorize access. Pause before persisting the peer or sending Welcome.
-                    client.deviceId = null
                     val pending = PendingApproval(conn, client, hello, name, auth)
                     synchronized(this) {
                         if (pendingApproval != null) {
@@ -405,10 +444,12 @@ class PhoneSyncServer @Inject constructor(
                 return
             }
             when (msg) {
-                is SyncWireMessage.Event -> scope.launch { receiveEvent(conn, client, msg.event) }
+                is SyncWireMessage.Event -> client.inboundEvents.trySend(msg)
                 is SyncWireMessage.BlobRequest -> {
                     val hash = msg.hash
-                    val job = scope.launch { serveBlob(conn, client, hash, msg.mediaType) }
+                    val job = scope.launch {
+                        serveBlob(conn, client, hash, msg.mediaType, msg.offset.toInt())
+                    }
                     client.servingJobs[hash] = job
                     job.invokeOnCompletion { client.servingJobs.remove(hash) }
                 }
@@ -440,7 +481,12 @@ class PhoneSyncServer @Inject constructor(
                 }
             }
             val removed = clients.remove(conn)
-            removed?.pending?.values?.forEach { it.discard() }
+            // Events already received still apply; the consumer then stops.
+            removed?.inboundEvents?.close()
+            // Nobody is left to receive these.
+            removed?.servingJobs?.values?.forEach { it.cancel() }
+            // Kept on purpose: the next connection resumes from here.
+            removed?.pending?.values?.forEach { it.release() }
             removed?.deviceId?.let { id ->
                 markDisconnected(id)
             }
@@ -461,21 +507,37 @@ class PhoneSyncServer @Inject constructor(
                         if (client.catchingUp) {
                             client.queuedLive.addLast(event)
                         } else {
-                            sendSecure(socket, client, SyncWireMessage.Event(event))
+                            sendSecure(socket, client, eventFrame(client, event))
                         }
                     }
                 }
             }
         }
 
+        /** An Event frame, carrying its receipt when the peer follows receipts. */
+        private fun eventFrame(client: Client, event: ChatEvent, receipt: Long? = null): SyncWireMessage.Event =
+            SyncWireMessage.Event(
+                event,
+                if (client.receiptMode) receipt ?: Receipts.receiptOf(event.eventId) else null,
+            )
+
         private fun finishCatchupAndGoLive(
             conn: ServerFrameConnection,
             client: Client,
             remoteDeviceId: String,
-            sinceHlc: com.ncy.notechaty.data.sync.event.HlcTimestamp?,
+            hello: SyncWireMessage.Hello,
         ) {
-            val fullReplay = sinceHlc == null
-            snapshot.eventsSince(sinceHlc).forEach { event ->
+            val fullReplay = hello.sinceHlc == null
+            // Receipt-following peers (§10.9) get receipt order with no HLC filter
+            // once they hold a position in this epoch; the first session of an
+            // upgraded peer sends what HLC catch-up would have, numbered.
+            val catchup: List<Pair<Long?, ChatEvent>> = when {
+                !client.receiptMode -> snapshot.eventsSince(hello.sinceHlc).map { null to it }
+                hello.receiptEpoch == Receipts.epoch() && !fullReplay ->
+                    snapshot.eventsAfterReceipt(hello.sinceReceipt ?: 0L)
+                else -> snapshot.eventsAfterReceipt(0L, hlcFloor = hello.sinceHlc)
+            }
+            catchup.forEach { (receipt, event) ->
                 synchronized(client) {
                     if (!conn.isOpen) return
                     if (SyncCatchupPolicy.markForSend(
@@ -486,7 +548,7 @@ class PhoneSyncServer @Inject constructor(
                             client.catchupSentEventIds,
                         )
                     ) {
-                        sendSecure(conn, client, SyncWireMessage.Event(event))
+                        sendSecure(conn, client, eventFrame(client, event, receipt))
                     }
                 }
             }
@@ -496,18 +558,21 @@ class PhoneSyncServer @Inject constructor(
                     client.catchingUp = false
                     return
                 }
-                client.queuedLive.sortedBy { it.hlc }.forEach { event ->
-                    if (SyncCatchupPolicy.markForSend(
-                            event.eventId,
-                            event.originDevice,
-                            remoteDeviceId,
-                            fullReplay = false,
-                            sentEventIds = client.catchupSentEventIds,
-                        )
-                    ) {
-                        sendSecure(conn, client, SyncWireMessage.Event(event))
+                // Receipt order, so the peer's stored receipt only ever moves forward.
+                client.queuedLive
+                    .sortedWith(compareBy({ Receipts.receiptOf(it.eventId) ?: Long.MAX_VALUE }, { it.hlc }))
+                    .forEach { event ->
+                        if (SyncCatchupPolicy.markForSend(
+                                event.eventId,
+                                event.originDevice,
+                                remoteDeviceId,
+                                fullReplay = false,
+                                sentEventIds = client.catchupSentEventIds,
+                            )
+                        ) {
+                            sendSecure(conn, client, eventFrame(client, event))
+                        }
                     }
-                }
                 client.queuedLive.clear()
                 client.catchupSentEventIds.clear()
                 client.catchingUp = false
@@ -598,18 +663,56 @@ class PhoneSyncServer @Inject constructor(
                 client.queuedLive.clear()
                 client.catchupSentEventIds.clear()
             }
-            sendSecure(conn, client, SyncWireMessage.Welcome(identity.deviceId, settingsRepository.settings.value.deviceName))
-            scope.launch { finishCatchupAndGoLive(conn, client, hello.deviceId, hello.sinceHlc) }
+            scope.launch { applyInboundInOrder(conn, client) }
+            val receiptEpoch = Receipts.epoch()
+            // Without a working receipt log this side cannot number anything, so it
+            // stays on HLC catch-up whatever the peer supports.
+            client.receiptMode = hello.receiptEpoch != null && receiptEpoch != null
+            sendSecure(conn, client, SyncWireMessage.Welcome(
+                identity.deviceId,
+                settingsRepository.settings.value.deviceName,
+                receiptEpoch,
+            ))
+            scope.launch { finishCatchupAndGoLive(conn, client, hello.deviceId, hello) }
+        }
+
+        /**
+         * One consumer per connection. Each event used to get its own coroutine, so
+         * events applied in arbitrary order — but an Ack promises everything up to
+         * its HLC is stored, and the peer's watermark only moves forward, so a later
+         * event finishing first could skip one that then failed.
+         */
+        private suspend fun applyInboundInOrder(conn: ServerFrameConnection, client: Client) {
+            for (frame in client.inboundEvents) {
+                val event = frame.event
+                val keepGoing = try {
+                    receiveEvent(conn, client, event, frame.receipt)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Unacked, so the peer resends it from its watermark on reconnect.
+                    Log.w(TAG, "Could not apply event ${event.eventId}; closing session", e)
+                    conn.close(1011, "could not apply event")
+                    false
+                }
+                if (!keepGoing) return
+            }
         }
 
         @Synchronized
-        private fun claimClientIdentity(client: Client, deviceId: String): String? {
+        private fun identityCollision(client: Client, deviceId: String): String? {
             if (deviceId == identity.deviceId) {
                 return "Remote device is using this phone's device ID"
             }
             if (clients.values.any { it !== client && it.deviceId == deviceId }) {
                 return "Another live connection is already using this device ID"
             }
+            return null
+        }
+
+        @Synchronized
+        private fun claimClientIdentity(client: Client, deviceId: String): String? {
+            identityCollision(client, deviceId)?.let { return it }
             client.deviceId = deviceId
             return null
         }
@@ -620,7 +723,8 @@ class PhoneSyncServer @Inject constructor(
                 client.blobMutex.withLock {
                     client.pending.entries.removeIf { (_, pending) ->
                         if (pending.lastActivityAt < cutoff) {
-                            pending.discard()
+                            // Stalled, not bad — keep it for a later attempt.
+                            pending.release()
                             true
                         } else false
                     }
@@ -644,22 +748,38 @@ class PhoneSyncServer @Inject constructor(
             hash: String,
             mediaType: String = "file",
         ): Boolean {
+            if (!MediaHash.isValidHash(hash)) return false
             clients.forEach { (conn, client) ->
                 if (client.deviceId == null || client.pending.size >= SyncLimits.MAX_PENDING_BLOBS) {
                     return@forEach
                 }
                 if (repository.mediaFileForHash(hash, mediaType, profileId) != null) return true
-                val candidate = newPending(chatId, profileId, mediaType)
+                // Already being fetched, by this role or the client one.
+                val candidate = newPending(chatId, profileId, mediaType, hash) ?: return true
                 if (client.pending.putIfAbsent(hash, candidate) == null) {
-                    sendSecure(conn, client, SyncWireMessage.BlobRequest(hash, "file"))
+                    // The real type, not "file": images and voice are looked up under
+                    // their own folders, so asking for a "file" always came back missing.
+                    sendSecure(
+                        conn,
+                        client,
+                        SyncWireMessage.BlobRequest(hash, mediaType, candidate.received.toLong()),
+                    )
                     return true
                 }
-                candidate.discard()
+                // Another transfer already owns this hash, and now the same
+                // partial file: close this handle without touching the bytes.
+                candidate.release()
             }
             return false
         }
 
-        private suspend fun receiveEvent(conn: ServerFrameConnection, client: Client, event: ChatEvent) {
+        /** False when the event was rejected and the connection is closing. */
+        private suspend fun receiveEvent(
+            conn: ServerFrameConnection,
+            client: Client,
+            event: ChatEvent,
+            receipt: Long?,
+        ): Boolean {
             // Event-id dedup makes normal echoes harmless while allowing a restored
             // installation to recover an own-origin event it no longer has locally.
             if (!com.ncy.notechaty.data.sync.event.HlcTimestamp.isAcceptableRemote(
@@ -672,12 +792,31 @@ class PhoneSyncServer @Inject constructor(
                     "Remote event clock is more than 5 minutes ahead",
                 ))
                 conn.close(1002, "clock skew")
-                return
+                return false
             }
             val routedEvent = repository.canonicalizeInboundEvent(event)
             val newlyApplied = repository.applyExternalEvent(routedEvent)
-            sendSecure(conn, client, SyncWireMessage.Ack(routedEvent.hlc))
-            if (!newlyApplied) return
+            // Echo the sender's receipt: it is how the sender knows where to resume.
+            sendSecure(conn, client, SyncWireMessage.Ack(routedEvent.hlc, upToReceipt = receipt))
+            if (!newlyApplied) return true
+            // Predates this device joining the mesh, so it is history rather than
+            // something just sent: list it, do not pull it.
+            if (!MediaBackfill.wantsAutomaticFetch(
+                    routedEvent.hlc.physicalMs,
+                    settingsRepository.settings.value.mediaBackfillCutoffMs,
+                )
+            ) return true
+            // Off the in-order path: finding what is missing scans the disk, and the
+            // next event should not wait on it.
+            scope.launch { fetchMissingMedia(conn, client, routedEvent) }
+            return true
+        }
+
+        private suspend fun fetchMissingMedia(
+            conn: ServerFrameConnection,
+            client: Client,
+            routedEvent: ChatEvent,
+        ) {
             mediaRefs(routedEvent).forEach { ref ->
                 val hash = ref.hash
                 val mediaType = ref.mediaType
@@ -689,17 +828,30 @@ class PhoneSyncServer @Inject constructor(
                 if (client.pending.size < SyncLimits.MAX_PENDING_BLOBS &&
                     repository.mediaFileForHash(hash, mediaType, routedEvent.profileId) == null
                 ) {
-                    val candidate = newPending(routedEvent.chatId, routedEvent.profileId, mediaType)
+                    val candidate = newPending(routedEvent.chatId, routedEvent.profileId, mediaType, hash)
+                        ?: return@forEach // already in flight elsewhere
                     if (client.pending.putIfAbsent(hash, candidate) == null) {
-                        sendSecure(conn, client, SyncWireMessage.BlobRequest(hash, mediaType))
+                        // Resume from whatever an earlier attempt kept.
+                        sendSecure(
+                            conn,
+                            client,
+                            SyncWireMessage.BlobRequest(hash, mediaType, candidate.received.toLong()),
+                        )
                     } else {
-                        candidate.discard()
+                        // Another transfer owns this hash and its partial file.
+                        candidate.release()
                     }
                 }
             }
         }
 
-        private suspend fun serveBlob(conn: ServerFrameConnection, client: Client, hash: String, mediaType: String) {
+        private suspend fun serveBlob(
+            conn: ServerFrameConnection,
+            client: Client,
+            hash: String,
+            mediaType: String,
+            resumeFrom: Int = 0,
+        ) {
             val file = repository.mediaFileForHash(hash, mediaType)
             if (file == null || !file.isFile) {
                 sendSecure(conn, client, SyncWireMessage.BlobMissing(hash))
@@ -716,7 +868,10 @@ class PhoneSyncServer @Inject constructor(
             }
             file.inputStream().buffered().use { input ->
                 val buffer = ByteArray(CHUNK_SIZE)
-                var offset = 0
+                // Resume where the receiver stopped. Past the end it is clamped, so
+                // a stale offset simply sends the whole blob again.
+                var offset = resumeFrom.coerceIn(0, total)
+                if (offset > 0) input.skip(offset.toLong())
                 while (offset < total && conn.isOpen) {
                     // Cooperative cancellation *and* fairness. Nothing else in this
                     // loop suspends when the send queue is draining normally, so a
@@ -746,8 +901,15 @@ class PhoneSyncServer @Inject constructor(
                 discardPending(client, chunk.hash)
                 return
             }
+            if (chunk.offset == 0 && pending.received > 0) {
+                // Older peer ignoring the resume offset. Start the file over rather
+                // than reject everything it sends.
+                pending.restart()
+            }
             if (chunk.offset != pending.received) {
-                discardPending(client, chunk.hash)
+                // Sender and partial disagree on where the file stands. Keeping the
+                // bytes would only make every later attempt fail the same way.
+                client.pending.remove(chunk.hash)?.discard()
                 return
             }
             val decoded = runCatching { Base64.decode(chunk.data, Base64.NO_WRAP) }.getOrElse {
@@ -767,17 +929,36 @@ class PhoneSyncServer @Inject constructor(
             if (!chunk.isLast) return
             client.pending.remove(chunk.hash)
             pending.output.close()
-            if (pending.received == chunk.totalSize && MediaHash.ofFile(pending.tempFile) == chunk.hash) {
-                repository.saveMediaBlobFromFile(
-                    pending.chatId,
-                    chunk.hash,
-                    pending.mediaType,
-                    pending.tempFile,
-                    pending.profileId,
-                )
-                eventBus.notifyMediaArrived(pending.chatId)
-            } else {
-                pending.tempFile.delete()
+            // Hold the claim until the file is moved or deleted, so nothing reopens
+            // the partial while it is being hashed.
+            try {
+                if (pending.received == chunk.totalSize && MediaHash.ofFile(pending.tempFile) == chunk.hash) {
+                    repository.saveMediaBlobFromFile(
+                        pending.chatId,
+                        chunk.hash,
+                        pending.mediaType,
+                        pending.tempFile,
+                        pending.profileId,
+                    )
+                    eventBus.notifyMediaArrived(pending.chatId)
+                } else {
+                    pending.tempFile.delete()
+                }
+            } finally {
+                pending.release()
+            }
+        }
+
+        /**
+         * Let go of what each session holds — partials, uploads, the inbound queue —
+         * for a stop that skips onClose (Pear sessions lose their listener first).
+         */
+        fun releaseSessions() {
+            clients.values.forEach { client ->
+                client.inboundEvents.close()
+                client.servingJobs.values.forEach { it.cancel() }
+                client.pending.values.forEach { it.release() }
+                client.pending.clear()
             }
         }
     }
@@ -800,11 +981,16 @@ class PhoneSyncServer @Inject constructor(
     private inner class PearFrameConnection(
         private val connectionId: String,
     ) : ServerFrameConnection {
-        override val isOpen: Boolean get() = true
+        // Always true used to keep blob uploads and catch-up streaming into a peer
+        // that had already gone; both loops stop on this.
+        override val isOpen: Boolean get() = connectionId in openPearConnections
         override fun send(text: String) {
             pearRuntimeController.send(connectionId, text)
         }
-        override fun close(code: Int, reason: String) = pearRuntimeController.close(connectionId)
+        override fun close(code: Int, reason: String) {
+            openPearConnections -= connectionId
+            pearRuntimeController.close(connectionId)
+        }
         override fun equals(other: Any?): Boolean =
             other is PhoneSyncServer.PearFrameConnection && other.connectionId == connectionId
         override fun hashCode(): Int = connectionId.hashCode()
@@ -812,6 +998,10 @@ class PhoneSyncServer @Inject constructor(
 
     private data class Client(
         val nonce: String,
+        /** Applied one at a time, in arrival order, by `applyInboundInOrder`. */
+        val inboundEvents: Channel<SyncWireMessage.Event> = Channel(Channel.UNLIMITED),
+        /** The peer follows receipts (§10.9): frames carry them, catch-up uses them. */
+        @Volatile var receiptMode: Boolean = false,
         @Volatile var secure: TransportCrypto? = null,
         @Volatile var deviceId: String? = null,
         @Volatile var deviceName: String? = null,
@@ -829,23 +1019,66 @@ class PhoneSyncServer @Inject constructor(
         val profileId: String,
         val mediaType: String,
         val tempFile: File,
-        val output: BufferedOutputStream,
+        var output: BufferedOutputStream,
         var received: Int = 0,
         var lastActivityAt: Long = System.currentTimeMillis(),
     ) {
+        // Several paths can stop one transfer (disconnect, sweep, server stop). Only
+        // the first may release the claim, or a second release would drop a claim
+        // another transfer has taken on the same file since.
+        private val stopped = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        /** Stop tracking, keeping the partial so a later attempt resumes it. */
+        fun release() {
+            if (!stopped.compareAndSet(false, true)) return
+            runCatching { output.close() }
+            SyncLimits.releasePartial(tempFile)
+        }
+
+        /** Stop tracking and throw the bytes away — for data known to be bad. */
         fun discard() {
+            if (!stopped.compareAndSet(false, true)) return
             runCatching { output.close() }
             tempFile.delete()
+            SyncLimits.releasePartial(tempFile)
+        }
+
+        /** Drop what was kept and write the file again from byte zero. */
+        fun restart() {
+            runCatching { output.close() }
+            output = BufferedOutputStream(java.io.FileOutputStream(tempFile, false))
+            received = 0
         }
     }
 
-    private fun newPending(chatId: String, profileId: String, mediaType: String): Pending {
-        val temp = SyncLimits.newBlobTempFile(repository.getBaseDir())
-        return Pending(chatId, profileId, mediaType, temp, BufferedOutputStream(temp.outputStream()))
+    /** Null when another transfer — either role, any peer — already owns this partial. */
+    private fun newPending(
+        chatId: String,
+        profileId: String,
+        mediaType: String,
+        hash: String,
+    ): Pending? {
+        // Named by hash so a broken transfer resumes, the same as the client role.
+        val temp = SyncLimits.blobPartialFile(repository.getBaseDir(), hash, mediaType)
+        if (!SyncLimits.claimPartial(temp)) return null
+        return runCatching {
+            Pending(
+                chatId,
+                profileId,
+                mediaType,
+                temp,
+                BufferedOutputStream(java.io.FileOutputStream(temp, true)),
+                received = if (temp.isFile) temp.length().toInt() else 0,
+            )
+        }.getOrElse {
+            SyncLimits.releasePartial(temp)
+            throw it
+        }
     }
 
+    /** Stop tracking a transfer, keeping its bytes for a later attempt. */
     private fun discardPending(client: Client, hash: String) {
-        client.pending.remove(hash)?.discard()
+        client.pending.remove(hash)?.release()
     }
 
     private data class AuthResult(
@@ -890,6 +1123,9 @@ class PhoneSyncServer @Inject constructor(
         credential: String,
         legacySharedCredential: Boolean,
     ) {
+        // Hosting a device is joining a mesh too: media older than this moment is
+        // listed rather than downloaded. Only the first pairing stamps.
+        scope.launch { settingsRepository.stampMediaBackfillCutoff() }
         val now = System.currentTimeMillis()
         _hostedPeers.value = (_hostedPeers.value.filterNot { it.id == id } + HostedPeer(
             id = id,
@@ -1154,6 +1390,7 @@ class PhoneSyncServer @Inject constructor(
     @Synchronized
     private fun handleFatalServerError(failed: Server, error: Exception) {
         if (server !== failed) return
+        failed.releaseSessions()
         liveJob?.cancel()
         liveJob = null
         transferCleanupJob?.cancel()
@@ -1218,42 +1455,16 @@ class PhoneSyncServer @Inject constructor(
             .onFailure { Log.w(TAG, "Could not stop phone sync advertisement", it) }
     }
 
-    private data class MediaRef(
-        val hash: String,
-        val mediaType: String,
-        val sizeBytes: Long? = null,
-    )
-
-    private fun mediaRefs(event: ChatEvent): List<MediaRef> {
-        val refs = mutableListOf<MediaRef>()
-        fun fromMessage(message: Message) {
-            MediaHash.extractHash(message.voiceFile)?.let { refs += MediaRef(it, "voice") }
-            message.imageFiles.forEach { file -> MediaHash.extractHash(file)?.let { refs += MediaRef(it, "image") } }
-            message.fileAttachments.forEach { attachment ->
-                MediaHash.extractHash(attachment.file)?.let {
-                    refs += MediaRef(it, "file", attachment.sizeBytes)
-                }
-            }
-            message.content.flatMap { it.spans }.forEach { span ->
-                MediaHash.extractHash(span.inlineImage)?.let { refs += MediaRef(it, "image") }
-            }
-        }
-        when (val op = event.op) {
-            is ChatEventOp.MessageCreated -> fromMessage(op.message)
-            is ChatEventOp.MessageEdited -> fromMessage(op.message)
-            is ChatEventOp.ChatMetadataChanged -> {
-                MediaHash.extractHash(op.metadata.avatarFile)?.let { refs += MediaRef(it, "image") }
-                MediaHash.extractHash(op.metadata.backgroundFile)?.let { refs += MediaRef(it, "image") }
-            }
-            else -> Unit
-        }
-        return refs.distinctBy { it.hash to it.mediaType }
-    }
+    // The shared rule, so sealed attachments (listed in the clear) are fetched too.
+    private fun mediaRefs(event: ChatEvent) = com.ncy.notechaty.data.sync.media.MediaRefs.extract(event)
 
     private companion object {
         const val TAG = "PhoneSyncServer"
         const val DEFAULT_PORT = 8765
         const val PAIRING_CONFIRM_TIMEOUT_MS = 60_000L
+        const val AUTH_TIMEOUT_MS = 10_000L
+        const val MAX_UNAUTHENTICATED_CONNECTIONS = 8
+        const val CLOSE_TRY_AGAIN_LATER = 1013
         const val CHUNK_SIZE = 64 * 1024
         const val NETWORK_REFRESH_DEBOUNCE_MS = 500L
         const val ADVERTISEMENT_RESTART_DELAY_MS = 500L

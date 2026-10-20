@@ -37,6 +37,15 @@ data class SyncPeer(
     val lastAuthenticatedPort: Int? = null,
     val lastError: String? = null,
     val nextRetryAt: Long? = null,
+    /**
+     * Receipt positions (protocol §10.9). The peer's epoch and the highest of its
+     * receipts applied here — sent as `Hello.sinceReceipt`.
+     */
+    val remoteReceiptEpoch: String? = null,
+    val lastReceivedReceipt: Long? = null,
+    /** Highest of *our* receipts the peer acked, and our epoch at the time. */
+    val ackedReceiptEpoch: String? = null,
+    val lastAckedReceipt: Long? = null,
 ) {
     val hasLanEndpoint: Boolean get() = host.isNotBlank() && port in 1..65535
     val foregroundOnly: Boolean

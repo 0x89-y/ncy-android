@@ -11,6 +11,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -41,7 +43,9 @@ class StarredMessagesViewModel @Inject constructor(
 
     private fun loadStarredMessages() {
         viewModelScope.launch {
-            visibleChats.chats.collect { chatList ->
+            // Starring a message or setting a reminder leaves the chat list as it was,
+            // so the list alone never re-emitted and these went stale until a restart.
+            combine(visibleChats.chats, repository.observeChanges()) { chats, _ -> chats }.collectLatest { chatList ->
                 val visible = chatList.filter { !it.chat.isProtected }.map { (profileId, chat) ->
                     chat to repository.getMessagesIn(profileId, chat.id)
                 }

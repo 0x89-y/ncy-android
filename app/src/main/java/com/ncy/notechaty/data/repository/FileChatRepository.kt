@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.ncy.notechaty.backup.BackupArchive
@@ -96,6 +97,7 @@ class FileChatRepository @Inject constructor(
     private val gson = Gson()
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
     private val _allChats = MutableStateFlow<List<ProfileChat>>(emptyList())
+    private val _changes = MutableStateFlow(0L)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -139,6 +141,8 @@ class FileChatRepository @Inject constructor(
     override fun observeChats(): Flow<List<Chat>> = _chats.asStateFlow()
 
     override fun observeAllProfileChats(): Flow<List<ProfileChat>> = _allChats.asStateFlow()
+
+    override fun observeChanges(): Flow<Long> = _changes.asStateFlow()
 
     override suspend fun getMessagesIn(profileId: String, chatId: String): List<Message> =
         withContext(Dispatchers.IO) {
@@ -1032,6 +1036,8 @@ class FileChatRepository @Inject constructor(
                 } ?: 0} chatDirs=${chatDirectories.size}",
         )
         val chats = loadChatsIn(directory)
+        // Every write and every applied peer event ends in a refresh.
+        _changes.update { it + 1 }
 
         if (profileRepository.showAllProfiles.value) {
             _allChats.value = profileRepository.profiles.value.flatMap { profile ->

@@ -21,7 +21,13 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.rememberNavController
+import android.content.Intent
+import com.ncy.notechaty.data.repository.ProfileRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.sync.SafeId
+import com.ncy.notechaty.notifications.ReminderReceiver
+import com.ncy.notechaty.ui.navigation.Routes
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.security.AppLockCoordinator
@@ -62,6 +68,37 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var appLockCoordinator: AppLockCoordinator
 
+    @Inject
+    lateinit var profileRepository: ProfileRepository
+
+    /** A chat to open, from a tapped reminder notification. */
+    private val pendingChat = MutableStateFlow<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingChat.value = takeReminderChat(intent)
+    }
+
+    /**
+     * The chat a reminder notification points at, with its profile made active. A
+     * protected profile would need its PIN first, so then only the app opens.
+     */
+    private fun takeReminderChat(intent: Intent?): String? {
+        val chatId = intent?.getStringExtra(ReminderReceiver.EXTRA_CHAT_ID)
+            ?.takeIf(SafeId::isValid) ?: return null
+        // Consumed once: a rotation re-creates the activity with the same intent.
+        intent.removeExtra(ReminderReceiver.EXTRA_CHAT_ID)
+        val profileId = intent.getStringExtra(ReminderReceiver.EXTRA_PROFILE_ID)?.takeIf { it.isNotEmpty() }
+            ?: profileRepository.findProfileForChat(chatId)
+        val profile = profileId?.let(profileRepository::profileById) ?: return null
+        if (profile.id != profileRepository.activeProfileId.value) {
+            if (profile.isProtected) return null
+            profileRepository.setActive(profile.id)
+        }
+        return chatId
+    }
+
     override fun onStart() {
         super.onStart()
         appLockCoordinator.onForeground()
@@ -81,6 +118,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) pendingChat.value = takeReminderChat(intent)
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 settingsRepository.settings
@@ -143,6 +181,15 @@ class MainActivity : FragmentActivity() {
                                 .then(if (needsAppLock) Modifier.clearAndSetSemantics {} else Modifier)
                         ) {
                             NcyNavGraph(navController = navController)
+                        }
+                        // Behind the app lock, if there is one: the chat is waiting
+                        // once the PIN is in.
+                        val chatToOpen by pendingChat.collectAsState()
+                        LaunchedEffect(chatToOpen) {
+                            chatToOpen?.let {
+                                navController.navigate(Routes.chat(it))
+                                pendingChat.value = null
+                            }
                         }
                         if (needsAppLock) {
                             // An opaque Surface also swallows touches meant for the app below.

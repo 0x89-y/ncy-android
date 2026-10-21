@@ -72,18 +72,14 @@
     <string name="hide_name_on_chat_list">Hide name on chat list</string>
     <string name="show_gibberish_instead_of_the_real_name">Show gibberish instead of the real name</string>
     <string name="pin_chat">Pin chat</string>
-    <string name="keep_this_chat_at_the_top_of_the_chat">Keep this chat at the top of the chat list</string>
     <string name="archive_chat">Archive chat</string>
-    <string name="move_this_chat_to_the_archived_section">Move this chat to the archived section</string>
     <string name="export_chat">Export chat</string>
-    <string name="save_as_zip_file">Save as .zip file</string>
     <string name="appearance">Appearance</string>
     <string name="privacy">Privacy</string>
     <string name="organization">Organization</string>
     <string name="data">Data</string>
     <string name="checking">Checking…</string>
     <string name="search_chats_messages">Search chats &amp; messages…</string>
-    <string name="show_archived_chats">Show archived chats</string>
     <string name="no_results_found">No results found</string>
     <string name="enter_your_pin_to_open_this_chat">Enter your PIN to open this chat.</string>
     <string name="enter_the_pin_for_this_profile">Enter the PIN for this profile.</string>
@@ -113,7 +109,6 @@
     <string name="profile_deleted">Profile deleted</string>
     <string name="pin_saved">PIN saved</string>
     <string name="profiles">Profiles</string>
-    <string name="each_profile_has_its_own_chats_and_lock">Each profile has its own chats and lock. Tap a profile to manage it.</string>
     <string name="all_chats_and_messages_in_this_profile">All chats and messages in this profile will be deleted on this phone and on every paired device. This cannot be undone.</string>
     <string name="pick_an_icon">Pick an icon</string>
     <string name="choose_a_pin_of_at_least_4_characters">Choose a PIN of at least 4 characters.</string>
@@ -184,7 +179,6 @@
     <string name="media_no_message_refers_to_any_more">Media no message refers to any more</string>
     <string name="force_full_resync">Force full resync</string>
     <string name="import_chat">Import chat</string>
-    <string name="import_from_zip_file">Import from .zip file</string>
     <string name="back_up_everything">Back up everything</string>
     <string name="all_chats_from_every_profile_the_profile">All chats from every profile + the profile list, as one .zip</string>
     <string name="auto_backup">Auto-backup</string>
@@ -193,9 +187,7 @@
     <string name="advanced_stale_backups_may_restore">Advanced: stale backups may restore deleted chats or messages</string>
     <string name="unprotects_all_chats">Unprotects all chats</string>
     <string name="lock_app_on_start">Lock app on start</string>
-    <string name="require_pin_to_open_ncy">Require PIN to open Ncy</string>
     <string name="open_source_licenses">Open source licenses</string>
-    <string name="third_party_libraries_used_in_this_app">Third-party libraries used in this app</string>
     <string name="media_storage">Media storage</string>
     <string name="troubleshooting">Troubleshooting</string>
     <string name="import_and_export">Import and export</string>
@@ -466,4 +458,18 @@
         <item quantity="one">%1$d chat across %2$d profiles</item>
         <item quantity="other">%1$d chats across %2$d profiles</item>
     </plurals>
+    <string name="this_evening">This evening</string>
+    <string name="tomorrow_morning">Tomorrow morning</string>
+    <string name="next_week">Next week</string>
+    <string name="pick_date_and_time">Pick date &amp; time</string>
+    <string name="pick_a_time">Pick a time</string>
+    <string name="reminder_time_in_past">That time has already passed.</string>
+    <string name="reminder_set_for">Set for %1$s</string>
+    <string name="remove_reminder">Remove reminder</string>
+    <string name="reminder_notification_hidden">Reminder</string>
+    <string name="reminder_channel_description">Reminders set on notes</string>
+    <string name="no_archived_chats">No archived chats</string>
+    <string name="no_archived_chats_hint">Long-press a chat and choose Archive to move it here.</string>
+    <string name="no_active_chats">Every chat is archived</string>
+    <string name="no_active_chats_hint">Find them under Archived chats in the filter menu, or tap + for a new one.</string>
 </resources>

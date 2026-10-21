@@ -31,6 +31,13 @@ interface ChatRepository {
      */
     fun observeAllProfileChats(): Flow<List<ProfileChat>>
 
+    /**
+     * Ticks after any change to stored chats or messages, here or from a peer. The
+     * chat list only re-emits when a chat's summary changes, so starring a message
+     * or setting a reminder would otherwise go unnoticed.
+     */
+    fun observeChanges(): Flow<Long>
+
     /** Messages of a chat in [profileId], whichever profile is active. */
     suspend fun getMessagesIn(profileId: String, chatId: String): List<Message>
 

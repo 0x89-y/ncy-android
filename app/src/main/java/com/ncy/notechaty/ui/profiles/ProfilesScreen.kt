@@ -37,10 +37,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.Profile
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
-import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
 import com.ncy.notechaty.ui.desktoptheme.NcyInputSheet
 import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
-import com.ncy.notechaty.ui.desktoptheme.NcySectionLabel
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
@@ -102,19 +101,9 @@ fun ProfilesScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .ncyDottedGrid()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
-            Text(
-                stringResource(R.string.each_profile_has_its_own_chats_and_lock),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
-            )
-
-            NcySectionLabel(stringResource(R.string.profiles))
-            NcyDividedCard {
+            NcyFlushList {
                 profiles.forEachIndexed { i, profile ->
                     if (i > 0) NcyRowDivider()
                     ProfileRow(
@@ -242,11 +231,12 @@ private fun ProfileRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
+        // A chat row's size: at 40dp the avatars jumped between the two screens.
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(48.dp)
                 .clip(NcyAvatarShape)
                 .background(ncyAvatarColor(profile.name)),
             contentAlignment = Alignment.Center
@@ -255,7 +245,7 @@ private fun ProfileRow(
                 imageVector = ProfileIcons.iconFor(profile.iconKey),
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(26.dp)
             )
         }
         Spacer(Modifier.width(16.dp))

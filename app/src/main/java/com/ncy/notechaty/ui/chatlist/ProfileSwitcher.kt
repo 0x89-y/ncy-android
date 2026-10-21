@@ -21,13 +21,23 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,6 +112,8 @@ fun ProfileSwitcherSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        // Fully open at once: half-open, the lower profiles were below the fold.
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
@@ -187,6 +199,56 @@ private fun SwitcherRow(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
             )
+        }
+    }
+}
+
+/**
+ * Picks one profile in a form, such as where a new chat goes. A single field
+ * however many profiles there are, unlike a row of chips.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileDropdownField(
+    profiles: List<Profile>,
+    selectedId: String,
+    onSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = profiles.firstOrNull { it.id == selectedId } ?: profiles.firstOrNull()
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = selected?.name.orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(stringResource(R.string.create_in_profile)) },
+            leadingIcon = { Box(Modifier.padding(start = 12.dp)) { ProfileAvatar(selected, size = 26.dp) } },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            profiles.forEach { profile ->
+                DropdownMenuItem(
+                    text = { Text(profile.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { ProfileAvatar(profile, size = 26.dp) },
+                    trailingIcon = if (profile.id == selected?.id) {
+                        { Icon(Icons.Default.Check, contentDescription = null) }
+                    } else null,
+                    onClick = {
+                        onSelected(profile.id)
+                        expanded = false
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                )
+            }
         }
     }
 }

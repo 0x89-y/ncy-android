@@ -714,39 +714,25 @@ fun ChatScreen(
 
     // Reminder picker
     reminderMessage?.let { msg ->
-        val reminderOptions = listOf(
-            stringResource(R.string.in_15_minutes) to 15L * 60 * 1000,
-            stringResource(R.string.in_1_hour) to 60L * 60 * 1000,
-            stringResource(R.string.in_3_hours) to 3L * 60 * 60 * 1000,
-            stringResource(R.string.tomorrow) to 24L * 60 * 60 * 1000
-        )
-        ModalBottomSheet(
-            onDismissRequest = { reminderMessage = null },
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
-                Text(
-                    stringResource(R.string.set_reminder),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                reminderOptions.forEach { (label, delay) ->
-                    NcySheetActionRow(Icons.Default.Alarm, label) {
-                        val triggerAt = System.currentTimeMillis() + delay
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            pendingReminder = msg to triggerAt
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            viewModel.setReminder(msg, triggerAt)
-                        }
-                        reminderMessage = null
-                    }
+        ReminderSheet(
+            current = msg.reminderAt?.takeIf { it > System.currentTimeMillis() },
+            onDismiss = { reminderMessage = null },
+            onPick = { triggerAt ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    pendingReminder = msg to triggerAt
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    viewModel.setReminder(msg, triggerAt)
                 }
-            }
-        }
+                reminderMessage = null
+            },
+            onRemove = {
+                viewModel.clearReminder(msg)
+                reminderMessage = null
+            },
+        )
     }
 
 }

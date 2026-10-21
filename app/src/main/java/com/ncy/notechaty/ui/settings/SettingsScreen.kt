@@ -302,7 +302,7 @@ fun SettingsScreen(
                 NcySettingsRow(
                     icon = Icons.Default.FileUpload,
                     title = stringResource(R.string.import_chat),
-                    subtitle = stringResource(R.string.import_from_zip_file),
+                    subtitle = null,
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         importLauncher.launch("application/zip")
@@ -418,7 +418,7 @@ fun SettingsScreen(
                     NcySettingsToggleRow(
                         icon = Icons.Default.Lock,
                         title = stringResource(R.string.lock_app_on_start),
-                        subtitle = stringResource(R.string.require_pin_to_open_ncy),
+                        subtitle = null,
                         checked = settings.lockOnAppStart,
                         onCheckedChange = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -583,7 +583,7 @@ fun SettingsScreen(
                 NcySettingsRow(
                     icon = Icons.Default.Info,
                     title = stringResource(R.string.open_source_licenses),
-                    subtitle = stringResource(R.string.third_party_libraries_used_in_this_app),
+                    subtitle = null,
                     onClick = onOpenLicenses
                 )
             }

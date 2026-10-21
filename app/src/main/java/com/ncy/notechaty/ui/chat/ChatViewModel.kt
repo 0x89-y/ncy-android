@@ -15,7 +15,7 @@ import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.media.MediaTransferState
 import com.ncy.notechaty.data.sync.protection.ProtectionKeyStore
 import com.ncy.notechaty.data.sync.protection.UnsealedMedia
-import com.ncy.notechaty.notifications.ReminderScheduler
+import com.ncy.notechaty.notifications.ReminderAlarms
 import com.ncy.notechaty.security.AppLockCoordinator
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
@@ -466,13 +466,16 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun setReminder(message: Message, triggerAtMillis: Long) {
+    fun setReminder(message: Message, triggerAtMillis: Long) = updateReminder(message, triggerAtMillis)
+
+    /** Remove the reminder here and, through sync, on every device. */
+    fun clearReminder(message: Message) = updateReminder(message, null)
+
+    private fun updateReminder(message: Message, triggerAtMillis: Long?) {
         viewModelScope.launch {
-            val chat = _uiState.value.chat
-            val chatName = chat?.name ?: "Ncy"
-            val isProtected = chat?.isProtected == true
             repository.updateMessage(message.copy(reminderAt = triggerAtMillis))
-            ReminderScheduler.schedule(appContext, message, chatName, triggerAtMillis, isProtected)
+            // At once rather than after the change settles: a reminder can be minutes away.
+            withContext(Dispatchers.IO) { ReminderAlarms.reconcile(appContext) }
             loadChat()
         }
     }

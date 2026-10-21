@@ -116,6 +116,35 @@ fun NcyDividedCard(
     )
 }
 
+/**
+ * A divided list running edge to edge: the rows of an [NcyDividedCard] without its
+ * inset, border or corners. For the main lists (chats, profiles), which read as
+ * the screen itself rather than as a card on it.
+ */
+@Composable
+fun NcyFlushList(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
+        // The same hairline as between rows closes off both ends, so the first row
+        // is set apart from the top bar and the last from the background.
+        NcyRowDivider()
+        content()
+        NcyRowDivider()
+    }
+}
+
+/** [NcySectionLabel] above an [NcyFlushList], lined up with the rows' text inset. */
+@Composable
+fun NcyFlushSectionLabel(text: String) {
+    NcySectionLabel(text, modifier = Modifier.padding(start = 10.dp, top = 14.dp, bottom = 4.dp))
+}
+
 /** Hairline separator between rows inside an [NcyDividedCard]. */
 @Composable
 fun NcyRowDivider() {
@@ -182,7 +211,7 @@ fun NcySettingsPanel(content: @Composable ColumnScope.() -> Unit) {
 fun NcySettingsRow(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    subtitle: String?,
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null
 ) {
@@ -202,7 +231,7 @@ fun NcySettingsRow(
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
+            if (subtitle != null) Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -303,7 +332,7 @@ fun NcySheetActionRow(
 fun NcySettingsToggleRow(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    subtitle: String?,
     checked: Boolean,
     enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
@@ -323,7 +352,7 @@ fun NcySettingsToggleRow(
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
+            if (subtitle != null) Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

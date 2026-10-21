@@ -23,7 +23,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
+import com.ncy.notechaty.notifications.ReminderAlarms
 
 @HiltAndroidApp
 class NcyApp : Application(), Configuration.Provider {
@@ -84,6 +86,19 @@ class NcyApp : Application(), Configuration.Provider {
                 }.onFailure { Log.w("NcyApp", "housekeeping failed", it) }
                 delay(60L * 60L * 1000L)
             }
+        }
+
+        // Reminder alarms follow the stored reminders: set here, set on a peer,
+        // removed, or gone with a deleted message, chat or profile. A short wait
+        // lets a burst of synced changes settle into one pass.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            chatRepository.observeChanges()
+                .debounce(1_500L)
+                .collect {
+                    runCatching { ReminderAlarms.reconcile(this@NcyApp) }
+                        .onFailure { Log.w("NcyApp", "reminder alarm sync failed", it) }
+                }
         }
     }
 }

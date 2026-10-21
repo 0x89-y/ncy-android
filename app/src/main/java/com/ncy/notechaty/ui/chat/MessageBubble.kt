@@ -447,6 +447,7 @@ fun MessageBubble(
             if (showMenu) {
                 ModalBottomSheet(
                     onDismissRequest = { showMenu = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     val tap = { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }

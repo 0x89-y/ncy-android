@@ -97,17 +97,25 @@ private fun mix(accent: Color, surface: Color, accentPct: Float): Color = Color(
     blue = accent.blue * accentPct + surface.blue * (1 - accentPct),
 )
 
+/**
+ * Text and icons on an accent-tinted container. The accent itself read poorly there
+ * (violet on pale violet, as on the "Editing message" banner), so it is taken well
+ * towards black, or towards white in the dark theme, and stays recognisably tinted.
+ */
+private fun onContainerLight(accent: Color): Color = mix(accent, Color.Black, 0.6f)
+private fun onContainerDark(accent: Color): Color = mix(accent, Color.White, 0.45f)
+
 private fun desktopLightScheme(accent: Accent): ColorScheme {
     val a = accent.light
     return lightColorScheme(
         primary = a,
         onPrimary = accent.onLight,
         primaryContainer = mix(a, DesktopNeutral.LightSurface, 0.16f),
-        onPrimaryContainer = a,
+        onPrimaryContainer = onContainerLight(a),
         secondary = a,
         onSecondary = accent.onLight,
         secondaryContainer = mix(a, DesktopNeutral.LightSurface, 0.16f),
-        onSecondaryContainer = a,
+        onSecondaryContainer = onContainerLight(a),
         tertiary = a,
         onTertiary = accent.onLight,
         background = DesktopNeutral.LightBg,
@@ -134,11 +142,11 @@ private fun desktopDarkScheme(accent: Accent): ColorScheme {
         primary = a,
         onPrimary = accent.onDark,
         primaryContainer = mix(a, DesktopNeutral.DarkSurface, 0.16f),
-        onPrimaryContainer = a,
+        onPrimaryContainer = onContainerDark(a),
         secondary = a,
         onSecondary = accent.onDark,
         secondaryContainer = mix(a, DesktopNeutral.DarkSurface, 0.16f),
-        onSecondaryContainer = a,
+        onSecondaryContainer = onContainerDark(a),
         tertiary = a,
         onTertiary = accent.onDark,
         background = DesktopNeutral.DarkBg,

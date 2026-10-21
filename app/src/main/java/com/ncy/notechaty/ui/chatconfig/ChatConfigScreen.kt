@@ -444,7 +444,7 @@ fun ChatConfigScreen(
                 NcySettingsToggleRow(
                     icon = Icons.Default.PushPin,
                     title = stringResource(R.string.pin_chat),
-                    subtitle = stringResource(R.string.keep_this_chat_at_the_top_of_the_chat),
+                    subtitle = null,
                     checked = chat?.isPinned == true,
                     onCheckedChange = { viewModel.setPinned(it) }
                 )
@@ -507,7 +507,7 @@ fun ChatConfigScreen(
                 NcySettingsToggleRow(
                     icon = Icons.Outlined.Archive,
                     title = stringResource(R.string.archive_chat),
-                    subtitle = stringResource(R.string.move_this_chat_to_the_archived_section),
+                    subtitle = null,
                     checked = chat?.isArchived == true,
                     onCheckedChange = { viewModel.toggleArchive {} }
                 )
@@ -518,7 +518,7 @@ fun ChatConfigScreen(
                 NcySettingsRow(
                     icon = Icons.Default.Share,
                     title = stringResource(R.string.export_chat),
-                    subtitle = stringResource(R.string.save_as_zip_file),
+                    subtitle = null,
                     onClick = { exportLauncher.launch("${chat?.name ?: "chat"}.zip") }
                 )
             }

@@ -13,33 +13,14 @@ build-apks.bat all
 
 The default `debug` mode produces installable production APKs for `arm64-v8a`,
 `armeabi-v7a`, and `x86_64`, then opens `release\android\<version>\`. Release APKs
-are optimized but remain unsigned until a release keystore is configured. The
-script rebuilds the Pear worker first; pass `--skip-pear` as the second argument
-only when the existing generated Pear assets are intentionally being reused.
+are optimized but remain unsigned until a release keystore is configured.
 
-## Pear/Bare development setup
+APK builds stay split by ABI so each release has one stable `arm64-v8a` file name.
+`arm64-v8a` is the primary physical-device artifact, `armeabi-v7a` supports legacy
+32-bit phones, and `x86_64` supports emulators.
 
-Both Android flavors embed Bare Kit and a linked Hyperswarm worker. Generated
-native artifacts stay out of Git. After cloning with submodules, prepare them with:
-
-```powershell
-git submodule update --init --recursive
-.\scripts\setup_bare_kit.ps1
-.\scripts\build_pear_worker.ps1
-```
-
-`setup_bare_kit.ps1` downloads the pinned Bare Kit `v2.3.0` release and verifies its
-published SHA-256 before creating a local AAR. `build_pear_worker.ps1` uses `npm ci`,
-bundles `pear-worker/index.js` for Android, and adds the matching official sodium/UDX
-prebuilds to the local AAR. None of this code starts unless the user explicitly enables
-**Sync outside your local network**. Pear remains off by default in every flavor and starts
-only after explicit user consent.
-
-Release APK builds are split by ABI to avoid shipping several large Bare runtimes to one
-device. `arm64-v8a` is the primary physical-device artifact, `armeabi-v7a` supports legacy
-32-bit phones, and `x86_64` supports emulators. The obsolete 32-bit `x86` ABI and a universal
-fat APK are intentionally not produced. For store distribution, build the production App
-Bundle and let the store serve its matching ABI split.
+Sync runs over the local network only. Internet sync through Pear/Bare Kit was removed
+in 0.7.9; it made up about 90% of the APK and needed its own native build.
 
 ## `sync_test_server.py`
 

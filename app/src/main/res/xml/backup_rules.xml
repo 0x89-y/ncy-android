@@ -5,7 +5,6 @@
     <exclude domain="sharedpref" path="ncy_sync_peers.xml" />
     <exclude domain="sharedpref" path="ncy_phone_pairing.xml" />
     <exclude domain="sharedpref" path="ncy_phone_sync_server.xml" />
-    <exclude domain="sharedpref" path="ncy_transport_settings.xml" />
     <exclude domain="sharedpref" path="ncy_pear_identity.xml" />
     <exclude domain="file" path="ncy_sync/" />
 </full-backup-content>

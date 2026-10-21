@@ -26,9 +26,6 @@ import com.ncy.notechaty.data.sync.media.MediaBackfill
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.peer.PhonePairingIdentity
 import com.ncy.notechaty.data.sync.peer.PairingPayload
-import com.ncy.notechaty.data.sync.pear.PearRuntimeController
-import com.ncy.notechaty.data.sync.pear.PearRuntimeListener
-import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +69,6 @@ class PhoneSyncServer @Inject constructor(
     private val repository: ChatRepository,
     private val eventBus: ChatEventBus,
     private val settingsRepository: SettingsRepository,
-    private val pearRuntimeController: PearRuntimeController,
 ) {
     data class HostedPeer(
         val id: String,
@@ -139,8 +135,6 @@ class PhoneSyncServer @Inject constructor(
     private var advertisingRestartJob: Job? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val knownNetworks = java.util.concurrent.ConcurrentHashMap.newKeySet<Network>()
-    /** Incoming Pear streams the worker has reported connected and not yet closed. */
-    private val openPearConnections = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private var familyRestartPending = false
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var advertisedHost: String? = null
@@ -181,7 +175,6 @@ class PhoneSyncServer @Inject constructor(
         server = next
         next.isReuseAddr = true
         registerNetworkCallback()
-        next.startPearSessions()
         next.start()
         liveJob = scope.launch {
             eventBus.events.collect { event -> next.broadcastEvent(event) }
@@ -208,12 +201,10 @@ class PhoneSyncServer @Inject constructor(
         stopAdvertising()
         server?.let { current ->
             current.closeAll(reason)
-            current.stopPearSessions()
             runCatching { current.stop(500) }
-            // Pear sessions lose their listener above, so their onClose never comes.
+            // A connection that misses its onClose during the stop still lets go.
             current.releaseSessions()
         }
-        openPearConnections.clear()
         server = null
         _pendingPairing.value = null
         _hostedPeers.value = _hostedPeers.value.map { it.copy(connected = false) }
@@ -250,16 +241,15 @@ class PhoneSyncServer @Inject constructor(
     private fun refreshPairingPayload() {
         val current = server
         val host = localLanAddress()
-        val pearReady = pearRuntimeController.status.value is PearRuntimeStatus.Ready
-        _state.value = if (current?.listening == true && (host != null || pearReady)) {
+        _state.value = if (current?.listening == true && host != null) {
             HostState.Ready(
-                pairingJson = pairingPayload(host, if (host != null) current.boundPort else 0).toJson(),
-                host = host.orEmpty(),
-                port = if (host != null) current.boundPort else 0,
-                usedFallbackPort = host != null && current.boundPort != DEFAULT_PORT,
-                lanAvailable = host != null,
+                pairingJson = pairingPayload(host, current.boundPort).toJson(),
+                host = host,
+                port = current.boundPort,
+                usedFallbackPort = current.boundPort != DEFAULT_PORT,
+                lanAvailable = true,
             )
-        } else HostState.Failed("Connect to Wi-Fi/Ethernet, or enable a Pear connection mode, to share pairing data.")
+        } else HostState.Failed(NO_NETWORK_MESSAGE)
     }
 
     private inner class Server(val boundPort: Int, val ipv6: Boolean) :
@@ -272,28 +262,7 @@ class PhoneSyncServer @Inject constructor(
         ) {
         private val clients = java.util.concurrent.ConcurrentHashMap<ServerFrameConnection, Client>()
         @Volatile private var pendingApproval: PendingApproval? = null
-        private val pearListener = object : PearRuntimeListener {
-            override fun onConnected(connectionId: String, publicKey: String, outgoing: Boolean) {
-                if (outgoing) return
-                openPearConnections += connectionId
-                openConnection(PearFrameConnection(connectionId))
-            }
-
-            override fun onFrame(connectionId: String, text: String) {
-                val connection = PearFrameConnection(connectionId)
-                if (clients.containsKey(connection)) receiveFrame(connection, text)
-            }
-
-            override fun onDisconnected(connectionId: String, publicKey: String) {
-                openPearConnections -= connectionId
-                closeConnection(PearFrameConnection(connectionId))
-            }
-        }
         @Volatile var listening: Boolean = false
-
-        fun startPearSessions() = pearRuntimeController.addListener(pearListener)
-
-        fun stopPearSessions() = pearRuntimeController.removeListener(pearListener)
 
         override fun onStart() {
             connectionLostTimeout = 30
@@ -310,7 +279,7 @@ class PhoneSyncServer @Inject constructor(
         }
 
         private fun openConnection(conn: ServerFrameConnection) {
-            // Anyone on the LAN (or the Pear DHT) can open a connection. Until it
+            // Anyone on the LAN can open a connection. Until it
             // authenticates it proves nothing, so bound how many may wait at once.
             if (clients.values.count { it.deviceId == null } >= MAX_UNAUTHENTICATED_CONNECTIONS) {
                 conn.close(CLOSE_TRY_AGAIN_LATER, "too many pending connections")
@@ -951,7 +920,7 @@ class PhoneSyncServer @Inject constructor(
 
         /**
          * Let go of what each session holds — partials, uploads, the inbound queue —
-         * for a stop that skips onClose (Pear sessions lose their listener first).
+         * for a stop that skips onClose.
          */
         fun releaseSessions() {
             clients.values.forEach { client ->
@@ -976,24 +945,6 @@ class PhoneSyncServer @Inject constructor(
         override val isOpen: Boolean get() = socket.isOpen
         override fun send(text: String) = socket.send(text)
         override fun close(code: Int, reason: String) = socket.close(code, reason)
-    }
-
-    private inner class PearFrameConnection(
-        private val connectionId: String,
-    ) : ServerFrameConnection {
-        // Always true used to keep blob uploads and catch-up streaming into a peer
-        // that had already gone; both loops stop on this.
-        override val isOpen: Boolean get() = connectionId in openPearConnections
-        override fun send(text: String) {
-            pearRuntimeController.send(connectionId, text)
-        }
-        override fun close(code: Int, reason: String) {
-            openPearConnections -= connectionId
-            pearRuntimeController.close(connectionId)
-        }
-        override fun equals(other: Any?): Boolean =
-            other is PhoneSyncServer.PearFrameConnection && other.connectionId == connectionId
-        override fun hashCode(): Int = connectionId.hashCode()
     }
 
     private data class Client(
@@ -1317,16 +1268,7 @@ class PhoneSyncServer @Inject constructor(
         if (!current.listening) return
         val host = localLanAddress()
         if (host == null) {
-            val pearReady = pearRuntimeController.status.value is PearRuntimeStatus.Ready
-            _state.value = if (pearReady) HostState.Ready(
-                pairingJson = pairingPayload(null, 0).toJson(),
-                host = "",
-                port = 0,
-                usedFallbackPort = false,
-                lanAvailable = false,
-            ) else HostState.Failed(
-                "Connect to Wi-Fi/Ethernet, or enable a Pear connection mode, to share pairing data."
-            )
+            _state.value = HostState.Failed(NO_NETWORK_MESSAGE)
             advertisedHost = null
             advertisedPort = null
             advertisingRestartJob?.cancel()
@@ -1358,15 +1300,8 @@ class PhoneSyncServer @Inject constructor(
         }
     }
 
-    /** Re-publish pairing metadata after an optional transport identity becomes ready. */
-    fun refreshPublishedPairing() {
-        if (_enabled.value) refreshPairingPayload()
-    }
-
-    private fun pairingPayload(host: String?, port: Int): PairingPayload {
-        val pearKey = (pearRuntimeController.status.value as? PearRuntimeStatus.Ready)?.publicKey
-        return pairingIdentity.payload(host.orEmpty(), port).copy(pearPublicKey = pearKey)
-    }
+    private fun pairingPayload(host: String, port: Int): PairingPayload =
+        pairingIdentity.payload(host, port)
 
     @Synchronized
     private fun restartAdvertising(host: String, port: Int) {
@@ -1461,6 +1396,7 @@ class PhoneSyncServer @Inject constructor(
     private companion object {
         const val TAG = "PhoneSyncServer"
         const val DEFAULT_PORT = 8765
+        const val NO_NETWORK_MESSAGE = "Connect to Wi-Fi or Ethernet to share a pairing code."
         const val PAIRING_CONFIRM_TIMEOUT_MS = 60_000L
         const val AUTH_TIMEOUT_MS = 10_000L
         const val MAX_UNAUTHENTICATED_CONNECTIONS = 8

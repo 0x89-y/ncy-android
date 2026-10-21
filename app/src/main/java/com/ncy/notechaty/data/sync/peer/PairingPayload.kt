@@ -20,8 +20,6 @@ data class PairingPayload(
     val host: String,
     val port: Int,
     val secret: String,
-    /** Optional 32-byte Pear public key encoded as 64 lowercase hex characters. */
-    val pearPublicKey: String? = null,
     /** Optional host lifecycle capability; absent means continuously available. */
     val availability: String? = null,
 ) {
@@ -34,7 +32,6 @@ data class PairingPayload(
         port = port,
         secret = secret,
         pairedAt = now,
-        pearPublicKey = pearPublicKey,
         availability = availability,
     )
 
@@ -46,18 +43,15 @@ data class PairingPayload(
             val parsed = Gson().fromJson(text.trim(), PairingPayload::class.java)
             if (parsed == null || parsed.v != WIRE_VERSION) null
             else if (parsed.deviceId.isBlank() || parsed.secret.isBlank()) null
-            else if (!parsed.hasLanEndpoint && parsed.pearPublicKey == null) null
-            else if (parsed.pearPublicKey != null && !PEAR_PUBLIC_KEY.matches(parsed.pearPublicKey)) null
+            else if (!parsed.hasLanEndpoint) null
             else parsed
         } catch (e: JsonSyntaxException) {
             null
         } catch (e: Exception) {
             null
         }
-
-        private val PEAR_PUBLIC_KEY = Regex("^[0-9a-f]{64}$")
     }
 
-    /** Pear-only invitations deliberately carry no pretend or stale LAN address. */
+    /** Sync runs over the local network only, so an invitation without an address is unusable. */
     val hasLanEndpoint: Boolean get() = host.isNotBlank() && port in 1..65535
 }

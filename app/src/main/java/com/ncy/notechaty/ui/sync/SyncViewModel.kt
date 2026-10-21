@@ -13,7 +13,6 @@ import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.data.repository.SettingsRepository
-import com.ncy.notechaty.data.sync.pear.PearRuntimeController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +33,6 @@ class SyncViewModel @Inject constructor(
     private val deviceIdentity: DeviceIdentity,
     private val phoneSyncServer: PhoneSyncServer,
     private val settingsRepository: SettingsRepository,
-    pearRuntimeController: PearRuntimeController,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) : ViewModel() {
 
@@ -46,7 +44,6 @@ class SyncViewModel @Inject constructor(
     val hostedPeers: StateFlow<List<PhoneSyncServer.HostedPeer>> = phoneSyncServer.hostedPeers
     val pendingPairing: StateFlow<PhoneSyncServer.PendingPairing?> = phoneSyncServer.pendingPairing
     val settings = settingsRepository.settings
-    val pearStatus = pearRuntimeController.status
 
     /** Which discovered peer (by mDNS serviceName) has an in-flight pair request. */
     private val _pairingBusy = MutableStateFlow<String?>(null)
@@ -229,15 +226,6 @@ class SyncViewModel @Inject constructor(
     fun approvePendingPairing() = phoneSyncServer.approvePendingPairing()
 
     fun rejectPendingPairing() = phoneSyncServer.rejectPendingPairing()
-
-    fun setSyncTransportMode(mode: com.ncy.notechaty.data.model.SyncTransportMode) {
-        viewModelScope.launch {
-            if (settings.value.syncTransportMode == mode) return@launch
-            settingsRepository.updateSettings(settings.value.copy(syncTransportMode = mode))
-            syncManager.stop()
-            syncManager.start()
-        }
-    }
 
     fun setAutomaticFileDownloadLimit(bytes: Long) {
         viewModelScope.launch {

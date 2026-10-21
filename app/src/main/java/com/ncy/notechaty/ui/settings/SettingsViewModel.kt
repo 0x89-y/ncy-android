@@ -9,7 +9,6 @@ import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.AppSettings
 import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
-import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.MediaCleanupReport
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -216,15 +215,6 @@ class SettingsViewModel @Inject constructor(
             if (settings.value.autoBackupEnabled) {
                 BackupScheduler.schedule(context, hours)
             }
-        }
-    }
-
-    fun setSyncTransportMode(mode: SyncTransportMode) {
-        viewModelScope.launch {
-            if (settings.value.syncTransportMode == mode) return@launch
-            settingsRepository.updateSettings(settings.value.copy(syncTransportMode = mode))
-            syncManager.stop()
-            syncManager.start()
         }
     }
 

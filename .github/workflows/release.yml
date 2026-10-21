@@ -13,8 +13,7 @@ permissions:
 
 jobs:
   release:
-    # Windows matches the local release path: the Pear and Bare Kit scripts rely
-    # on bsdtar unpacking ZIP archives and on Windows path separators.
+    # Windows matches the local release path (build-apks.bat and apksigner.bat).
     runs-on: windows-latest
     # Signing secrets live in this environment so only release tags can read them.
     environment: release
@@ -27,10 +26,6 @@ jobs:
       RELEASE_CERT_SHA256: 3c452d2941578648d27a77bf2ce0cae6c02399942ed1ac94527cb43198c7c7d6
     steps:
       - uses: actions/checkout@v7
-        with:
-          # third_party/bare-kit is a submodule; the Pear notices and the Bare Kit
-          # AAR are both resolved from inside it.
-          submodules: recursive
 
       - name: Check version and extract notes
         id: version
@@ -65,20 +60,11 @@ jobs:
           distribution: jetbrains
           java-version: 21
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
       # There is no Gradle wrapper script in this repo; keep this in step with
       # gradle/wrapper/gradle-wrapper.properties.
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.13"
-
-      # Windows PowerShell, as build-apks.bat runs it locally.
-      - name: Build the Pear worker and linked Bare Kit AAR
-        shell: powershell
-        run: ./scripts/build_pear_worker.ps1
 
       - name: Prepare signing configuration
         env:

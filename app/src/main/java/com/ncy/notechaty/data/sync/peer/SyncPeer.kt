@@ -16,8 +16,6 @@ data class SyncPeer(
     val port: Int,
     val secret: String,
     val pairedAt: Long,
-    /** Authenticated Pear/Noise public key used only when internet sync is enabled. */
-    val pearPublicKey: String? = null,
     val lastSyncAt: Long? = null,
     /** Highest HLC the peer has acked from us. Drives our outbound catchup. */
     val lastSentHlcMs: Long? = null,

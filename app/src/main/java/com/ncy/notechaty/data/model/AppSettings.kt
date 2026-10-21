@@ -36,17 +36,6 @@ enum class ChatSortMode(@StringRes val label: Int) {
     CREATED(R.string.sort_date_created)
 }
 
-enum class SyncTransportMode(
-    @StringRes val label: Int,
-    @StringRes val description: Int,
-    val usesPear: Boolean,
-) {
-    LOCAL_ONLY(R.string.mode_local_only, R.string.mode_local_only_hint, false),
-    PEAR_ONLY(R.string.mode_pear_only, R.string.mode_pear_only_hint, true),
-    LOCAL_PREFERRED(R.string.mode_local_preferred, R.string.mode_local_preferred_hint, true),
-    PEAR_PREFERRED(R.string.mode_pear_preferred, R.string.mode_pear_preferred_hint, true),
-}
-
 data class AppSettings(
     /** Installation-owned friendly name announced only after explicit pairing/authentication. */
     val deviceName: String = "Android phone",
@@ -69,8 +58,6 @@ data class AppSettings(
      * keep everything while a phone keeps what it has actually opened.
      */
     val mediaBackfillCutoffMs: Long = 0L,
-    /** Installation-local policy. LOCAL_ONLY guarantees no Pear/DHT runtime starts. */
-    val syncTransportMode: SyncTransportMode = SyncTransportMode.LOCAL_ONLY,
     val protectionPinHash: String? = null,
     val protectionPinSalt: String? = null,
     val protectionUseBiometric: Boolean = false,

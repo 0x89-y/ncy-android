@@ -3,7 +3,6 @@ package com.ncy.notechaty.data.sync
 import android.util.Log
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
-import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import com.ncy.notechaty.data.sync.event.ChatEventOp
 import com.ncy.notechaty.data.sync.event.HlcTimestamp
@@ -18,8 +17,6 @@ import com.ncy.notechaty.data.sync.discovery.LanNetworkMonitor
 import com.ncy.notechaty.data.sync.discovery.EndpointCandidateTracker
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeerStore
-import com.ncy.notechaty.data.sync.pear.PearRuntimeController
-import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import com.ncy.notechaty.data.sync.transport.SyncClient
 import com.ncy.notechaty.data.sync.transport.SyncCatchupPolicy
 import com.ncy.notechaty.data.sync.transport.SyncLimits
@@ -68,7 +65,6 @@ class SyncManager @Inject constructor(
     private val mdnsDiscovery: MdnsDiscovery,
     private val lanNetworkMonitor: LanNetworkMonitor,
     private val settingsRepository: SettingsRepository,
-    private val pearRuntimeController: PearRuntimeController,
     private val transferState: MediaTransferState,
 ) {
     private val tag = "SyncManager"
@@ -128,16 +124,9 @@ class SyncManager @Inject constructor(
         mdnsDiscovery.start()
         networkJob = scope.launch {
             val previous = mutableMapOf<String, Boolean>()
-            combine(
-                lanNetworkMonitor.available,
-                lanNetworkMonitor.internetAvailable,
-                settingsRepository.settings,
-                pearRuntimeController.status,
-            ) { lan, internet, settings, pearStatus ->
-                NetworkAvailability(lan, internet, settings.syncTransportMode, pearStatus is PearRuntimeStatus.Ready)
-            }.collect { availability ->
+            lanNetworkMonitor.available.collect { lan ->
                 peerStore.peers.value.forEach { peer ->
-                    val usable = canUseNetwork(peer, availability)
+                    val usable = canUseNetwork(peer, lan)
                     val wasUsable = previous.put(peer.id, usable)
                     if (!usable) {
                         synchronized(this@SyncManager) { perPeer[peer.id]?.pauseForNetwork() }
@@ -271,36 +260,12 @@ class SyncManager @Inject constructor(
         session.run()
     }
 
-    private data class NetworkAvailability(
-        val lan: Boolean,
-        val internet: Boolean,
-        val mode: SyncTransportMode,
-        val pearReady: Boolean,
-    )
+    private fun canUseNetwork(peer: SyncPeer): Boolean =
+        canUseNetwork(peer, lanNetworkMonitor.available.value)
 
-    private fun canUseNetwork(peer: SyncPeer): Boolean = canUseNetwork(
-        peer,
-        NetworkAvailability(
-            lan = lanNetworkMonitor.available.value,
-            internet = lanNetworkMonitor.internetAvailable.value,
-            mode = settingsRepository.settings.value.syncTransportMode,
-            pearReady = pearRuntimeController.status.value is PearRuntimeStatus.Ready,
-        ),
-    )
-
-    private fun canUseNetwork(peer: SyncPeer, availability: NetworkAvailability): Boolean {
-        val lanUsable = availability.lan && peer.hasLanEndpoint
-        val pearUsable =
-            availability.internet &&
-                availability.pearReady &&
-                peer.pearPublicKey != null
-        return when (availability.mode) {
-            SyncTransportMode.LOCAL_ONLY -> lanUsable
-            SyncTransportMode.PEAR_ONLY -> pearUsable
-            SyncTransportMode.LOCAL_PREFERRED,
-            SyncTransportMode.PEAR_PREFERRED -> lanUsable || pearUsable
-        }
-    }
+    /** Sync runs over the local network only, so a peer needs both it and an address on it. */
+    private fun canUseNetwork(peer: SyncPeer, lanAvailable: Boolean): Boolean =
+        lanAvailable && peer.hasLanEndpoint
 
     private fun updateState(peerId: String, state: PeerState) {
         _states.value = _states.value.toMutableMap().apply { put(peerId, state) }

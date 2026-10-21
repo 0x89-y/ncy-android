@@ -5,10 +5,10 @@ package com.ncy.notechaty.data.sync.transport
  *
  * Authentication, encryption, catch-up, and event semantics deliberately live above this
  * boundary. A transport only finds a peer, carries complete frames in order, and reports its
- * lifecycle. That allows LAN WebSockets and an eventual Pear stream to share one protocol.
+ * lifecycle.
  */
 interface ClientSyncTransport {
-    enum class Kind { LAN, PEAR }
+    enum class Kind { LAN }
     interface Connection {
         fun send(text: String): Boolean
         fun close(code: Int, reason: String): Boolean
@@ -36,7 +36,6 @@ interface ClientSyncTransport {
         host: String,
         port: Int,
         path: String,
-        pearPublicKey: String?,
         listener: Listener,
     ): Connection
 }

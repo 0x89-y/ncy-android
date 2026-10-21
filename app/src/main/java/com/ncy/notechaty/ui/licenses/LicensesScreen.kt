@@ -94,36 +94,6 @@ private val licenses = listOf(
         author = "JourneyApps / ZXing",
         url = "https://github.com/journeyapps/zxing-android-embedded"
     ),
-    LicenseEntry(
-        name = "Bare / Bare Kit",
-        author = "Holepunch",
-        license = "Apache-2.0",
-        url = "https://github.com/holepunchto/bare-kit"
-    ),
-    LicenseEntry(
-        name = "Hyperswarm",
-        author = "Holepunch contributors",
-        license = "MIT",
-        url = "https://github.com/holepunchto/hyperswarm"
-    ),
-    LicenseEntry(
-        name = "HyperDHT",
-        author = "Holepunch contributors",
-        license = "MIT",
-        url = "https://github.com/holepunchto/hyperdht"
-    ),
-    LicenseEntry(
-        name = "sodium-native",
-        author = "Holepunch contributors",
-        license = "MIT",
-        url = "https://github.com/holepunchto/sodium-native"
-    ),
-    LicenseEntry(
-        name = "udx-native",
-        author = "Holepunch contributors",
-        license = "Apache-2.0",
-        url = "https://github.com/holepunchto/udx-native"
-    )
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -225,7 +195,7 @@ private fun ApacheLicensePanel() {
         ) {
             Text("Apache License 2.0", style = MaterialTheme.typography.titleSmall)
             Text(
-                "Ncy includes software under Apache-2.0, MIT, and ISC licenses. A detailed dependency inventory and the license and notice texts supplied by bundled Pear packages are included in the application asset THIRD_PARTY_NOTICES_PEAR.md.",
+                "The libraries above are used under the Apache License 2.0.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

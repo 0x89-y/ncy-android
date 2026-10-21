@@ -100,7 +100,7 @@ class SyncClient @Inject constructor(
         var secure: TransportCrypto? = null
         lateinit var connection: ClientSyncTransport.Connection
 
-        connection = frameTransport.connect(peer.host, peer.port, "sync", peer.pearPublicKey, object : ClientSyncTransport.Listener {
+        connection = frameTransport.connect(peer.host, peer.port, "sync", object : ClientSyncTransport.Listener {
             override fun onTransportSelected(kind: ClientSyncTransport.Kind) {
                 onEvent(Event.TransportSelected(kind))
             }

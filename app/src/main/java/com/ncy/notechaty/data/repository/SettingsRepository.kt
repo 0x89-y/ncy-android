@@ -8,7 +8,6 @@ import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.AppSettings
 import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
-import com.ncy.notechaty.data.model.SyncTransportMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,9 +21,10 @@ class SettingsRepository @Inject constructor(
 ) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("ncy_settings", Context.MODE_PRIVATE)
-    // Network consent is installation-local and deliberately excluded from backup/transfer.
-    private val transportPrefs: SharedPreferences =
-        context.getSharedPreferences("ncy_transport_settings", Context.MODE_PRIVATE)
+    init {
+        // Held the internet-sync connection mode; sync is local-network only now.
+        context.deleteSharedPreferences("ncy_transport_settings")
+    }
 
     private val _settings = MutableStateFlow(loadSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -53,11 +53,6 @@ class SettingsRepository @Inject constructor(
                     100L * 1024 * 1024,
                 ).coerceIn(0L, 1024L * 1024 * 1024),
                 mediaBackfillCutoffMs = prefs.getLong("mediaBackfillCutoffMs", 0L),
-                syncTransportMode = transportPrefs.getString(KEY_TRANSPORT_MODE, null)
-                    ?.let { runCatching { SyncTransportMode.valueOf(it) }.getOrNull() }
-                    ?: if (transportPrefs.getBoolean(LEGACY_PEAR_ENABLED, false)) {
-                        SyncTransportMode.LOCAL_PREFERRED
-                    } else SyncTransportMode.LOCAL_ONLY,
                 protectionPinHash = prefs.getString("protectionPinHash", null),
                 protectionPinSalt = prefs.getString("protectionPinSalt", null),
                 protectionUseBiometric = prefs.getBoolean("protectionUseBiometric", false),
@@ -104,10 +99,6 @@ class SettingsRepository @Inject constructor(
             .putBoolean("lockOnAppStart", settings.lockOnAppStart)
             .putInt("protectionGracePeriodMinutes", settings.protectionGracePeriodMinutes)
             .apply()
-        transportPrefs.edit()
-            .putString(KEY_TRANSPORT_MODE, settings.syncTransportMode.name)
-            .remove(LEGACY_PEAR_ENABLED)
-            .apply()
     }
 
     private fun defaultDeviceName(): String =
@@ -119,9 +110,4 @@ class SettingsRepository @Inject constructor(
             ?.takeIf { it.isNotEmpty() }
             ?: Build.MODEL?.trim()?.take(80)?.takeIf { it.isNotEmpty() }
             ?: "Android phone"
-
-    private companion object {
-        const val KEY_TRANSPORT_MODE = "syncTransportMode"
-        const val LEGACY_PEAR_ENABLED = "pearSyncEnabled"
-    }
 }

@@ -16,9 +16,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.Lifecycle
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.rememberNavController
 import android.content.Intent
@@ -34,15 +31,10 @@ import com.ncy.notechaty.security.AppLockCoordinator
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
-import com.ncy.notechaty.data.sync.pear.PearRuntimeController
-import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import com.ncy.notechaty.ui.desktoptheme.NcyDesktopTheme
 import com.ncy.notechaty.ui.navigation.NcyNavGraph
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -61,9 +53,6 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var phoneSyncServer: PhoneSyncServer
-
-    @Inject
-    lateinit var pearRuntimeController: PearRuntimeController
 
     @Inject
     lateinit var appLockCoordinator: AppLockCoordinator
@@ -109,7 +98,6 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         // A rotation stops and restarts the activity without the user leaving.
         if (!isChangingConfigurations) appLockCoordinator.onBackground()
-        pearRuntimeController.stop()
         syncManager.stop()
         phoneSyncServer.stop()
         super.onStop()
@@ -119,25 +107,6 @@ class MainActivity : FragmentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) pendingChat.value = takeReminderChat(intent)
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                settingsRepository.settings
-                    .map { it.syncTransportMode.usesPear }
-                    .distinctUntilChanged()
-                    .collect { enabled ->
-                        if (enabled) pearRuntimeController.start() else pearRuntimeController.stop()
-                    }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                pearRuntimeController.status.collect { status ->
-                    if (status is PearRuntimeStatus.Ready) {
-                        phoneSyncServer.refreshPublishedPairing()
-                    }
-                }
-            }
-        }
         setContent {
             val settings by settingsRepository.settings.collectAsState()
             NcyDesktopTheme(

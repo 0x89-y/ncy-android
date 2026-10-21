@@ -2,11 +2,10 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 rem Builds Ncy Android APKs without Android Studio.
-rem Usage: build-apks.bat [debug^|release^|all] [--arm64] [--skip-pear] [--no-open]
+rem Usage: build-apks.bat [debug^|release^|all] [--arm64] [--no-open]
 
 cd /d "%~dp0"
 set "BUILD_MODE=debug"
-set "SKIP_PEAR=0"
 set "OPEN_OUTPUT=1"
 set "ARM64_ONLY=0"
 set "SIGNING_PROPERTIES=%NCY_ANDROID_SIGNING_PROPERTIES%"
@@ -26,11 +25,6 @@ if /I "%~1"=="release" (
 )
 if /I "%~1"=="all" (
   set "BUILD_MODE=all"
-  shift /1
-  goto :parse_args
-)
-if /I "%~1"=="--skip-pear" (
-  set "SKIP_PEAR=1"
   shift /1
   goto :parse_args
 )
@@ -102,24 +96,13 @@ if not exist "local.properties" (
   )
 )
 
-if "%SKIP_PEAR%"=="0" (
-  echo [1/3] Rebuilding the Pear worker and native addon package...
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts\build_pear_worker.ps1" -RepositoryRoot "%CD%"
-  if errorlevel 1 (
-    echo ERROR: Pear worker build failed.
-    goto :failed
-  )
-) else (
-  echo [1/3] Keeping the existing Pear worker assets ^(--skip-pear^).
-)
-
 set "GRADLE_TASKS="
 if /I "%BUILD_MODE%"=="debug" set "GRADLE_TASKS=assembleProductionDebug"
 if /I "%BUILD_MODE%"=="release" set "GRADLE_TASKS=assembleProductionRelease"
 if /I "%BUILD_MODE%"=="all" set "GRADLE_TASKS=assembleProductionDebug assembleProductionRelease"
 
 echo.
-echo [2/3] Running !GRADLE_TASKS!...
+echo [1/2] Running !GRADLE_TASKS!...
 set "GRADLE_ABI_ARG="
 if "%ARM64_ONLY%"=="1" set "GRADLE_ABI_ARG=-PncyAbis=arm64-v8a"
 if /I "%BUILD_MODE%"=="debug" (
@@ -138,7 +121,7 @@ if not defined APP_VERSION set "APP_VERSION=unknown"
 set "OUTPUT_ROOT=%CD%\release\android\!APP_VERSION!"
 
 echo.
-echo [3/3] Collecting APKs in !OUTPUT_ROOT!...
+echo [2/2] Collecting APKs in !OUTPUT_ROOT!...
 if /I "%BUILD_MODE%"=="debug" call :collect debug
 if /I "%BUILD_MODE%"=="release" call :collect release
 if /I "%BUILD_MODE%"=="all" (
@@ -245,14 +228,13 @@ echo.
 exit /b 0
 
 :usage
-echo Usage: %~nx0 [debug^|release^|all] [--arm64] [--skip-pear] [--no-open]
+echo Usage: %~nx0 [debug^|release^|all] [--arm64] [--no-open]
 echo.
 echo   debug    Installable production APKs, one per ABI. This is the default.
 echo   release  Optimized and signed APKs, one per ABI.
 echo   all      Build both sets.
 echo.
 echo --arm64 builds only the arm64-v8a APK for faster physical-device testing.
-echo --skip-pear keeps the existing generated Pear bundle and linked AAR.
 echo --no-open does not open Explorer after a successful build.
 exit /b 2
 

@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
-import com.ncy.notechaty.data.model.SyncTransportMode
 import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.data.sync.DeviceNameDisambiguation
 import com.ncy.notechaty.data.sync.SyncFailurePolicy
@@ -52,7 +51,6 @@ import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.PairingPayload
-import com.ncy.notechaty.data.sync.pear.PearRuntimeStatus
 import com.ncy.notechaty.data.sync.transport.PhoneSyncServer
 import com.ncy.notechaty.data.sync.transport.SyncEndpoint
 import com.google.zxing.BarcodeFormat
@@ -93,16 +91,13 @@ fun SyncScreen(
     val hostedPeers by viewModel.hostedPeers.collectAsState()
     val pendingPairing by viewModel.pendingPairing.collectAsState()
     val settings by viewModel.settings.collectAsState()
-    val pearStatus by viewModel.pearStatus.collectAsState()
     var showShareDialog by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
     var pairingText by remember { mutableStateOf("") }
     var pairingError by remember { mutableStateOf<String?>(null) }
     var pairingSuccess by remember { mutableStateOf<String?>(null) }
     var showAdvancedPairing by rememberSaveable { mutableStateOf(false) }
-    var showTransportModeDialog by remember { mutableStateOf(false) }
     var showFileLimitDialog by remember { mutableStateOf(false) }
-    var pendingPearMode by remember { mutableStateOf<SyncTransportMode?>(null) }
 
     // Surface discovery-initiated pair results (success / rejection / timeout)
     // via the same success/error slots the QR path already uses.
@@ -151,8 +146,6 @@ fun SyncScreen(
     if (showShareDialog) {
         PairingDialog(
             state = hostState,
-            pearEnabled = settings.syncTransportMode.usesPear,
-            pearStatus = pearStatus,
             onDismiss = { showShareDialog = false },
             onRegenerate = viewModel::regeneratePairing,
         )
@@ -178,38 +171,6 @@ fun SyncScreen(
             confirmButton = {
                 TextButton(onClick = { showInfoDialog = false }) { Text(stringResource(R.string.done)) }
             },
-        )
-    }
-
-    if (showTransportModeDialog) {
-        NcyAlertDialog(
-            onDismissRequest = { showTransportModeDialog = false },
-            title = { Text(stringResource(R.string.connection_mode)) },
-            text = {
-                Column {
-                    SyncTransportMode.entries.forEach { mode ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                if (mode.usesPear && !settings.syncTransportMode.usesPear) {
-                                    pendingPearMode = mode
-                                } else {
-                                    viewModel.setSyncTransportMode(mode)
-                                }
-                                showTransportModeDialog = false
-                            }.padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = settings.syncTransportMode == mode, onClick = null)
-                            Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(stringResource(mode.label))
-                                Text(stringResource(mode.description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { showTransportModeDialog = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 
@@ -260,24 +221,6 @@ fun SyncScreen(
         )
     }
 
-    pendingPearMode?.let { selectedMode ->
-        NcyAlertDialog(
-            onDismissRequest = { pendingPearMode = null },
-            title = { Text(stringResource(R.string.enable_internet_sync)) },
-            text = {
-                Text(
-                    stringResource(R.string.your_paired_devices_find_each_other)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.setSyncTransportMode(selectedMode)
-                    pendingPearMode = null
-                }) { Text(stringResource(R.string.use, stringResource(selectedMode.label))) }
-            },
-            dismissButton = { TextButton(onClick = { pendingPearMode = null }) { Text(stringResource(R.string.cancel)) } },
-        )
-    }
     pendingPairing?.let { request ->
         NcyAlertDialog(
             onDismissRequest = {},
@@ -435,7 +378,6 @@ fun SyncScreen(
                                 onSyncNow = { viewModel.syncNow(peer.id) },
                                 onEnabledChange = { viewModel.setPeerEnabled(peer.id, it) },
                                 onUnpair = { viewModel.unpair(peer.id) },
-                                transportPolicy = stringResource(settings.syncTransportMode.label),
                                 showFingerprint = DeviceNameDisambiguation.isDuplicate(peer.name, duplicateDeviceNames),
                             )
                         }
@@ -448,8 +390,6 @@ fun SyncScreen(
             }
 
             NcySettingsSection(stringResource(R.string.sync_settings)) {
-                NcySettingsRow(icon = Icons.Default.Public, title = stringResource(R.string.connection_mode), subtitle = stringResource(settings.syncTransportMode.label), onClick = { showTransportModeDialog = true })
-                NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.FileDownload,
                     title = stringResource(R.string.automatic_file_downloads),
@@ -479,8 +419,6 @@ fun SyncScreen(
 @Composable
 private fun PairingDialog(
     state: PhoneSyncServer.HostState,
-    pearEnabled: Boolean,
-    pearStatus: PearRuntimeStatus,
     onDismiss: () -> Unit,
     onRegenerate: () -> Unit,
 ) {
@@ -517,34 +455,18 @@ private fun PairingDialog(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    val payloadHasPear = remember(state.pairingJson) {
-                        PairingPayload.parse(state.pairingJson)?.pearPublicKey != null
-                    }
                     val qr = remember(state.pairingJson) { pairingQrBitmap(state.pairingJson) }
-                    if (qr != null && (!pearEnabled || payloadHasPear)) {
+                    if (qr != null) {
                         Image(
                             bitmap = qr.asImageBitmap(),
                             contentDescription = stringResource(R.string.phone_pairing_qr_code),
                             modifier = Modifier.size(240.dp),
                         )
-                    } else if (pearEnabled && pearStatus is PearRuntimeStatus.Starting) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(120.dp),
-                            contentAlignment = Alignment.Center,
-                        ) { CircularProgressIndicator() }
                     }
                     Text(
-                        when {
-                            payloadHasPear -> stringResource(R.string.works_over_the_internet_too_on_the_same)
-                            pearEnabled && pearStatus is PearRuntimeStatus.Starting -> stringResource(R.string.internet_sync_is_still_starting_wait_a)
-                            pearEnabled && pearStatus is PearRuntimeStatus.Failed -> stringResource(R.string.internet_sync_could_not_start_this_code, pearStatus.reason)
-                            pearEnabled -> stringResource(R.string.internet_sync_is_not_ready_yet_this_code)
-                            else -> stringResource(R.string.this_code_only_works_on_the_same_wi_fi)
-                        },
+                        stringResource(R.string.this_code_only_works_on_the_same_wi_fi),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (payloadHasPear || !pearEnabled) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else MaterialTheme.colorScheme.error,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         stringResource(R.string.anyone_who_scans_this_code_can_pair_with),
@@ -552,9 +474,7 @@ private fun PairingDialog(
                         color = MaterialTheme.colorScheme.error,
                     )
                     Text(
-                        if (!state.lanAvailable) {
-                            stringResource(R.string.reachable_over_the_internet_the_code)
-                        } else if (state.usedFallbackPort) {
+                        if (state.usedFallbackPort) {
                             stringResource(R.string.reachable_on_this_network_at_the_usual, SyncEndpoint.display(state.host, state.port))
                         } else {
                             stringResource(R.string.reachable_on_this_network_at_the_code, SyncEndpoint.display(state.host, state.port))
@@ -578,7 +498,6 @@ private fun PairingDialog(
                             },
                             shape = NcyButtonShape,
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !pearEnabled || payloadHasPear,
                         ) { Text(stringResource(R.string.copy_pairing_text)) }
                         TextButton(onClick = onRegenerate) { Text(stringResource(R.string.make_a_new_code)) }
                         Text(
@@ -712,7 +631,6 @@ private fun PeerCard(
     onSyncNow: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onUnpair: () -> Unit,
-    transportPolicy: String,
     showFingerprint: Boolean,
 ) {
     var showDiagnostics by remember { mutableStateOf(false) }
@@ -774,18 +692,7 @@ private fun PeerCard(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text(stringResource(R.string.retry, retry), style = MaterialTheme.typography.bodySmall)
-                    Text(stringResource(R.string.configured_policy, transportPolicy), style = MaterialTheme.typography.bodySmall)
                     Text(stringResource(R.string.direct_lan, lan), style = MaterialTheme.typography.bodySmall)
-                    if (state is SyncManager.PeerState.Connected) {
-                        Text(
-                            stringResource(R.string.active_transport, state.transport?.name ?: stringResource(R.string.negotiating)),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Text(
-                        stringResource(R.string.pear_pairing_key, if (peer.pearPublicKey != null) stringResource(R.string.included) else stringResource(R.string.not_included)),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                     peer.lastError?.let {
                         Text(
                             stringResource(R.string.last_error, it),
@@ -995,7 +902,7 @@ private fun statusLine(state: SyncManager.PeerState, peer: SyncPeer): String = w
     SyncManager.PeerState.WaitingForNetwork -> stringResource(R.string.waiting_to_connect)
     SyncManager.PeerState.Connecting -> stringResource(R.string.waiting_to_connect)
     is SyncManager.PeerState.Connected ->
-        "${if (state.transport?.name.equals("PEAR", ignoreCase = true)) stringResource(R.string.connected_over_the_internet) else stringResource(R.string.connected_on_this_network)} · ${state.sentCount} sent · ${state.receivedCount} received"
+        "${stringResource(R.string.connected_on_this_network)} · ${state.sentCount} sent · ${state.receivedCount} received"
     is SyncManager.PeerState.Unavailable -> stringResource(R.string.unavailable, state.reason)
     is SyncManager.PeerState.Failed -> stringResource(R.string.failed, state.reason)
 }

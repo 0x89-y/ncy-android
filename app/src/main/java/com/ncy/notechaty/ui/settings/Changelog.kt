@@ -14,6 +14,22 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.7",
+        date = "2026-10-21",
+        changes = listOf(
+            "Added more reminder choices, each showing when it rings, and Pick date & time for any moment.",
+            "Added Remove reminder for messages that already have one.",
+            "Reminders set on another device now ring on this phone too, and tapping one opens its chat.",
+            "Archived chats now open as their own list from the filter menu, next to Favorites.",
+            "Favorites moved into the filter menu; the Reminders row shows only while a reminder is upcoming.",
+            "The chat list and profiles now run edge to edge, and profile tags use each profile's colour.",
+            "A new chat in All chats picks its profile from a dropdown.",
+            "Fixed Favorites and Reminders only updating after a restart.",
+            "Fixed removed reminders and deleted messages still ringing.",
+            "Fixed the editing banner and other tinted labels being hard to read.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.6",
         date = "2026-10-21",
         changes = listOf(

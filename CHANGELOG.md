@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.7.7 — 2026-10-21
+
+### Added
+
+- Added more reminder choices: in 15 minutes, in 1 or 3 hours, this evening, tomorrow
+  morning and next week, each showing the time it rings. **Pick date & time** sets any
+  moment with a calendar and a clock.
+- Added **Remove reminder**. A message that already has a reminder shows when it is set
+  for, and removing it removes it on every paired device.
+- Archived chats now open as their own list from the filter menu, next to Favorites,
+  instead of a section under the chats.
+
+### Changed
+
+- Favorites moved into the filter menu. The Reminders row above the chats shows only
+  while a reminder is upcoming.
+- Reminder alarms now follow the reminders stored in the chats: reminders set on another
+  device ring on this phone too, and every alarm is set again after a restart. Tapping a
+  reminder notification opens its chat. Reminders in protected chats or profiles only say
+  "Reminder" in the notification.
+- The chat list, archived chats and profiles now run edge to edge, and profile avatars
+  match the size of chat avatars.
+- Profile tags under All chats use each profile's own colour.
+- A chat created from All chats picks its profile from a dropdown rather than a row of
+  chips.
+- Bottom sheets open fully instead of half way.
+- Removed descriptions that only repeated their setting's name.
+
+### Fixed
+
+- Fixed Favorites and Reminders only updating after Ncy restarted.
+- Fixed removed reminders, and reminders of deleted messages, chats or profiles, still
+  ringing.
+- Fixed the "Editing message" banner and other accent-tinted labels being hard to read.
+
 ## 0.7.6 — 2026-10-21
 
 ### Added

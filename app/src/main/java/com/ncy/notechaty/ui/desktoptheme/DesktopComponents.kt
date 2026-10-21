@@ -228,6 +228,8 @@ fun NcyInputSheet(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
     initialValue: String = "",
+    /** Extra controls between the field and the button, e.g. where a chat goes. */
+    extra: (@Composable () -> Unit)? = null,
 ) {
     var value by remember { mutableStateOf(initialValue) }
     // The sheet exists to take a name, so the field takes focus (and the keyboard
@@ -260,6 +262,7 @@ fun NcyInputSheet(
                 }),
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
             )
+            extra?.invoke()
             Button(
                 onClick = { onConfirm(value.trim()) },
                 enabled = value.trim().isNotEmpty(),

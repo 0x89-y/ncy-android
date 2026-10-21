@@ -114,7 +114,7 @@
     <string name="pin_saved">PIN saved</string>
     <string name="profiles">Profiles</string>
     <string name="each_profile_has_its_own_chats_and_lock">Each profile has its own chats and lock. Tap a profile to manage it.</string>
-    <string name="all_chats_and_messages_in_this_profile">All chats and messages in this profile will be permanently deleted. This cannot be undone.</string>
+    <string name="all_chats_and_messages_in_this_profile">All chats and messages in this profile will be deleted on this phone and on every paired device. This cannot be undone.</string>
     <string name="pick_an_icon">Pick an icon</string>
     <string name="choose_a_pin_of_at_least_4_characters">Choose a PIN of at least 4 characters.</string>
     <string name="new_pin">New PIN</string>
@@ -456,4 +456,14 @@
     <string name="pairing_cancelled_after_accept">Pairing cancelled. The computer already added this phone, so remove it there.</string>
     <string name="pair_request_cancelled">Pair request cancelled.</string>
     <string name="current_pin_wrong">The current PIN is wrong.</string>
+    <string name="all_chats">All chats</string>
+    <string name="create_in_profile">In profile</string>
+    <plurals name="chat_count">
+        <item quantity="one">%d chat</item>
+        <item quantity="other">%d chats</item>
+    </plurals>
+    <plurals name="chats_across_profiles">
+        <item quantity="one">%1$d chat across %2$d profiles</item>
+        <item quantity="other">%1$d chats across %2$d profiles</item>
+    </plurals>
 </resources>

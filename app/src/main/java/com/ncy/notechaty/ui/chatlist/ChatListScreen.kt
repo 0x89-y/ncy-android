@@ -6,6 +6,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import com.ncy.notechaty.ui.desktoptheme.NcyChoiceChip
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,11 +26,6 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.StarOutline
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
@@ -93,6 +94,9 @@ fun ChatListScreen(
     val baseDir by viewModel.baseDir.collectAsState()
     val profiles by viewModel.profiles.collectAsState()
     val activeProfileId by viewModel.activeProfileId.collectAsState()
+    val showAllProfiles by viewModel.showAllProfiles.collectAsState()
+    val chatProfiles by viewModel.chatProfiles.collectAsState()
+    var showProfileSheet by remember { mutableStateOf(false) }
     val searchQuery by searchViewModel.query.collectAsState()
     val searchResults by searchViewModel.results.collectAsState()
     val isSearching by searchViewModel.isSearching.collectAsState()
@@ -115,16 +119,38 @@ fun ChatListScreen(
         searchViewModel.setQuery("")
         searchActive = false
     }
+    // Favorites and Reminders open over the list now that there is no tab bar.
+    BackHandler(enabled = !searchActive && homeTab != HomeTab.CHATS) {
+        homeTab = HomeTab.CHATS
+    }
     LaunchedEffect(searchActive) {
         if (searchActive) searchFocusRequester.requestFocus()
     }
 
     val openChat: (Chat) -> Unit = { chat ->
+        // Under "All chats" the chat's own profile becomes active first: the chat
+        // screen, and the unlock below, work in the active profile.
+        viewModel.useProfileOf(chat.id)
         if (chat.isProtected && !viewModel.isChatUnlockedWithinGrace(chat.id)) {
             chatToUnlock = chat
         } else {
             onChatClick(chat.id, chat.name)
         }
+    }
+    val openChatById: (String) -> Unit = { id ->
+        viewModel.useProfileOf(id)
+        onChatClick(id, "")
+    }
+    val multipleProfiles = profiles.size > 1
+    val listsAllProfiles = showAllProfiles && multipleProfiles
+    val rootDir = baseDir.parentFile ?: baseDir
+    val profileNames = remember(profiles) { profiles.associate { it.id to it.name } }
+    /** Where a listed chat's files live, which under "All chats" need not be the active profile. */
+    val chatBaseDir: (Chat) -> File = { chat ->
+        chatProfiles[chat.id]?.let { File(rootDir, "profile_$it") } ?: baseDir
+    }
+    val profileTag: (Chat) -> String? = { chat ->
+        if (listsAllProfiles) chatProfiles[chat.id]?.let(profileNames::get) else null
     }
 
 
@@ -146,18 +172,14 @@ fun ChatListScreen(
                                 unfocusedIndicatorColor = Color.Transparent
                             )
                         )
-                    } else ProfileSwitcherDropdown(
-                        profiles = profiles,
-                        activeProfileId = activeProfileId,
-                        onProfileSelected = { id ->
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            when (val result = viewModel.switchProfile(id)) {
-                                is SwitchResult.RequiresAuth -> profileToUnlock = result.profile
-                                else -> Unit
-                            }
-                        },
-                        onAddProfile = { showAddProfileDialog = true },
-                        onManageProfiles = onManageProfilesClick
+                    } else if (homeTab != HomeTab.CHATS) {
+                        Text(
+                            stringResource(if (homeTab == HomeTab.STARRED) R.string.favorites else R.string.reminders)
+                        )
+                    } else ProfileSwitcherButton(
+                        activeProfile = profiles.firstOrNull { it.id == activeProfileId },
+                        showAll = showAllProfiles && profiles.size > 1,
+                        onClick = { showProfileSheet = true },
                     )
                 },
                 navigationIcon = {
@@ -168,10 +190,14 @@ fun ChatListScreen(
                         }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.close_search))
                         }
+                    } else if (homeTab != HomeTab.CHATS) {
+                        IconButton(onClick = { homeTab = HomeTab.CHATS }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        }
                     }
                 },
                 actions = {
-                    if (!searchActive) {
+                    if (!searchActive && homeTab == HomeTab.CHATS) {
                         IconButton(onClick = { searchActive = true }) {
                             Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
                         }
@@ -206,9 +232,6 @@ fun ChatListScreen(
                 )
             )
         },
-        bottomBar = {
-            HomeBottomNavigation(selected = homeTab, onSelected = { homeTab = it })
-        },
         floatingActionButton = {
             if (homeTab == HomeTab.CHATS && searchQuery.isBlank()) {
             FloatingActionButton(
@@ -230,7 +253,7 @@ fun ChatListScreen(
             chats.filter { it.name.contains(searchQuery, ignoreCase = true) },
             searchResults,
             isSearching
-        ) { onChatClick(it, "") }
+        ) { openChatById(it) }
         homeTab == HomeTab.STARRED -> HomeSavedMessages(
             Modifier.padding(padding),
             starredMessages,
@@ -239,7 +262,7 @@ fun ChatListScreen(
                 stringResource(R.string.no_favorites_yet),
                 stringResource(R.string.no_favorites_hint),
             ),
-        ) { onChatClick(it, "") }
+        ) { openChatById(it) }
         homeTab == HomeTab.REMINDERS -> HomeSavedMessages(
             Modifier.padding(padding),
             reminderMessages,
@@ -248,7 +271,7 @@ fun ChatListScreen(
                 stringResource(R.string.no_upcoming_reminders),
                 stringResource(R.string.no_reminders_hint),
             ),
-        ) { onChatClick(it, "") }
+        ) { openChatById(it) }
         else ->
         Box(
             modifier = Modifier
@@ -277,6 +300,29 @@ fun ChatListScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Favorites and Reminders, without a tab bar to hold them: a row
+                    // each, shown only when there is something in it.
+                    if (starredMessages.isNotEmpty() || reminderMessages.isNotEmpty()) {
+                        item(key = "shortcuts") {
+                            NcyDividedCard {
+                                if (starredMessages.isNotEmpty()) {
+                                    HomeShortcutRow(
+                                        Icons.Default.Star,
+                                        stringResource(R.string.favorites),
+                                        starredMessages.size,
+                                    ) { homeTab = HomeTab.STARRED }
+                                }
+                                if (starredMessages.isNotEmpty() && reminderMessages.isNotEmpty()) NcyRowDivider()
+                                if (reminderMessages.isNotEmpty()) {
+                                    HomeShortcutRow(
+                                        Icons.Default.Notifications,
+                                        stringResource(R.string.reminders),
+                                        reminderMessages.size,
+                                    ) { homeTab = HomeTab.REMINDERS }
+                                }
+                            }
+                        }
+                    }
                     if (pinned.isNotEmpty()) {
                         item(key = "lbl_pinned") { NcySectionLabel(stringResource(R.string.pinned)) }
                         item(key = "card_pinned") {
@@ -285,7 +331,8 @@ fun ChatListScreen(
                                     if (i > 0) NcyRowDivider()
                                     ChatListItem(
                                         chat = chat,
-                                        baseDir = baseDir,
+                                        baseDir = chatBaseDir(chat),
+                                        profileTag = profileTag(chat),
                                         isUnlocked = chat.id in unlockedChatIds,
                                         onClick = { openChat(chat) },
                                         onLongClick = { longPressedChat = chat }
@@ -297,11 +344,13 @@ fun ChatListScreen(
 
                     if (others.isNotEmpty()) {
                         // A heading only when another section needs telling apart:
-                        // "All" under Pinned, "Chats" above shown archived chats.
+                        // "All" under Pinned, "Chats" above shown archived chats or
+                        // below the Favorites/Reminders rows.
                         val archivedShown = showArchivedChats && archivedChats.isNotEmpty()
+                        val shortcutsShown = starredMessages.isNotEmpty() || reminderMessages.isNotEmpty()
                         when {
                             pinned.isNotEmpty() -> item(key = "lbl_all") { NcySectionLabel(stringResource(R.string.all)) }
-                            archivedShown -> item(key = "lbl_all") { NcySectionLabel(stringResource(R.string.chats)) }
+                            archivedShown || shortcutsShown -> item(key = "lbl_all") { NcySectionLabel(stringResource(R.string.chats)) }
                         }
                         item(key = "card_all") {
                             NcyDividedCard {
@@ -309,7 +358,8 @@ fun ChatListScreen(
                                     if (i > 0) NcyRowDivider()
                                     ChatListItem(
                                         chat = chat,
-                                        baseDir = baseDir,
+                                        baseDir = chatBaseDir(chat),
+                                        profileTag = profileTag(chat),
                                         isUnlocked = chat.id in unlockedChatIds,
                                         onClick = { openChat(chat) },
                                         onLongClick = { longPressedChat = chat }
@@ -327,7 +377,8 @@ fun ChatListScreen(
                                     if (i > 0) NcyRowDivider()
                                     ChatListItem(
                                         chat = chat,
-                                        baseDir = baseDir,
+                                        baseDir = chatBaseDir(chat),
+                                        profileTag = profileTag(chat),
                                         isUnlocked = chat.id in unlockedChatIds,
                                         onClick = { openChat(chat) },
                                         onLongClick = { longPressedChat = chat }
@@ -343,13 +394,74 @@ fun ChatListScreen(
     }
 
     if (showCreateDialog) {
+        // Under "All chats" a new chat needs a profile; it defaults to the last used.
+        var targetProfileId by remember { mutableStateOf(activeProfileId) }
         CreateChatDialog(
             onDismiss = { showCreateDialog = false },
             onCreate = { name ->
                 showCreateDialog = false
                 // Straight into the new chat: creating one is how you start a note.
-                viewModel.createChat(name) { created -> onChatClick(created.id, created.name) }
-            }
+                viewModel.createChat(name, targetProfileId) { created -> onChatClick(created.id, created.name) }
+            },
+            profilePicker = if (listsAllProfiles) {
+                {
+                    val open = profiles.filter { it.id == activeProfileId || !it.isProtected || it.id in chatProfiles.values }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            stringResource(R.string.create_in_profile),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        ) {
+                            open.forEach { profile ->
+                                NcyChoiceChip(
+                                    selected = targetProfileId == profile.id,
+                                    onClick = { targetProfileId = profile.id },
+                                    label = profile.name,
+                                )
+                            }
+                        }
+                    }
+                }
+            } else null,
+        )
+    }
+
+    if (showProfileSheet) {
+        var counts by remember { mutableStateOf<Map<String, Int>?>(null) }
+        LaunchedEffect(profiles) {
+            counts = withContext(Dispatchers.IO) { viewModel.chatCounts() }
+        }
+        ProfileSwitcherSheet(
+            profiles = profiles,
+            activeProfileId = activeProfileId,
+            showAll = listsAllProfiles,
+            chatCounts = counts,
+            onDismiss = { showProfileSheet = false },
+            onShowAll = {
+                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                viewModel.showAllProfiles()
+                showProfileSheet = false
+            },
+            onProfileSelected = { id ->
+                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                showProfileSheet = false
+                when (val result = viewModel.selectProfile(id)) {
+                    is SwitchResult.RequiresAuth -> profileToUnlock = result.profile
+                    else -> Unit
+                }
+            },
+            onAddProfile = {
+                showProfileSheet = false
+                showAddProfileDialog = true
+            },
+            onManageProfiles = {
+                showProfileSheet = false
+                onManageProfilesClick()
+            },
         )
     }
 
@@ -488,61 +600,30 @@ fun ChatListScreen(
     }
 }
 
-/**
- * Icon-only tab bar, thinner than Material's 80dp NavigationBar (which reserves room
- * for labels). The selected tab keeps its pill, and each tab keeps its name for
- * screen readers, so nothing but the visible text is lost.
- */
+/** A Favorites or Reminders entry above the chats, with how many it holds. */
 @Composable
-private fun HomeBottomNavigation(selected: HomeTab, onSelected: (HomeTab) -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.surface) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(56.dp)
-                .selectableGroup(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            listOf(
-                Triple(HomeTab.CHATS, Icons.Outlined.ChatBubbleOutline, stringResource(R.string.chats)),
-                Triple(HomeTab.STARRED, Icons.Default.Star, stringResource(R.string.favorites)),
-                Triple(HomeTab.REMINDERS, Icons.Default.Notifications, stringResource(R.string.reminders))
-            ).forEach { (tab, icon, label) ->
-                val isSelected = selected == tab
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .selectable(
-                            selected = isSelected,
-                            onClick = { onSelected(tab) },
-                            role = Role.Tab,
-                        )
-                        .semantics { contentDescription = label },
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(width = 64.dp, height = 32.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-                                else Color.Transparent
-                            ),
-                    ) {
-                        Icon(
-                            icon,
-                            contentDescription = null,
-                            tint = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
+private fun HomeShortcutRow(icon: ImageVector, label: String, count: Int, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(16.dp))
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(
+            count.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -647,7 +728,9 @@ private fun ChatListItem(
     baseDir: File,
     isUnlocked: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    /** The chat's profile, named under "All chats" so equal chat names can be told apart. */
+    profileTag: String? = null,
 ) {
     val showLocked = chat.isProtected && !isUnlocked
     val view = LocalView.current
@@ -722,12 +805,28 @@ private fun ChatListItem(
             }
         },
         trailingContent = {
-            chat.lastMessageAt?.let { timestamp ->
-                Text(
-                    text = formatTimestamp(timestamp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                chat.lastMessageAt?.let { timestamp ->
+                    Text(
+                        text = formatTimestamp(timestamp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (profileTag != null) {
+                    Text(
+                        text = profileTag,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .widthIn(max = 96.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
         },
         leadingContent = {
@@ -774,14 +873,16 @@ private fun ChatListItem(
 @Composable
 private fun CreateChatDialog(
     onDismiss: () -> Unit,
-    onCreate: (String) -> Unit
+    onCreate: (String) -> Unit,
+    profilePicker: (@Composable () -> Unit)? = null,
 ) {
     NcyInputSheet(
         title = stringResource(R.string.new_chat_2),
         label = stringResource(R.string.chat_name),
         confirmLabel = stringResource(R.string.create),
         onDismiss = onDismiss,
-        onConfirm = onCreate
+        onConfirm = onCreate,
+        extra = profilePicker,
     )
 }
 

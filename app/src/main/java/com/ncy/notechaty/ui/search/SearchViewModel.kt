@@ -6,6 +6,7 @@ import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.MessageType
 import com.ncy.notechaty.data.repository.ChatRepository
 import com.ncy.notechaty.data.repository.SettingsRepository
+import com.ncy.notechaty.data.repository.VisibleChats
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,7 +26,8 @@ data class SearchResult(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val repository: ChatRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val visibleChats: VisibleChats,
 ) : ViewModel() {
 
     val settings = settingsRepository.settings
@@ -52,11 +54,11 @@ class SearchViewModel @Inject constructor(
         searchJob = viewModelScope.launch {
             delay(300) // debounce
             _isSearching.value = true
-            val chats = repository.observeChats().first()
+            val chats = visibleChats.chats.first()
             val searchResults = mutableListOf<SearchResult>()
 
-            chats.filter { !it.isProtected }.forEach { chat ->
-                val messages = repository.getMessages(chat.id)
+            chats.filter { !it.chat.isProtected }.forEach { (profileId, chat) ->
+                val messages = repository.getMessagesIn(profileId, chat.id)
                 messages
                     .filter { it.type == MessageType.TEXT || !it.transcript.isNullOrBlank() }
                     .filter { msg ->

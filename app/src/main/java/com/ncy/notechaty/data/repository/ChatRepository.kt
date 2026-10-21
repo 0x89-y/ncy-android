@@ -2,6 +2,7 @@ package com.ncy.notechaty.data.repository
 
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.model.ProfileChat
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import kotlinx.coroutines.flow.Flow
 import java.io.File
@@ -23,6 +24,21 @@ interface ChatRepository {
     suspend fun createChat(name: String): Chat
     suspend fun updateChat(chat: Chat)
     suspend fun deleteChat(chatId: String)
+
+    /**
+     * Chats of every profile, kept current while the chat list shows all profiles
+     * (empty otherwise). Locked profiles are the caller's to filter out.
+     */
+    fun observeAllProfileChats(): Flow<List<ProfileChat>>
+
+    /** Messages of a chat in [profileId], whichever profile is active. */
+    suspend fun getMessagesIn(profileId: String, chatId: String): List<Message>
+
+    /**
+     * Delete a profile and its chats on every paired device: each chat gets a
+     * deletion record that sync carries, and the profile cannot come back on its own.
+     */
+    suspend fun deleteProfileEverywhere(profileId: String)
 
     suspend fun getMessages(chatId: String): List<Message>
     suspend fun addMessage(message: Message)

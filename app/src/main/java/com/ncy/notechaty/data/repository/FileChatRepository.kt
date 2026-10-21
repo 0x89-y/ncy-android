@@ -95,6 +95,7 @@ class FileChatRepository @Inject constructor(
     private val eventCodec = ChatEventCodec()
     private val gson = Gson()
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
+    private val _allChats = MutableStateFlow<List<ProfileChat>>(emptyList())
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -119,16 +120,63 @@ class FileChatRepository @Inject constructor(
             profileRepository.activeProfileId
                 .drop(1) // initial value already handled above
                 .collect {
-                    chatLockState.clearChatUnlocks()
+                    // Under "All chats" the active profile only follows the chat being
+                    // opened; re-locking there would undo the unlock that opened it.
+                    if (!profileRepository.showAllProfiles.value) chatLockState.clearChatUnlocks()
                     _chats.value = emptyList()
                     refreshChats()
                 }
+        }
+        scope.launch {
+            profileRepository.showAllProfiles
+                .drop(1)
+                .collect { if (it) refreshChats() else _allChats.value = emptyList() }
         }
     }
 
     override fun getBaseDir(): File = profileDir
 
     override fun observeChats(): Flow<List<Chat>> = _chats.asStateFlow()
+
+    override fun observeAllProfileChats(): Flow<List<ProfileChat>> = _allChats.asStateFlow()
+
+    override suspend fun getMessagesIn(profileId: String, chatId: String): List<Message> =
+        withContext(Dispatchers.IO) {
+            val id = safeProfileId(profileId) ?: return@withContext emptyList()
+            if (!SafeId.isValid(chatId)) return@withContext emptyList()
+            val chatFile = File(File(File(rootDir, "profile_$id"), "chat_$chatId"), "chat.json")
+            if (!chatFile.exists()) return@withContext emptyList()
+            serializer.readFromFile(chatFile).messages
+        }
+
+    override suspend fun deleteProfileEverywhere(profileId: String): Unit = withContext(Dispatchers.IO) {
+        val id = safeProfileId(profileId) ?: return@withContext
+        if (profileRepository.profiles.value.size <= 1) return@withContext
+        val dir = File(rootDir, "profile_$id")
+        synchronized(this@FileChatRepository) {
+            dir.listFiles()
+                ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+                ?.forEach { chatDir ->
+                    val chatId = chatDir.name.removePrefix("chat_")
+                    if (!SafeId.isValid(chatId)) return@forEach
+                    if (!ChatTombstoneGraveyard.contains(rootDir, chatId)) {
+                        appendIn(chatDir, chatId, ChatEventOp.ChatTombstoned(chatId))
+                    }
+                    // The records move to the shared graveyard: the profile's own
+                    // folder is about to go, and with it anything kept inside.
+                    EventLog(File(chatDir, "events.ndjson"), eventCodec).readAll()
+                        .lastOrNull { it.op is ChatEventOp.ChatTombstoned }
+                        ?.let { ChatTombstoneGraveyard.archive(rootDir, it) }
+                }
+            ChatTombstoneGraveyard.events(dir)
+                .takeIf { it.isNotEmpty() }
+                ?.let { ChatTombstoneGraveyard.merge(rootDir, it) }
+        }
+        profileRepository.forgetDeletedProfile(id)
+        dir.deleteRecursively()
+        Log.i("FileChatRepo", "deleted profile ${id.take(8)} on every device")
+        refreshChats()
+    }
 
     override suspend fun getChat(chatId: String): Chat? = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_$chatId")
@@ -983,23 +1031,15 @@ class FileChatRepository @Inject constructor(
                     it.isDirectory && it.name.startsWith("profile_")
                 } ?: 0} chatDirs=${chatDirectories.size}",
         )
-        val chats = chatDirectories
-            ?.mapNotNull { dir ->
-                val chatFile = File(dir, "chat.json")
-                try {
-                    val data = loadOrRepairChat(dir, chatFile) ?: return@mapNotNull null
-                    data.toChat(data.chat.id, data.messages)
-                } catch (e: Exception) {
-                    Log.w(
-                        "FileChatRepo",
-                        "Could not load ${dir.name}; preserving its event log for recovery",
-                        e,
-                    )
-                    null
-                }
+        val chats = loadChatsIn(directory)
+
+        if (profileRepository.showAllProfiles.value) {
+            _allChats.value = profileRepository.profiles.value.flatMap { profile ->
+                val list = if (profile.id == profileId) chats
+                    else loadChatsIn(File(rootDir, "profile_${profile.id}"))
+                list.map { ProfileChat(profile.id, it) }
             }
-            ?.sortedByDescending { it.lastMessageAt ?: it.createdAt }
-            ?: emptyList()
+        }
 
         if (profileRepository.activeProfileId.value == profileId) {
             _chats.value = chats
@@ -1016,6 +1056,26 @@ class FileChatRepository @Inject constructor(
             )
         }
     }
+
+    private fun loadChatsIn(directory: File): List<Chat> =
+        directory.listFiles()
+            ?.filter { it.isDirectory && it.name.startsWith("chat_") }
+            ?.mapNotNull { dir ->
+                val chatFile = File(dir, "chat.json")
+                try {
+                    val data = loadOrRepairChat(dir, chatFile) ?: return@mapNotNull null
+                    data.toChat(data.chat.id, data.messages)
+                } catch (e: Exception) {
+                    Log.w(
+                        "FileChatRepo",
+                        "Could not load ${dir.name}; preserving its event log for recovery",
+                        e,
+                    )
+                    null
+                }
+            }
+            ?.sortedByDescending { it.lastMessageAt ?: it.createdAt }
+            ?: emptyList()
 
     /**
      * `chat.json` is only a derived cache; `events.ndjson` remains the source of truth.
@@ -1052,6 +1112,10 @@ class FileChatRepository @Inject constructor(
 
     override fun canonicalizeInboundEvent(event: ChatEvent): ChatEvent {
         val id = safeProfileId(event.profileId) ?: return event
+        // A deleted chat's event is dropped on apply. Resolving its profile first
+        // would still register that profile, so a stale event could bring back a
+        // profile whose chats are all gone.
+        if (SafeId.isValid(event.chatId) && ChatTombstoneGraveyard.contains(rootDir, event.chatId)) return event
         val profile = profileRepository.resolveSyncedProfile(id, event.profileName)
         return event.copy(profileId = profile.id, profileName = profile.name)
     }

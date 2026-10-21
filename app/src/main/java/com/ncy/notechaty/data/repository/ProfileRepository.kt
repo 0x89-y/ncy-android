@@ -35,6 +35,19 @@ class ProfileRepository @Inject constructor(
     private val _activeProfileId = MutableStateFlow("")
     val activeProfileId: StateFlow<String> = _activeProfileId.asStateFlow()
 
+    /**
+     * The chat list shows every profile instead of only the active one. The active
+     * profile still decides where new chats go, so it is kept as "last used".
+     */
+    private val _showAllProfiles = MutableStateFlow(false)
+    val showAllProfiles: StateFlow<Boolean> = _showAllProfiles.asStateFlow()
+
+    /**
+     * Profiles the user deleted. Nothing may bring one back on its own: not a leftover
+     * folder at startup, and not a synced event still stamped with its id.
+     */
+    private var deletedIds: Set<String> = emptySet()
+
     init {
         load()
     }
@@ -56,13 +69,42 @@ class ProfileRepository @Inject constructor(
             loaded.isNotEmpty() -> loaded.first().id
             else -> ""
         }
+        _showAllProfiles.value = prefs.getBoolean(KEY_SHOW_ALL, false)
+        deletedIds = prefs.getStringSet(KEY_DELETED, null)?.toSet() ?: emptySet()
     }
 
     private fun persist() {
         prefs.edit()
             .putString(KEY_PROFILES, gson.toJson(_profiles.value))
             .putString(KEY_ACTIVE, _activeProfileId.value.ifEmpty { null })
+            .putBoolean(KEY_SHOW_ALL, _showAllProfiles.value)
+            .putStringSet(KEY_DELETED, deletedIds)
             .apply()
+    }
+
+    fun setShowAllProfiles(show: Boolean) {
+        if (_showAllProfiles.value == show) return
+        _showAllProfiles.value = show
+        persist()
+    }
+
+    fun isDeleted(id: String): Boolean = id in deletedIds
+
+    /**
+     * Drop [id] from the registry and remember that it was deleted. The caller owns
+     * the profile's folder, since its chats need deletion records first.
+     */
+    @Synchronized
+    fun forgetDeletedProfile(id: String) {
+        val current = _profiles.value
+        if (current.none { it.id == id }) return
+        require(current.size > 1) { "Cannot delete the last profile" }
+        if (id == _activeProfileId.value) {
+            _activeProfileId.value = current.first { it.id != id }.id
+        }
+        _profiles.value = current.filter { it.id != id }
+        deletedIds = deletedIds + id
+        persist()
     }
 
     fun activeProfile(): Profile? =
@@ -115,18 +157,6 @@ class ProfileRepository @Inject constructor(
         persist()
     }
 
-    fun deleteProfile(id: String) {
-        val current = _profiles.value
-        require(current.size > 1) { "Cannot delete the last profile" }
-        if (id == _activeProfileId.value) {
-            val next = current.first { it.id != id }
-            _activeProfileId.value = next.id
-        }
-        _profiles.value = current.filter { it.id != id }
-        profileDir(id).deleteRecursively()
-        persist()
-    }
-
     /**
      * Backup restore: add any profiles from a backup manifest that this device
      * doesn't already have. Existing profiles (matched by id) are left untouched —
@@ -151,6 +181,8 @@ class ProfileRepository @Inject constructor(
         if (id.isBlank()) return
         if (_profiles.value.any { it.id == id }) return
         _profiles.value = _profiles.value + Profile(id = id, name = fallbackName)
+        // Restoring a backup that holds a deleted profile is a deliberate undo.
+        deletedIds = deletedIds - id
         persist()
     }
 
@@ -167,6 +199,7 @@ class ProfileRepository @Inject constructor(
             ?.filter { dir ->
                 dir.isDirectory && dir.name.startsWith("profile_") &&
                     dir.name.removePrefix("profile_") !in knownIds &&
+                    dir.name.removePrefix("profile_") !in deletedIds &&
                     dir.listFiles()?.any {
                         it.isDirectory && it.name.startsWith("chat_")
                     } == true
@@ -223,6 +256,9 @@ class ProfileRepository @Inject constructor(
         val exact = profileById(remoteId)
         if (exact != null) return exact
         val id = remoteId.takeIf { it.isNotBlank() } ?: return ensureDefault()
+        // A chat a peer still files under a profile deleted here lands in the current
+        // profile rather than resurrecting the deleted one.
+        if (id in deletedIds) return activeProfile() ?: ensureDefault()
         val profile = Profile(id = id, name = remoteName.ifBlank { "Synced profile ${id.take(8)}" })
         _profiles.value = _profiles.value + profile
         persist()
@@ -317,6 +353,8 @@ class ProfileRepository @Inject constructor(
     companion object {
         private const val KEY_PROFILES = "profiles"
         private const val KEY_ACTIVE = "active_profile_id"
+        private const val KEY_SHOW_ALL = "show_all_profiles"
+        private const val KEY_DELETED = "deleted_profile_ids"
     }
 
     private fun isSafeProfileId(id: String): Boolean =

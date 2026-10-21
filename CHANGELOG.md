@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.7.6 — 2026-10-21
+
+### Added
+
+- Added **All chats**, which lists the chats of every profile together. Each chat shows a
+  tag naming its profile, and search, Favorites and Reminders cover every profile too.
+  A protected profile's chats appear only while it is unlocked. A chat created from All
+  chats asks which profile it belongs in, defaulting to the one used last.
+- Added a profile switcher sheet listing All chats and each profile with its chat count
+  and lock, replacing the plain profile menu.
+
+### Changed
+
+- Ncy now reopens in the profile, or in All chats, that it was left in.
+- Favorites and Reminders moved from the bottom bar to rows above the chats, each with a
+  count. They appear only when they hold something, and the bottom bar is gone.
+- Deleting a profile now deletes its chats on every paired device, so they no longer
+  linger on the desktop. A deleted profile can no longer be brought back by a leftover
+  folder or by a synced note.
+
+### Fixed
+
+- Fixed release builds forgetting the profile list on every launch. Renamed profiles got
+  their old names back, profile PINs and icons were dropped, an extra empty Personal
+  profile appeared, and Ncy did not reopen in the last profile. Renames, PINs and icons
+  lost this way have to be set once more after updating.
+
 ## 0.7.5 — 2026-10-21
 
 ### Added

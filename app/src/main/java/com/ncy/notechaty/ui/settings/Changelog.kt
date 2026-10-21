@@ -14,6 +14,19 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.6",
+        date = "2026-10-21",
+        changes = listOf(
+            "Added All chats, which lists the chats of every profile together, with a tag naming each chat's profile.",
+            "Replaced the profile menu with a profile switcher showing each profile's chat count.",
+            "Ncy now reopens in the profile, or in All chats, that you left it in.",
+            "Favorites and Reminders moved from the bottom bar to rows above the chats, shown when they hold something.",
+            "Deleting a profile now deletes its chats on every paired device, and a deleted profile no longer comes back.",
+            "Fixed renamed profiles, profile PINs and profile icons being lost after Ncy restarted.",
+            "Fixed an extra empty Personal profile appearing after every restart.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.5",
         date = "2026-10-21",
         changes = listOf(

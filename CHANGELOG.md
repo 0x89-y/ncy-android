@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.7.5 — 2026-10-21
+
+### Added
+
+- Added a voice message button in place of Send while the message field is empty.
+- Added a menu to the chat header with Chat settings and Select messages. Tapping the chat
+  name still opens chat settings too.
+- Added hints to empty chats, Favorites and Reminders saying what belongs there.
+- Added a Privacy & security settings page for the PIN, biometrics, app lock and re-lock
+  period.
+- Added a Wallpaper accent that follows the system's Material You colours.
+
+### Changed
+
+- The chat list now shows the profile name next to its avatar, and the bottom bar shows
+  icons only. The "Chats" heading appears only when archived chats are shown.
+- New chats open as soon as they are created, and the name field takes focus with the
+  keyboard's Done key creating the chat.
+- Formatting moved out of the + menu into the message field as an Aa button. The + menu
+  now holds Camera, Gallery and File.
+- The message menu shows a preview of the message it is for, puts Reply, Copy, Edit and
+  Select in one row at the top, and sets Delete apart at the bottom.
+- The Dynamic accent, which was a fixed violet, is now named Violet. Installs that had it
+  selected keep the same colour.
+- The settings list is grouped into cards, every choice shows a check when selected, and
+  the back gesture returns from a settings page to the list.
+- Sync settings use plainer wording: pairing text instead of JSON, Unpair instead of
+  Revoke, and connection modes named Same network only, Same network first, Internet first
+  and Internet only.
+- Date headers follow the device's locale, and the app's text is now kept in string
+  resources so it can be translated.
+
+### Fixed
+
+- Fixed white text being hard to read on light accent colours in your own messages; the
+  bubble is darkened just enough to keep it legible.
+- Fixed links in messages always using one fixed blue; they are now underlined in the
+  bubble's text colour.
+
 ## 0.7.4 — 2026-10-20
 
 ### Added

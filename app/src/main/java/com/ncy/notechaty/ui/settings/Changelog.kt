@@ -14,6 +14,23 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.5",
+        date = "2026-10-21",
+        changes = listOf(
+            "The chat list now shows the profile name at the top and a slimmer, icon-only bottom bar.",
+            "New chats open as soon as they are created, and the name field is ready to type in.",
+            "Added a voice message button to the empty message field, and moved formatting into the field as an Aa button.",
+            "Added a menu to the chat header with Chat settings and Select messages.",
+            "The message menu now shows which message it is for, with Reply, Copy, Edit and Select in one row and Delete set apart.",
+            "Added hints to empty chats, Favorites and Reminders.",
+            "Settings now has a Privacy & security page, and the back gesture returns from a settings page to the list.",
+            "Replaced the Dynamic accent with Violet, and added a Wallpaper accent that follows the system colours.",
+            "Sync settings now use plainer wording, and connection modes are named by where they connect.",
+            "Fixed white text being hard to read on light accent colours in your own messages.",
+            "Fixed links in messages using one fixed blue regardless of the bubble colour.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.4",
         date = "2026-10-20",
         changes = listOf(

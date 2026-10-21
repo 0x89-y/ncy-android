@@ -21,9 +21,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -60,14 +65,22 @@ private object DesktopNeutral {
 }
 
 /** An accent hue: the light+dark base values from app.css's [data-accent] presets. */
-private data class Accent(val light: Color, val dark: Color)
+private data class Accent(
+    val light: Color,
+    val dark: Color,
+    /** Text and icons on the accent. White for the presets; the wallpaper supplies its own. */
+    val onLight: Color = AccentContrast,
+    val onDark: Color = AccentContrast,
+)
 
 private val AccentContrast = Color(0xFFFFFFFF) // --accent-contrast (both themes)
 
 // Values copied from the [data-accent='…'] presets in app.css.
 private fun accentFor(accent: AccentColor): Accent = when (accent) {
-    AccentColor.PURPLE, AccentColor.DYNAMIC ->
+    AccentColor.PURPLE ->
         Accent(Color(0xFF7C3AED), Color(0xFF8B5CF6))            // default identity
+    // Resolved from the wallpaper in NcyDesktopTheme; violet only as a fallback.
+    AccentColor.WALLPAPER -> Accent(Color(0xFF7C3AED), Color(0xFF8B5CF6))
     AccentColor.BLUE   -> Accent(Color(0xFF2563EB), Color(0xFF3B82F6))
     AccentColor.GREEN  -> Accent(Color(0xFF059669), Color(0xFF10B981))
     AccentColor.PINK   -> Accent(Color(0xFFDB2777), Color(0xFFEC4899))
@@ -88,15 +101,15 @@ private fun desktopLightScheme(accent: Accent): ColorScheme {
     val a = accent.light
     return lightColorScheme(
         primary = a,
-        onPrimary = AccentContrast,
+        onPrimary = accent.onLight,
         primaryContainer = mix(a, DesktopNeutral.LightSurface, 0.16f),
         onPrimaryContainer = a,
         secondary = a,
-        onSecondary = AccentContrast,
+        onSecondary = accent.onLight,
         secondaryContainer = mix(a, DesktopNeutral.LightSurface, 0.16f),
         onSecondaryContainer = a,
         tertiary = a,
-        onTertiary = AccentContrast,
+        onTertiary = accent.onLight,
         background = DesktopNeutral.LightBg,
         onBackground = DesktopNeutral.LightText,
         surface = DesktopNeutral.LightSurface,
@@ -119,15 +132,15 @@ private fun desktopDarkScheme(accent: Accent): ColorScheme {
     val a = accent.dark
     return darkColorScheme(
         primary = a,
-        onPrimary = AccentContrast,
+        onPrimary = accent.onDark,
         primaryContainer = mix(a, DesktopNeutral.DarkSurface, 0.16f),
         onPrimaryContainer = a,
         secondary = a,
-        onSecondary = AccentContrast,
+        onSecondary = accent.onDark,
         secondaryContainer = mix(a, DesktopNeutral.DarkSurface, 0.16f),
         onSecondaryContainer = a,
         tertiary = a,
-        onTertiary = AccentContrast,
+        onTertiary = accent.onDark,
         background = DesktopNeutral.DarkBg,
         onBackground = DesktopNeutral.DarkText,
         surface = DesktopNeutral.DarkSurface,
@@ -144,6 +157,26 @@ private fun desktopDarkScheme(accent: Accent): ColorScheme {
         error = Color(0xFFF87171),              // --danger (dark)
         onError = AccentContrast,
     )
+}
+
+/** WCAG 2 contrast ratio between two colours (1 … 21). */
+fun contrastRatio(a: Color, b: Color): Float {
+    val (hi, lo) = listOf(a.luminance(), b.luminance()).sortedDescending()
+    return (hi + 0.05f) / (lo + 0.05f)
+}
+
+/**
+ * [fill] darkened only as far as white text on it needs to reach 4.5:1, the WCAG
+ * minimum for body text. Dark-theme accents are lightened for dark surfaces, so a
+ * bubble in them carried white text at about 4.2:1 (violet) or far less (green).
+ */
+fun withReadableWhiteText(fill: Color): Color {
+    var color = fill
+    repeat(24) {
+        if (contrastRatio(Color.White, color) >= 4.5f) return color
+        color = Color(color.red * 0.94f, color.green * 0.94f, color.blue * 0.94f, color.alpha)
+    }
+    return color
 }
 
 // ---------------------------------------------------------------------------
@@ -184,13 +217,37 @@ private val DesktopTypography = Typography().run {
 }
 
 /**
- * The app's theme. Note: [AccentColor.DYNAMIC] deliberately maps to the desktop's
- * default violet (Material You would break the shared identity).
+ * The accent [accentColor] resolves to — for [AccentColor.WALLPAPER], the
+ * wallpaper's primary (Material You; minSdk 31 always has it). Only the accent
+ * follows the wallpaper: neutrals, shapes and type stay Ncy's, so the app still
+ * reads as the same product as the desktop.
  */
+@Composable
+private fun resolveAccent(accentColor: AccentColor): Accent {
+    if (accentColor != AccentColor.WALLPAPER) return accentFor(accentColor)
+    val context = LocalContext.current
+    return remember(context) {
+        val light = dynamicLightColorScheme(context)
+        val dark = dynamicDarkColorScheme(context)
+        Accent(
+            light = light.primary,
+            dark = dark.primary,
+            onLight = light.onPrimary,
+            onDark = dark.onPrimary,
+        )
+    }
+}
+
+/** What a swatch for [accentColor] should show: the colour it really produces. */
+@Composable
+fun accentSwatch(accentColor: AccentColor, dark: Boolean): Color =
+    resolveAccent(accentColor).let { if (dark) it.dark else it.light }
+
+/** The app's theme. Violet is the default identity shared with the desktop. */
 @Composable
 fun NcyDesktopTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    accentColor: AccentColor = AccentColor.DYNAMIC,
+    accentColor: AccentColor = AccentColor.PURPLE,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -199,7 +256,7 @@ fun NcyDesktopTheme(
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
 
-    val accent = accentFor(accentColor)
+    val accent = resolveAccent(accentColor)
     val colorScheme = if (darkTheme) desktopDarkScheme(accent) else desktopLightScheme(accent)
 
     MaterialTheme(

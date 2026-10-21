@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.chat
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -63,13 +65,12 @@ fun MediaStatusCard(
     val deliberate =
         failure == MediaTransferState.CANCELLED || failure == MediaTransferState.EVICTED
     val status = when {
-        failure == MediaTransferState.CANCELLED -> "Download cancelled"
-        failure == MediaTransferState.EVICTED -> "Removed from this device"
-        failure != null -> "Transfer failed · $failure"
+        failure == MediaTransferState.CANCELLED -> stringResource(R.string.download_cancelled)
+        failure == MediaTransferState.EVICTED -> stringResource(R.string.removed_from_this_device)
+        failure != null -> stringResource(R.string.transfer_failed, failure)
         progress != null -> {
             val fraction = progressFraction(progress)
-            "${(fraction * 100).toInt()}% · " +
-                "${formatTransferSize(progress.received)} of ${formatTransferSize(progress.total)}"
+            stringResource(R.string.transfer_progress, (fraction * 100).toInt(), formatTransferSize(progress.received), formatTransferSize(progress.total))
         }
         else -> idleText
     }
@@ -124,7 +125,7 @@ fun MediaStatusCard(
                 IconButton(onClick = onCancel, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Stop downloading",
+                        contentDescription = stringResource(R.string.stop_downloading),
                         modifier = Modifier.size(16.dp),
                         tint = muted,
                     )
@@ -135,7 +136,7 @@ fun MediaStatusCard(
                     onClick = onDownload,
                     colors = ButtonDefaults.textButtonColors(contentColor = contentColor),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                ) { Text("Download", fontSize = 13.sp) }
+                ) { Text(stringResource(R.string.download), fontSize = 13.sp) }
             }
         }
     }

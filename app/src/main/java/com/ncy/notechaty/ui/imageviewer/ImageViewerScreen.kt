@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.imageviewer
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -51,9 +53,9 @@ fun ImageViewerDialog(
                     imageFile.inputStream().use { input -> input.copyTo(output) }
                 } ?: error("Cannot open destination")
             }.onSuccess {
-                Toast.makeText(context, "Image saved", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.image_saved), Toast.LENGTH_SHORT).show()
             }.onFailure {
-                Toast.makeText(context, "Could not save image", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.could_not_save_image), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -72,9 +74,9 @@ fun ImageViewerDialog(
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share image"))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_image)))
         }.onFailure {
-            Toast.makeText(context, "Could not share image", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.could_not_share_image), Toast.LENGTH_SHORT).show()
         }
         Unit
     }
@@ -98,7 +100,7 @@ fun ImageViewerDialog(
         ) {
             AsyncImage(
                 model = imageFile,
-                contentDescription = "Full screen image",
+                contentDescription = stringResource(R.string.full_screen_image),
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(
@@ -119,21 +121,21 @@ fun ImageViewerDialog(
                 IconButton(onClick = shareImage) {
                     Icon(
                         Icons.Default.Share,
-                        contentDescription = "Share image",
+                        contentDescription = stringResource(R.string.share_image),
                         tint = Color.White,
                     )
                 }
                 IconButton(onClick = { saveLauncher.launch(suggestedName) }) {
                     Icon(
                         Icons.Default.Download,
-                        contentDescription = "Save image",
+                        contentDescription = stringResource(R.string.save_image),
                         tint = Color.White,
                     )
                 }
                 IconButton(onClick = onDismiss) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(R.string.close),
                         tint = Color.White,
                     )
                 }

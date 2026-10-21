@@ -144,9 +144,10 @@ class ChatListViewModel @Inject constructor(
         }
     }
 
-    fun createChat(name: String) {
+    /** Create a chat; [onCreated] gets it so the caller can open it straight away. */
+    fun createChat(name: String, onCreated: (Chat) -> Unit = {}) {
         viewModelScope.launch {
-            repository.createChat(name)
+            onCreated(repository.createChat(name))
         }
     }
 

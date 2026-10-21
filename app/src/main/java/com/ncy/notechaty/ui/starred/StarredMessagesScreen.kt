@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.starred
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,12 +36,12 @@ fun StarredMessagesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Favorites") },
+                title = { Text(stringResource(R.string.favorites)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 },
@@ -68,7 +70,7 @@ fun StarredMessagesScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "No favorites",
+                        stringResource(R.string.no_favorites),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
@@ -110,8 +112,8 @@ private fun StarredMessageItem(
         },
         headlineContent = {
             val preview = when (starred.message.type) {
-                MessageType.VOICE -> "\uD83C\uDFA4 Voice message"
-                MessageType.IMAGE -> "\uD83D\uDDBC Image"
+                MessageType.VOICE -> stringResource(R.string.starred_voice)
+                MessageType.IMAGE -> stringResource(R.string.starred_image)
                 MessageType.FILE -> "📎 ${starred.message.plainTextPreview()}"
                 MessageType.CHECKLIST -> "☑ ${starred.message.plainTextPreview()}"
                 MessageType.TEXT -> starred.message.plainTextPreview()
@@ -134,7 +136,7 @@ private fun StarredMessageItem(
             IconButton(onClick = onUnstar) {
                 Icon(
                     Icons.Default.Star,
-                    contentDescription = "Unstar",
+                    contentDescription = stringResource(R.string.unstar),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }

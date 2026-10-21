@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.richtext
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -35,25 +37,25 @@ fun FormattingToolbar(
         ) {
             FormatToggle(
                 icon = Icons.Default.FormatBold,
-                label = "Bold",
+                label = stringResource(R.string.bold),
                 isActive = state.isBold,
                 onClick = { state.toggleBold() }
             )
             FormatToggle(
                 icon = Icons.Default.FormatItalic,
-                label = "Italic",
+                label = stringResource(R.string.italic),
                 isActive = state.isItalic,
                 onClick = { state.toggleItalic() }
             )
             FormatToggle(
                 icon = Icons.Default.FormatUnderlined,
-                label = "Underline",
+                label = stringResource(R.string.underline),
                 isActive = state.isUnderline,
                 onClick = { state.toggleUnderline() }
             )
             FormatToggle(
                 icon = Icons.Default.FormatStrikethrough,
-                label = "Strikethrough",
+                label = stringResource(R.string.strikethrough),
                 isActive = state.isStrikethrough,
                 onClick = { state.toggleStrikethrough() }
             )
@@ -67,13 +69,13 @@ fun FormattingToolbar(
             // Block type selector
             FormatToggle(
                 icon = Icons.Default.Title,
-                label = "Heading",
+                label = stringResource(R.string.heading),
                 isActive = state.currentBlockType in listOf(BlockType.HEADING1, BlockType.HEADING2, BlockType.HEADING3),
                 onClick = { showBlockTypePicker = !showBlockTypePicker }
             )
             FormatToggle(
                 icon = Icons.AutoMirrored.Filled.FormatListBulleted,
-                label = "List",
+                label = stringResource(R.string.list),
                 isActive = state.currentBlockType == BlockType.BULLET_LIST,
                 onClick = {
                     state.setBlockType(
@@ -84,13 +86,13 @@ fun FormattingToolbar(
             )
             FormatToggle(
                 icon = Icons.Default.Checklist,
-                label = "Checklist",
+                label = stringResource(R.string.checklist),
                 isActive = false,
                 onClick = { state.insertLinePrefix("- [ ] ") }
             )
             FormatToggle(
                 icon = Icons.Default.Code,
-                label = "Code",
+                label = stringResource(R.string.code),
                 isActive = state.currentBlockType == BlockType.CODE_BLOCK,
                 onClick = {
                     state.setBlockType(
@@ -109,7 +111,7 @@ fun FormattingToolbar(
             // Color picker
             FormatToggle(
                 icon = Icons.Default.FormatColorText,
-                label = "Color",
+                label = stringResource(R.string.color),
                 isActive = state.currentColor != null,
                 onClick = { showColorPicker = !showColorPicker }
             )
@@ -126,22 +128,22 @@ fun FormattingToolbar(
                 FilterChip(
                     selected = state.currentBlockType == BlockType.PARAGRAPH,
                     onClick = { state.setBlockType(BlockType.PARAGRAPH); showBlockTypePicker = false },
-                    label = { Text("Normal") }
+                    label = { Text(stringResource(R.string.normal)) }
                 )
                 FilterChip(
                     selected = state.currentBlockType == BlockType.HEADING1,
                     onClick = { state.setBlockType(BlockType.HEADING1); showBlockTypePicker = false },
-                    label = { Text("H1", fontWeight = FontWeight.Bold) }
+                    label = { Text(stringResource(R.string.h1), fontWeight = FontWeight.Bold) }
                 )
                 FilterChip(
                     selected = state.currentBlockType == BlockType.HEADING2,
                     onClick = { state.setBlockType(BlockType.HEADING2); showBlockTypePicker = false },
-                    label = { Text("H2", fontWeight = FontWeight.Bold) }
+                    label = { Text(stringResource(R.string.h2), fontWeight = FontWeight.Bold) }
                 )
                 FilterChip(
                     selected = state.currentBlockType == BlockType.HEADING3,
                     onClick = { state.setBlockType(BlockType.HEADING3); showBlockTypePicker = false },
-                    label = { Text("H3", fontWeight = FontWeight.SemiBold) }
+                    label = { Text(stringResource(R.string.h3), fontWeight = FontWeight.SemiBold) }
                 )
             }
         }
@@ -156,14 +158,14 @@ fun FormattingToolbar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val colors = listOf(
-                    null to "Default",
-                    "#FF0000" to "Red",
-                    "#0000FF" to "Blue",
-                    "#008000" to "Green",
-                    "#FFA500" to "Orange",
-                    "#800080" to "Purple",
-                    "#FF1493" to "Pink",
-                    "#008B8B" to "Teal"
+                    null to stringResource(R.string.color_default),
+                    "#FF0000" to stringResource(R.string.color_red),
+                    "#0000FF" to stringResource(R.string.color_blue),
+                    "#008000" to stringResource(R.string.color_green),
+                    "#FFA500" to stringResource(R.string.color_orange),
+                    "#800080" to stringResource(R.string.color_purple),
+                    "#FF1493" to stringResource(R.string.color_pink),
+                    "#008B8B" to stringResource(R.string.color_teal)
                 )
                 for ((hex, name) in colors) {
                     FilterChip(

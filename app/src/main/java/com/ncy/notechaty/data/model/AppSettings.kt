@@ -1,40 +1,57 @@
 package com.ncy.notechaty.data.model
 
+import androidx.annotation.StringRes
+import com.ncy.notechaty.R
+
 enum class ThemeMode { LIGHT, DARK, SYSTEM }
 
-enum class AccentColor(val displayName: String) {
-    DYNAMIC("Dynamic"),
-    PURPLE("Purple"),
-    BLUE("Blue"),
-    GREEN("Green"),
-    RED("Red"),
-    ORANGE("Orange"),
-    PINK("Pink"),
-    TEAL("Teal")
+enum class AccentColor(@StringRes val label: Int) {
+    PURPLE(R.string.accent_violet),
+    BLUE(R.string.color_blue),
+    GREEN(R.string.color_green),
+    RED(R.string.color_red),
+    ORANGE(R.string.color_orange),
+    PINK(R.string.color_pink),
+    TEAL(R.string.color_teal),
+    /** Material You: the accent follows the wallpaper; neutrals stay Ncy's own. */
+    WALLPAPER(R.string.accent_wallpaper);
+
+    companion object {
+        /**
+         * Read a stored value. "DYNAMIC" was an option that always rendered violet;
+         * every install that ever saved settings stored it, chosen or not, so it reads
+         * as violet rather than as the wallpaper option that replaced it.
+         */
+        fun fromStored(name: String?): AccentColor? = when (name) {
+            null -> null
+            "DYNAMIC" -> PURPLE
+            else -> runCatching { valueOf(name) }.getOrNull()
+        }
+    }
 }
 
-enum class ChatSortMode(val displayName: String) {
-    LAST_MESSAGE("Last message"),
-    NAME("Name"),
-    CREATED("Date created")
+enum class ChatSortMode(@StringRes val label: Int) {
+    LAST_MESSAGE(R.string.sort_last_message),
+    NAME(R.string.sort_name),
+    CREATED(R.string.sort_date_created)
 }
 
 enum class SyncTransportMode(
-    val displayName: String,
-    val description: String,
+    @StringRes val label: Int,
+    @StringRes val description: Int,
     val usesPear: Boolean,
 ) {
-    LOCAL_ONLY("Local only", "Use Wi-Fi or Ethernet only", false),
-    PEAR_ONLY("Pear only", "Always connect through Pear", true),
-    LOCAL_PREFERRED("Local preferred", "Try local first, then Pear", true),
-    PEAR_PREFERRED("Pear preferred", "Try Pear first, then local", true),
+    LOCAL_ONLY(R.string.mode_local_only, R.string.mode_local_only_hint, false),
+    PEAR_ONLY(R.string.mode_pear_only, R.string.mode_pear_only_hint, true),
+    LOCAL_PREFERRED(R.string.mode_local_preferred, R.string.mode_local_preferred_hint, true),
+    PEAR_PREFERRED(R.string.mode_pear_preferred, R.string.mode_pear_preferred_hint, true),
 }
 
 data class AppSettings(
     /** Installation-owned friendly name announced only after explicit pairing/authentication. */
     val deviceName: String = "Android phone",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val accentColor: AccentColor = AccentColor.DYNAMIC,
+    val accentColor: AccentColor = AccentColor.PURPLE,
     val chatSortMode: ChatSortMode = ChatSortMode.LAST_MESSAGE,
     val autoBackupEnabled: Boolean = false,
     val autoBackupFolder: String? = null,

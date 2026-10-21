@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.chat
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -32,6 +34,7 @@ fun DateHeader(timestamp: Long) {
     }
 }
 
+@Composable
 private fun formatDateHeader(timestamp: Long): String {
     val messageCalendar = Calendar.getInstance().apply { timeInMillis = timestamp }
     val todayCalendar = Calendar.getInstance()
@@ -39,16 +42,19 @@ private fun formatDateHeader(timestamp: Long): String {
     val sameDay = messageCalendar.get(Calendar.YEAR) == todayCalendar.get(Calendar.YEAR) &&
             messageCalendar.get(Calendar.DAY_OF_YEAR) == todayCalendar.get(Calendar.DAY_OF_YEAR)
 
-    if (sameDay) return "Today"
+    if (sameDay) return stringResource(R.string.today)
 
     todayCalendar.add(Calendar.DAY_OF_YEAR, -1)
     val yesterday = messageCalendar.get(Calendar.YEAR) == todayCalendar.get(Calendar.YEAR) &&
             messageCalendar.get(Calendar.DAY_OF_YEAR) == todayCalendar.get(Calendar.DAY_OF_YEAR)
 
-    if (yesterday) return "Yesterday"
+    if (yesterday) return stringResource(R.string.yesterday)
 
     val sameYear = messageCalendar.get(Calendar.YEAR) == Calendar.getInstance().get(Calendar.YEAR)
-    val pattern = if (sameYear) "MMM d" else "MMM d, yyyy"
+    // The locale picks the order and punctuation; "MMM d" reads wrong in most of the world.
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(
+        Locale.getDefault(), if (sameYear) "MMMd" else "yMMMd"
+    )
     return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timestamp))
 }
 

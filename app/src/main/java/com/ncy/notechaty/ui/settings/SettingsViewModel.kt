@@ -1,5 +1,6 @@
 package com.ncy.notechaty.ui.settings
 
+import com.ncy.notechaty.R
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -88,7 +89,7 @@ class SettingsViewModel @Inject constructor(
             val error = withContext(Dispatchers.IO) {
                 if (pinManager.hasPin()) {
                     if (currentPin == null || !pinManager.verifyPin(currentPin)) {
-                        return@withContext "The current PIN is wrong."
+                        return@withContext context.getString(R.string.current_pin_wrong)
                     }
                     repository.rekeyProtectedChats(currentPin, newPin)
                 }
@@ -107,7 +108,7 @@ class SettingsViewModel @Inject constructor(
     fun clearPin(currentPin: String, onResult: (String?) -> Unit = {}) {
         viewModelScope.launch {
             val error = withContext(Dispatchers.IO) {
-                if (!pinManager.verifyPin(currentPin)) return@withContext "The current PIN is wrong."
+                if (!pinManager.verifyPin(currentPin)) return@withContext context.getString(R.string.current_pin_wrong)
                 repository.rekeyProtectedChats(currentPin, newPin = null)
                 pinManager.clearPin()
                 chatLockState.lockAll()

@@ -1,7 +1,10 @@
 package com.ncy.notechaty.ui.chatlist
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +18,15 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Unarchive
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -125,7 +137,7 @@ fun ChatListScreen(
                             value = searchQuery,
                             onValueChange = searchViewModel::setQuery,
                             modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
-                            placeholder = { Text("Search chats & messages…") },
+                            placeholder = { Text(stringResource(R.string.search_chats_messages)) },
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
@@ -154,26 +166,26 @@ fun ChatListScreen(
                             searchViewModel.setQuery("")
                             searchActive = false
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close search")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.close_search))
                         }
                     }
                 },
                 actions = {
                     if (!searchActive) {
                         IconButton(onClick = { searchActive = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search")
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
                         }
                         Box {
                             IconButton(onClick = { filtersOpen = true }) {
                                 Icon(
                                     Icons.Default.FilterList,
-                                    contentDescription = "Filter chats",
+                                    contentDescription = stringResource(R.string.filter_chats),
                                     tint = if (showArchivedChats) MaterialTheme.colorScheme.primary else LocalContentColor.current
                                 )
                             }
                             DropdownMenu(expanded = filtersOpen, onDismissRequest = { filtersOpen = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("Show archived chats") },
+                                    text = { Text(stringResource(R.string.show_archived_chats)) },
                                     trailingIcon = { Checkbox(checked = showArchivedChats, onCheckedChange = null) },
                                     onClick = {
                                         showArchivedChats = !showArchivedChats
@@ -183,7 +195,7 @@ fun ChatListScreen(
                             }
                         }
                         IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
                         }
                     }
                 },
@@ -207,7 +219,7 @@ fun ChatListScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "New Chat")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_chat))
             }
             }
         }
@@ -219,8 +231,24 @@ fun ChatListScreen(
             searchResults,
             isSearching
         ) { onChatClick(it, "") }
-        homeTab == HomeTab.STARRED -> HomeSavedMessages(Modifier.padding(padding), starredMessages, "No favorites") { onChatClick(it, "") }
-        homeTab == HomeTab.REMINDERS -> HomeSavedMessages(Modifier.padding(padding), reminderMessages, "No reminders") { onChatClick(it, "") }
+        homeTab == HomeTab.STARRED -> HomeSavedMessages(
+            Modifier.padding(padding),
+            starredMessages,
+            EmptyState(
+                Icons.Outlined.StarOutline,
+                stringResource(R.string.no_favorites_yet),
+                stringResource(R.string.no_favorites_hint),
+            ),
+        ) { onChatClick(it, "") }
+        homeTab == HomeTab.REMINDERS -> HomeSavedMessages(
+            Modifier.padding(padding),
+            reminderMessages,
+            EmptyState(
+                Icons.Outlined.NotificationsNone,
+                stringResource(R.string.no_upcoming_reminders),
+                stringResource(R.string.no_reminders_hint),
+            ),
+        ) { onChatClick(it, "") }
         else ->
         Box(
             modifier = Modifier
@@ -233,34 +261,13 @@ fun ChatListScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Surface(
-                            modifier = Modifier.size(128.dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Outlined.ChatBubbleOutline,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(64.dp),
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            "No chats yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    EmptyStateMessage(
+                        EmptyState(
+                            Icons.Outlined.ChatBubbleOutline,
+                            stringResource(R.string.no_chats_yet),
+                            stringResource(R.string.no_chats_hint),
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Tap + to create your first note chat",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        )
-                    }
+                    )
                 }
             } else {
                 val pinned = chats.filter { it.isPinned }
@@ -271,7 +278,7 @@ fun ChatListScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (pinned.isNotEmpty()) {
-                        item(key = "lbl_pinned") { NcySectionLabel("Pinned") }
+                        item(key = "lbl_pinned") { NcySectionLabel(stringResource(R.string.pinned)) }
                         item(key = "card_pinned") {
                             NcyDividedCard {
                                 pinned.forEachIndexed { i, chat ->
@@ -289,7 +296,13 @@ fun ChatListScreen(
                     }
 
                     if (others.isNotEmpty()) {
-                        item(key = "lbl_all") { NcySectionLabel(if (pinned.isEmpty()) "Chats" else "All") }
+                        // A heading only when another section needs telling apart:
+                        // "All" under Pinned, "Chats" above shown archived chats.
+                        val archivedShown = showArchivedChats && archivedChats.isNotEmpty()
+                        when {
+                            pinned.isNotEmpty() -> item(key = "lbl_all") { NcySectionLabel(stringResource(R.string.all)) }
+                            archivedShown -> item(key = "lbl_all") { NcySectionLabel(stringResource(R.string.chats)) }
+                        }
                         item(key = "card_all") {
                             NcyDividedCard {
                                 others.forEachIndexed { i, chat ->
@@ -307,7 +320,7 @@ fun ChatListScreen(
                     }
 
                     if (showArchivedChats && archivedChats.isNotEmpty()) {
-                        item(key = "lbl_archived") { NcySectionLabel("Archived chats") }
+                        item(key = "lbl_archived") { NcySectionLabel(stringResource(R.string.archived_chats)) }
                         item(key = "card_archived") {
                             NcyDividedCard {
                                 archivedChats.forEachIndexed { i, chat ->
@@ -333,8 +346,9 @@ fun ChatListScreen(
         CreateChatDialog(
             onDismiss = { showCreateDialog = false },
             onCreate = { name ->
-                viewModel.createChat(name)
                 showCreateDialog = false
+                // Straight into the new chat: creating one is how you start a note.
+                viewModel.createChat(name) { created -> onChatClick(created.id, created.name) }
             }
         )
     }
@@ -377,7 +391,7 @@ fun ChatListScreen(
                 if (!chat.isArchived) {
                     NcySheetActionRow(
                         Icons.Default.PushPin,
-                        if (chat.isPinned) "Unpin" else "Pin to top"
+                        if (chat.isPinned) stringResource(R.string.unpin) else stringResource(R.string.pin_to_top)
                     ) {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         viewModel.togglePin(chat)
@@ -386,13 +400,13 @@ fun ChatListScreen(
                 }
                 NcySheetActionRow(
                     if (chat.isArchived) Icons.Outlined.Unarchive else Icons.Outlined.Archive,
-                    if (chat.isArchived) "Unarchive" else "Archive"
+                    if (chat.isArchived) stringResource(R.string.unarchive) else stringResource(R.string.archive)
                 ) {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     viewModel.toggleArchive(chat)
                     longPressedChat = null
                 }
-                NcySheetActionRow(Icons.Default.Delete, "Delete", destructive = true) {
+                NcySheetActionRow(Icons.Default.Delete, stringResource(R.string.delete), destructive = true) {
                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                     longPressedChat = null
                     chatToDelete = chat
@@ -449,8 +463,8 @@ fun ChatListScreen(
     chatToDelete?.let { chat ->
         NcyAlertDialog(
             onDismissRequest = { chatToDelete = null },
-            title = { Text("Delete Chat") },
-            text = { Text("Delete \"${chat.name}\" and all its messages? This cannot be undone.") },
+            title = { Text(stringResource(R.string.delete_chat)) },
+            text = { Text(stringResource(R.string.delete_chat_confirm, chat.name)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -462,32 +476,72 @@ fun ChatListScreen(
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { chatToDelete = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
     }
 }
 
+/**
+ * Icon-only tab bar, thinner than Material's 80dp NavigationBar (which reserves room
+ * for labels). The selected tab keeps its pill, and each tab keeps its name for
+ * screen readers, so nothing but the visible text is lost.
+ */
 @Composable
 private fun HomeBottomNavigation(selected: HomeTab, onSelected: (HomeTab) -> Unit) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-        listOf(
-            Triple(HomeTab.CHATS, Icons.Outlined.ChatBubbleOutline, "Chats"),
-            Triple(HomeTab.STARRED, Icons.Default.Star, "Favorites"),
-            Triple(HomeTab.REMINDERS, Icons.Default.Notifications, "Reminders")
-        ).forEach { (tab, icon, label) ->
-            NavigationBarItem(
-                selected = selected == tab,
-                onClick = { onSelected(tab) },
-                icon = { Icon(icon, contentDescription = label) },
-                label = { Text(label) }
-            )
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .height(56.dp)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listOf(
+                Triple(HomeTab.CHATS, Icons.Outlined.ChatBubbleOutline, stringResource(R.string.chats)),
+                Triple(HomeTab.STARRED, Icons.Default.Star, stringResource(R.string.favorites)),
+                Triple(HomeTab.REMINDERS, Icons.Default.Notifications, stringResource(R.string.reminders))
+            ).forEach { (tab, icon, label) ->
+                val isSelected = selected == tab
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .selectable(
+                            selected = isSelected,
+                            onClick = { onSelected(tab) },
+                            role = Role.Tab,
+                        )
+                        .semantics { contentDescription = label },
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(width = 64.dp, height = 32.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+                                else Color.Transparent
+                            ),
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -497,11 +551,11 @@ private fun HomeSearchResults(modifier: Modifier, chatResults: List<Chat>, resul
     if (searching) {
         Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else if (chatResults.isEmpty() && results.isEmpty()) {
-        Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) { Text("No results found", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.no_results_found), color = MaterialTheme.colorScheme.onSurfaceVariant) }
     } else {
         LazyColumn(modifier.fillMaxSize().ncyDottedGrid()) {
             items(chatResults, key = { "chat-${it.id}" }) { chat ->
-                HomeMessageRow("Chat", chat.name, chat.lastMessageAt ?: chat.createdAt) { onChatClick(chat.id) }
+                HomeMessageRow(stringResource(R.string.chat), chat.name, chat.lastMessageAt ?: chat.createdAt) { onChatClick(chat.id) }
             }
             items(results.size, key = { results[it].message.id }) { index ->
                 val result = results[index]
@@ -512,9 +566,16 @@ private fun HomeSearchResults(modifier: Modifier, chatResults: List<Chat>, resul
 }
 
 @Composable
-private fun HomeSavedMessages(modifier: Modifier, messages: List<StarredMessage>, emptyText: String, onChatClick: (String) -> Unit) {
+private fun HomeSavedMessages(
+    modifier: Modifier,
+    messages: List<StarredMessage>,
+    empty: EmptyState,
+    onChatClick: (String) -> Unit,
+) {
     if (messages.isEmpty()) {
-        Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) { Text(emptyText, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Box(modifier.fillMaxSize().ncyDottedGrid(), contentAlignment = Alignment.Center) {
+            EmptyStateMessage(empty)
+        }
     } else {
         LazyColumn(modifier.fillMaxSize().ncyDottedGrid()) {
             items(messages.size, key = { messages[it].message.id }) { index ->
@@ -522,6 +583,49 @@ private fun HomeSavedMessages(modifier: Modifier, messages: List<StarredMessage>
                 HomeMessageRow(item.chatName, item.message.plainTextPreview(), item.message.reminderAt ?: item.message.createdAt) { onChatClick(item.chatId) }
             }
         }
+    }
+}
+
+/** What an empty tab shows: an icon, what it is, and how to fill it. */
+private data class EmptyState(val icon: ImageVector, val title: String, val hint: String)
+
+/**
+ * One empty-state layout for every tab, so Favorites and Reminders explain
+ * themselves like Chats does. Readable colours: the hint used to be 40% alpha.
+ */
+@Composable
+private fun EmptyStateMessage(state: EmptyState) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 40.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(112.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    state.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(52.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            state.title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            state.hint,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -582,7 +686,7 @@ private fun ChatListItem(
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         Icons.Default.PushPin,
-                        contentDescription = "Pinned",
+                        contentDescription = stringResource(R.string.pinned),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -591,7 +695,7 @@ private fun ChatListItem(
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         if (showLocked) Icons.Default.Lock else Icons.Default.LockOpen,
-                        contentDescription = if (showLocked) "Protected" else "Unlocked",
+                        contentDescription = if (showLocked) stringResource(R.string.protected_label) else stringResource(R.string.unlocked),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -601,7 +705,7 @@ private fun ChatListItem(
         supportingContent = {
             if (showLocked) {
                 Text(
-                    text = "Protected chat",
+                    text = stringResource(R.string.protected_chat),
                     maxLines = 1,
                     fontStyle = FontStyle.Italic,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -673,9 +777,9 @@ private fun CreateChatDialog(
     onCreate: (String) -> Unit
 ) {
     NcyInputSheet(
-        title = "New chat",
-        label = "Chat name",
-        confirmLabel = "Create",
+        title = stringResource(R.string.new_chat_2),
+        label = stringResource(R.string.chat_name),
+        confirmLabel = stringResource(R.string.create),
         onDismiss = onDismiss,
         onConfirm = onCreate
     )
@@ -703,8 +807,8 @@ private fun ChatUnlockDialog(
         if (canUseBio) {
             BiometricHelper.authenticate(
                 activity = activity!!,
-                title = "Unlock chat",
-                subtitle = "Verify to open this protected chat",
+                title = context.getString(R.string.unlock_chat),
+                subtitle = context.getString(R.string.verify_to_open_this_protected_chat),
                 onSuccess = onUnlocked
             )
         }
@@ -713,11 +817,11 @@ private fun ChatUnlockDialog(
     NcyAlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text("Protected chat") },
+        title = { Text(stringResource(R.string.protected_chat)) },
         text = {
             Column {
                 Text(
-                    "Enter your PIN to open this chat.",
+                    stringResource(R.string.enter_your_pin_to_open_this_chat),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -728,7 +832,7 @@ private fun ChatUnlockDialog(
                         pin = it.take(64)
                         error = false
                     },
-                    label = { Text("PIN") },
+                    label = { Text(stringResource(R.string.pin)) },
                     singleLine = true,
                     isError = error,
                     visualTransformation = PasswordVisualTransformation(),
@@ -744,15 +848,15 @@ private fun ChatUnlockDialog(
                         onClick = {
                             BiometricHelper.authenticate(
                                 activity = activity!!,
-                                title = "Unlock chat",
-                                subtitle = "Verify to open this protected chat",
+                                title = context.getString(R.string.unlock_chat),
+                                subtitle = context.getString(R.string.verify_to_open_this_protected_chat),
                                 onSuccess = onUnlocked
                             )
                         }
                     ) {
                         Icon(Icons.Default.Fingerprint, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Use fingerprint")
+                        Text(stringResource(R.string.use_fingerprint))
                     }
                 }
             }
@@ -770,11 +874,11 @@ private fun ChatUnlockDialog(
                 },
                 enabled = pin.isNotEmpty() && lockoutSeconds == 0
             ) {
-                Text("Unlock")
+                Text(stringResource(R.string.unlock))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -801,8 +905,8 @@ private fun ProfileUnlockDialog(
         if (canUseBio) {
             BiometricHelper.authenticate(
                 activity = activity!!,
-                title = "Switch to ${profile.name}",
-                subtitle = "Verify to open this profile",
+                title = context.getString(R.string.switch_to, profile.name),
+                subtitle = context.getString(R.string.verify_to_open_this_profile),
                 onSuccess = onUnlocked
             )
         }
@@ -811,11 +915,11 @@ private fun ProfileUnlockDialog(
     NcyAlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text("Switch to ${profile.name}") },
+        title = { Text(stringResource(R.string.switch_to, profile.name)) },
         text = {
             Column {
                 Text(
-                    "Enter the PIN for this profile.",
+                    stringResource(R.string.enter_the_pin_for_this_profile),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -826,7 +930,7 @@ private fun ProfileUnlockDialog(
                         pin = it.take(64)
                         error = false
                     },
-                    label = { Text("PIN") },
+                    label = { Text(stringResource(R.string.pin)) },
                     singleLine = true,
                     isError = error,
                     visualTransformation = PasswordVisualTransformation(),
@@ -842,15 +946,15 @@ private fun ProfileUnlockDialog(
                         onClick = {
                             BiometricHelper.authenticate(
                                 activity = activity!!,
-                                title = "Switch to ${profile.name}",
-                                subtitle = "Verify to open this profile",
+                                title = context.getString(R.string.switch_to, profile.name),
+                                subtitle = context.getString(R.string.verify_to_open_this_profile),
                                 onSuccess = onUnlocked
                             )
                         }
                     ) {
                         Icon(Icons.Default.Fingerprint, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Use fingerprint")
+                        Text(stringResource(R.string.use_fingerprint))
                     }
                 }
             }
@@ -867,10 +971,10 @@ private fun ProfileUnlockDialog(
                     }
                 },
                 enabled = pin.isNotEmpty() && lockoutSeconds == 0
-            ) { Text("Switch") }
+            ) { Text(stringResource(R.string.switch_label)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -881,9 +985,9 @@ private fun AddProfileDialog(
     onCreate: (String) -> Unit
 ) {
     NcyInputSheet(
-        title = "New profile",
-        label = "Profile name",
-        confirmLabel = "Create",
+        title = stringResource(R.string.new_profile),
+        label = stringResource(R.string.profile_name),
+        confirmLabel = stringResource(R.string.create),
         onDismiss = onDismiss,
         onConfirm = onCreate
     )

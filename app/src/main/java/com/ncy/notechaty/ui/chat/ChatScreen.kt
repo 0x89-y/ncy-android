@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.chat
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -53,6 +55,7 @@ import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import com.ncy.notechaty.ui.richtext.RichTextInput
 import com.ncy.notechaty.ui.voicemessage.VoiceRecorder
 import kotlinx.coroutines.delay
@@ -88,7 +91,7 @@ fun ChatScreen(
 
     if (uiState.unlockRequired) {
         ChatLockOverlay(
-            chatName = if (uiState.chat?.hideName == true) "Protected chat" else (uiState.chat?.name ?: chatName),
+            chatName = if (uiState.chat?.hideName == true) stringResource(R.string.protected_chat) else (uiState.chat?.name ?: chatName),
             useBiometric = appSettings.protectionUseBiometric,
             onBack = onBack,
             onVerify = { viewModel.verifyPin(it) },
@@ -123,7 +126,7 @@ fun ChatScreen(
         if (granted && pending != null) {
             viewModel.setReminder(pending.first, pending.second)
         } else if (!granted) {
-            Toast.makeText(context, "Notification permission is required for reminders", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.notification_permission_is_required_for), Toast.LENGTH_SHORT).show()
         }
     }
     val seenMessageIds = remember { mutableSetOf<String>() }
@@ -256,7 +259,7 @@ fun ChatScreen(
                 if (picked == null) {
                     Toast.makeText(
                         context,
-                        "Could not attach file (maximum size is 1 GB)",
+                        context.getString(R.string.could_not_attach_file_maximum_size_is_1),
                         Toast.LENGTH_LONG,
                     ).show()
                 } else {
@@ -292,7 +295,7 @@ fun ChatScreen(
                         TextField(
                             value = uiState.searchQuery,
                             onValueChange = { viewModel.setSearchQuery(it) },
-                            placeholder = { Text("Search in chat...") },
+                            placeholder = { Text(stringResource(R.string.search_in_chat)) },
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
@@ -311,7 +314,7 @@ fun ChatScreen(
                             isSearching = false
                             viewModel.clearSearch()
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close search")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.close_search))
                         }
                     },
                     actions = {
@@ -325,13 +328,13 @@ fun ChatScreen(
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 viewModel.previousSearchResult()
                             }) {
-                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous")
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.previous))
                             }
                             IconButton(onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 viewModel.nextSearchResult()
                             }) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next")
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.next))
                             }
                         }
                     },
@@ -344,14 +347,14 @@ fun ChatScreen(
                 )
             } else if (selectionMode) {
                 TopAppBar(
-                    title = { Text("${selectedIds.size} selected") },
+                    title = { Text(stringResource(R.string.selected_2, selectedIds.size)) },
                     navigationIcon = {
                         IconButton(onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             selectionMode = false
                             selectedIds = emptySet()
                         }) {
-                            Icon(Icons.Outlined.Close, contentDescription = "Cancel selection")
+                            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.cancel_selection))
                         }
                     },
                     actions = {
@@ -366,7 +369,7 @@ fun ChatScreen(
                         ) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Delete selected",
+                                contentDescription = stringResource(R.string.delete_selected),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -384,7 +387,7 @@ fun ChatScreen(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.clickable { onConfigClick() }
+                            modifier = Modifier.clickable(onClickLabel = stringResource(R.string.chat_settings)) { onConfigClick() }
                         ) {
                             val avatarFile = uiState.chat?.avatarFile?.let { File(chatDir, it) }
                             if (avatarFile != null && avatarFile.exists()) {
@@ -411,12 +414,12 @@ fun ChatScreen(
                                     }
                                 }
                             }
-                            Text(uiState.chat?.name ?: chatName.ifEmpty { "Chat" })
+                            Text(uiState.chat?.name ?: chatName.ifEmpty { stringResource(R.string.chat) })
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                         }
                     },
                     actions = {
@@ -424,7 +427,32 @@ fun ChatScreen(
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             isSearching = true
                         }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search in chat")
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search_in_chat_2))
+                        }
+                        // Tapping the title still opens chat settings, but nothing on
+                        // screen said so; the overflow menu is where people look.
+                        var showOverflow by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showOverflow = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options))
+                            }
+                            DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.chat_settings)) },
+                                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null) },
+                                    onClick = { showOverflow = false; onConfigClick() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.select_messages)) },
+                                    leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = null) },
+                                    enabled = uiState.messages.isNotEmpty(),
+                                    onClick = {
+                                        showOverflow = false
+                                        selectionMode = true
+                                        selectedIds = emptySet()
+                                    }
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -474,6 +502,35 @@ fun ChatScreen(
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     val reversedMessages = uiState.messages.reversed()
+                    // A new chat was a blank grid with nothing to say what it is for.
+                    if (uiState.chat != null && reversedMessages.isEmpty()) {
+                        item(key = "empty") {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillParentMaxSize().padding(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.EditNote,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    stringResource(R.string.no_notes_yet),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    stringResource(R.string.write_a_note_record_a_voice_message_or),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                    }
                     itemsIndexed(
                         reversedMessages,
                         key = { _, msg -> msg.id }
@@ -635,8 +692,8 @@ fun ChatScreen(
     showDeleteConfirm?.let { messageId ->
         NcyAlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("Delete Message") },
-            text = { Text("Delete this message?") },
+            title = { Text(stringResource(R.string.delete_message)) },
+            text = { Text(stringResource(R.string.delete_this_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -647,10 +704,10 @@ fun ChatScreen(
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -658,10 +715,10 @@ fun ChatScreen(
     // Reminder picker
     reminderMessage?.let { msg ->
         val reminderOptions = listOf(
-            "In 15 minutes" to 15L * 60 * 1000,
-            "In 1 hour" to 60L * 60 * 1000,
-            "In 3 hours" to 3L * 60 * 60 * 1000,
-            "Tomorrow" to 24L * 60 * 60 * 1000
+            stringResource(R.string.in_15_minutes) to 15L * 60 * 1000,
+            stringResource(R.string.in_1_hour) to 60L * 60 * 1000,
+            stringResource(R.string.in_3_hours) to 3L * 60 * 60 * 1000,
+            stringResource(R.string.tomorrow) to 24L * 60 * 60 * 1000
         )
         ModalBottomSheet(
             onDismissRequest = { reminderMessage = null },
@@ -669,7 +726,7 @@ fun ChatScreen(
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
                 Text(
-                    "Set reminder",
+                    stringResource(R.string.set_reminder),
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                 )
@@ -724,7 +781,7 @@ private fun ReplyComposerBar(target: Message, onCancel: () -> Unit) {
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Replying to",
+                text = stringResource(R.string.replying_to),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -737,7 +794,7 @@ private fun ReplyComposerBar(target: Message, onCancel: () -> Unit) {
             )
         }
         IconButton(onClick = onCancel) {
-            Icon(Icons.Outlined.Close, contentDescription = "Cancel reply")
+            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.cancel_reply))
         }
     }
 }
@@ -757,7 +814,7 @@ private fun ChatLockOverlay(
                 title = { Text(chatName) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -769,10 +826,10 @@ private fun ChatLockOverlay(
         }
     ) { padding ->
         com.ncy.notechaty.security.PinPromptContent(
-            title = "Protected chat",
-            subtitle = "Enter your PIN to continue",
-            biometricTitle = "Unlock chat",
-            biometricSubtitle = "Verify to open this protected chat",
+            title = stringResource(R.string.protected_chat),
+            subtitle = stringResource(R.string.enter_your_pin_to_continue),
+            biometricTitle = stringResource(R.string.unlock_chat),
+            biometricSubtitle = stringResource(R.string.verify_to_open_this_protected_chat),
             useBiometric = useBiometric,
             onVerify = onVerify,
             onUnlocked = onUnlocked,

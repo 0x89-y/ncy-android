@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.profiles
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -69,10 +71,10 @@ fun ProfilesScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Profiles") },
+                title = { Text(stringResource(R.string.profiles)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -91,7 +93,7 @@ fun ProfilesScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "New profile")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_profile))
             }
         }
     ) { padding ->
@@ -105,13 +107,13 @@ fun ProfilesScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                "Each profile has its own chats and lock. Tap a profile to manage it.",
+                stringResource(R.string.each_profile_has_its_own_chats_and_lock),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
             )
 
-            NcySectionLabel("Profiles")
+            NcySectionLabel(stringResource(R.string.profiles))
             NcyDividedCard {
                 profiles.forEachIndexed { i, profile ->
                     if (i > 0) NcyRowDivider()
@@ -130,13 +132,13 @@ fun ProfilesScreen(
 
     if (showAddProfile) {
         ProfileNameDialog(
-            title = "New profile",
+            title = stringResource(R.string.new_profile),
             initialValue = "",
             onDismiss = { showAddProfile = false },
             onConfirm = { name ->
                 viewModel.createProfile(name)
                 showAddProfile = false
-                Toast.makeText(context, "Profile created", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.profile_created), Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -161,7 +163,7 @@ fun ProfilesScreen(
             onClearPin = {
                 viewModel.clearProfilePin(profile.id)
                 profileToManage = null
-                Toast.makeText(context, "PIN removed", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.pin_removed), Toast.LENGTH_SHORT).show()
             },
             onPickIcon = {
                 profileToManage = null
@@ -183,7 +185,7 @@ fun ProfilesScreen(
 
     renamingProfile?.let { profile ->
         ProfileNameDialog(
-            title = "Rename profile",
+            title = stringResource(R.string.rename_profile),
             initialValue = profile.name,
             onDismiss = { renamingProfile = null },
             onConfirm = { name ->
@@ -196,22 +198,22 @@ fun ProfilesScreen(
     deletingProfile?.let { profile ->
         NcyAlertDialog(
             onDismissRequest = { deletingProfile = null },
-            title = { Text("Delete \"${profile.name}\"?") },
-            text = { Text("All chats and messages in this profile will be permanently deleted. This cannot be undone.") },
+            title = { Text(stringResource(R.string.delete_profile_confirm, profile.name)) },
+            text = { Text(stringResource(R.string.all_chats_and_messages_in_this_profile)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         viewModel.deleteProfile(profile.id)
                         deletingProfile = null
-                        Toast.makeText(context, "Profile deleted", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.profile_deleted), Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { deletingProfile = null }) { Text("Cancel") }
+                TextButton(onClick = { deletingProfile = null }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -223,7 +225,7 @@ fun ProfilesScreen(
             onConfirm = { newPin ->
                 viewModel.setProfilePin(profile.id, newPin)
                 profilePinSetup = null
-                Toast.makeText(context, "PIN saved", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.pin_saved), Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -268,14 +270,14 @@ private fun ProfileRow(
                     Spacer(Modifier.width(6.dp))
                     Icon(
                         Icons.Default.Lock,
-                        contentDescription = "Protected",
+                        contentDescription = stringResource(R.string.protected_label),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             Text(
-                text = if (isActive) "Active" else "Tap to manage",
+                text = if (isActive) stringResource(R.string.active) else stringResource(R.string.tap_to_manage),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -324,20 +326,20 @@ private fun ProfileManageSheet(
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            NcySheetActionRow(Icons.Default.Edit, "Rename", onClick = onRename)
-            NcySheetActionRow(Icons.Default.Palette, "Change icon", onClick = onPickIcon)
+            NcySheetActionRow(Icons.Default.Edit, stringResource(R.string.rename), onClick = onRename)
+            NcySheetActionRow(Icons.Default.Palette, stringResource(R.string.change_icon), onClick = onPickIcon)
             NcySheetActionRow(
                 Icons.Default.Lock,
-                if (profile.isProtected) "Change PIN" else "Set PIN",
+                if (profile.isProtected) stringResource(R.string.change_pin) else stringResource(R.string.set_pin),
                 onClick = onSetPin
             )
             if (profile.isProtected) {
-                NcySheetActionRow(Icons.Default.LockOpen, "Remove PIN", onClick = onClearPin)
+                NcySheetActionRow(Icons.Default.LockOpen, stringResource(R.string.remove_pin), onClick = onClearPin)
             }
             if (canDelete) {
                 NcySheetActionRow(
                     Icons.Default.Delete,
-                    "Delete profile",
+                    stringResource(R.string.delete_profile),
                     destructive = true,
                     onClick = onDelete
                 )
@@ -364,7 +366,7 @@ private fun IconPickerDialog(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Pick an icon", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.pick_an_icon), style = MaterialTheme.typography.titleLarge)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(5),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -407,8 +409,8 @@ private fun ProfileNameDialog(
 ) {
     NcyInputSheet(
         title = title,
-        label = "Profile name",
-        confirmLabel = "Save",
+        label = stringResource(R.string.profile_name),
+        confirmLabel = stringResource(R.string.save),
         initialValue = initialValue,
         onDismiss = onDismiss,
         onConfirm = onConfirm
@@ -438,36 +440,36 @@ private fun ProfilePinSetupDialog(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(if (isChange) "Change PIN" else "Set PIN", style = MaterialTheme.typography.titleLarge)
+            Text(if (isChange) stringResource(R.string.change_pin) else stringResource(R.string.set_pin), style = MaterialTheme.typography.titleLarge)
             Text(
-                "Choose a PIN of at least 4 characters.",
+                stringResource(R.string.choose_a_pin_of_at_least_4_characters),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedTextField(
                 value = pin,
                 onValueChange = { pin = it.take(64) },
-                label = { Text("New PIN") },
+                label = { Text(stringResource(R.string.new_pin)) },
                 singleLine = true,
                 isError = tooShort,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = KeyboardType.Password
                 ),
-                supportingText = if (tooShort) { { Text("Minimum 4 characters") } } else null,
+                supportingText = if (tooShort) { { Text(stringResource(R.string.minimum_4_characters)) } } else null,
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = confirm,
                 onValueChange = { confirm = it.take(64) },
-                label = { Text("Confirm PIN") },
+                label = { Text(stringResource(R.string.confirm_pin)) },
                 singleLine = true,
                 isError = mismatch,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = KeyboardType.Password
                 ),
-                supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
+                supportingText = if (mismatch) { { Text(stringResource(R.string.pins_don_t_match)) } } else null,
                 modifier = Modifier.fillMaxWidth()
             )
             Button(
@@ -475,7 +477,7 @@ private fun ProfilePinSetupDialog(
                 enabled = pin.length >= 4 && pin == confirm,
                 shape = NcyButtonShape,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         }
     }
 }

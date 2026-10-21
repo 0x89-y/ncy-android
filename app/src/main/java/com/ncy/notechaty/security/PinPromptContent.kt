@@ -1,5 +1,7 @@
 package com.ncy.notechaty.security
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -111,7 +113,7 @@ fun PinPromptContent(
                 pin = it.take(64)
                 error = false
             },
-            label = { Text("PIN") },
+            label = { Text(stringResource(R.string.pin)) },
             singleLine = true,
             isError = error,
             visualTransformation = PasswordVisualTransformation(),
@@ -134,7 +136,7 @@ fun PinPromptContent(
             shape = NcyButtonShape,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Unlock")
+            Text(stringResource(R.string.unlock))
         }
         if (canUseBio) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -151,7 +153,7 @@ fun PinPromptContent(
             ) {
                 Icon(Icons.Default.Fingerprint, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Use fingerprint")
+                Text(stringResource(R.string.use_fingerprint))
             }
         }
     }

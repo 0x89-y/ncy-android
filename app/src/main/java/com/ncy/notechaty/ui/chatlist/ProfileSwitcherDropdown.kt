@@ -1,11 +1,17 @@
 package com.ncy.notechaty.ui.chatlist
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -16,7 +22,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,7 +53,16 @@ fun ProfileSwitcherDropdown(
     val active = profiles.firstOrNull { it.id == activeProfileId }
 
     Box(modifier = modifier) {
-        IconButton(onClick = { expanded = true }) {
+        // Avatar, name and a dropdown arrow: the bare avatar left the screen without
+        // a title, and nothing said which profile you were in.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClickLabel = stringResource(R.string.switch_profile)) { expanded = true }
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+        ) {
             Box(contentAlignment = Alignment.Center) {
                 // Round profile avatar — colored circle + icon, matching the
                 // Profiles screen (per-name hashed color).
@@ -61,7 +75,7 @@ fun ProfileSwitcherDropdown(
                 ) {
                     Icon(
                         imageVector = ProfileIcons.iconFor(active?.iconKey ?: "person"),
-                        contentDescription = active?.name ?: "Switch profile",
+                        contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
@@ -84,6 +98,18 @@ fun ProfileSwitcherDropdown(
                     }
                 }
             }
+            Text(
+                text = active?.name ?: "Ncy",
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Icon(
+                Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         DropdownMenu(
@@ -111,7 +137,7 @@ fun ProfileSwitcherDropdown(
                             if (profile.isProtected) {
                                 Icon(
                                     Icons.Default.Lock,
-                                    contentDescription = "Protected",
+                                    contentDescription = stringResource(R.string.protected_label),
                                     modifier = Modifier.size(14.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -126,7 +152,7 @@ fun ProfileSwitcherDropdown(
             }
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("Add profile") },
+                text = { Text(stringResource(R.string.add_profile)) },
                 leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
                 onClick = {
                     expanded = false
@@ -134,7 +160,7 @@ fun ProfileSwitcherDropdown(
                 }
             )
             DropdownMenuItem(
-                text = { Text("Manage profiles") },
+                text = { Text(stringResource(R.string.manage_profiles)) },
                 leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
                 onClick = {
                     expanded = false

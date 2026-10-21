@@ -1,5 +1,6 @@
 package com.ncy.notechaty.ui.sync
 
+import com.ncy.notechaty.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ncy.notechaty.data.sync.DeviceIdentity
@@ -34,6 +35,7 @@ class SyncViewModel @Inject constructor(
     private val phoneSyncServer: PhoneSyncServer,
     private val settingsRepository: SettingsRepository,
     pearRuntimeController: PearRuntimeController,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) : ViewModel() {
 
     val peers: StateFlow<List<SyncPeer>> = peerStore.peers
@@ -51,8 +53,11 @@ class SyncViewModel @Inject constructor(
     val pairingBusy: StateFlow<String?> = _pairingBusy.asStateFlow()
 
     /** One-shot toast/snackbar messages surfaced from async pair attempts. */
-    private val _pairingMessage = MutableStateFlow<String?>(null)
-    val pairingMessage: StateFlow<String?> = _pairingMessage.asStateFlow()
+    /** A pairing outcome to show once. [success] decides its styling, so the text can be translated. */
+    data class PairingMessage(val text: String, val success: Boolean)
+
+    private val _pairingMessage = MutableStateFlow<PairingMessage?>(null)
+    val pairingMessage: StateFlow<PairingMessage?> = _pairingMessage.asStateFlow()
 
     /** ECDH safety code from the current pair-in-flight request. Shown to the
      *  user to visually verify it matches the same code displayed on the
@@ -95,7 +100,7 @@ class SyncViewModel @Inject constructor(
     /** Returns null on success, an error message on failure. */
     fun pair(rawText: String): String? {
         val payload = PairingPayload.parse(rawText)
-            ?: return "Couldn't read pairing data — paste the JSON shown by the desktop server."
+            ?: return context.getString(R.string.pairing_data_unreadable)
         peerStore.addOrReplace(payload.toPeer(System.currentTimeMillis()))
         // Joining a mesh: media older than this moment is listed, not downloaded.
         viewModelScope.launch { settingsRepository.stampMediaBackfillCutoff() }
@@ -138,24 +143,27 @@ class SyncViewModel @Inject constructor(
                         confirmation.await()
                     } != null
                     _pairingMessage.value = if (confirmed) {
-                        pair(result.pairingJson) ?: "Paired with ${peer.name}."
+                        pair(result.pairingJson)?.let { PairingMessage(it, success = false) }
+                            ?: PairingMessage(context.getString(R.string.paired_with, peer.name), success = true)
                     } else {
-                        "The safety code wasn't confirmed in time, so nothing was paired. " +
-                            "Remove this phone on the desktop if it was added there."
+                        PairingMessage(context.getString(R.string.safety_code_timeout), success = false)
                     }
                 }
                 is PairingClient.Result.Rejected -> {
-                    _pairingMessage.value = when (result.reason) {
-                        "timeout" -> "Desktop didn't confirm in time."
-                        "cancelled" -> "Desktop cancelled the request."
-                        "discovery-off" -> "Desktop has discoverability disabled."
-                        "rate-limited" -> "Too many attempts; try again in a few minutes."
-                        "bad-pubkey" -> "Handshake failed (bad pubkey)."
-                        else -> "Desktop rejected the request."
-                    }
+                    _pairingMessage.value = PairingMessage(
+                        when (result.reason) {
+                            "timeout" -> context.getString(R.string.pair_rejected_timeout)
+                            "cancelled" -> context.getString(R.string.pair_rejected_cancelled)
+                            "discovery-off" -> context.getString(R.string.pair_rejected_discovery_off)
+                            "rate-limited" -> context.getString(R.string.pair_rejected_rate_limited)
+                            "bad-pubkey" -> context.getString(R.string.pair_rejected_bad_key)
+                            else -> context.getString(R.string.pair_rejected_other)
+                        },
+                        success = false,
+                    )
                 }
                 is PairingClient.Result.Failed -> {
-                    _pairingMessage.value = "Couldn't pair: ${result.message}"
+                    _pairingMessage.value = PairingMessage(context.getString(R.string.pair_failed, result.message), success = false)
                 }
             }
             _pairingBusy.value = null
@@ -183,9 +191,10 @@ class SyncViewModel @Inject constructor(
         pairingJob = null
         _pairingBusy.value = null
         resetCodeCheck()
-        _pairingMessage.value = if (desktopAccepted) {
-            "Pairing cancelled. The desktop already added this phone — remove it there."
-        } else "Pair request cancelled."
+        _pairingMessage.value = PairingMessage(
+            if (desktopAccepted) context.getString(R.string.pairing_cancelled_after_accept) else context.getString(R.string.pair_request_cancelled),
+            success = false,
+        )
     }
 
     private fun resetCodeCheck() {

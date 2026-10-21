@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.voicemessage
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
@@ -96,7 +98,7 @@ fun VoiceRecorder(
                 }
                 onCancel()
             }) {
-                Icon(Icons.Default.Delete, contentDescription = "Cancel", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cancel), tint = MaterialTheme.colorScheme.error)
             }
 
             // Duration display
@@ -147,7 +149,7 @@ fun VoiceRecorder(
                         }
                     }
                 ) {
-                    Icon(Icons.Default.Mic, contentDescription = "Start recording")
+                    Icon(Icons.Default.Mic, contentDescription = stringResource(R.string.start_recording))
                 }
             } else {
                 FilledIconButton(
@@ -171,7 +173,7 @@ fun VoiceRecorder(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Icon(Icons.Default.Stop, contentDescription = "Stop recording")
+                    Icon(Icons.Default.Stop, contentDescription = stringResource(R.string.stop_recording))
                 }
             }
         }

@@ -1,5 +1,8 @@
 package com.ncy.notechaty.ui.settings
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -20,7 +23,11 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
@@ -46,6 +53,15 @@ import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
+import com.ncy.notechaty.ui.desktoptheme.NcyChoiceChip
+import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.accentSwatch
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
 import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
@@ -84,11 +100,14 @@ fun SettingsScreen(
     var pinError by remember { mutableStateOf<String?>(null) }
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
     var showDeviceNameDialog by remember { mutableStateOf(false) }
-    var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingsSection by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+    // A page is local state, not a nav destination, so the system back gesture has
+    // to be told; without this it left Settings entirely instead of returning here.
+    BackHandler(enabled = settingsSection != null) { settingsSection = null }
     val settings by viewModel.settings.collectAsState()
     val mediaReport by viewModel.mediaReport.collectAsState()
     var resyncing by remember { mutableStateOf(false) }
-    var resyncNote by remember { mutableStateOf("Ask every device to resend its history") }
+    var resyncNote by remember { mutableStateOf(context.getString(R.string.ask_every_device_to_resend)) }
     val mediaBusy by viewModel.mediaBusy.collectAsState()
 
     // Export all launcher
@@ -104,10 +123,10 @@ fun SettingsScreen(
                         tempFile.inputStream().use { input -> input.copyTo(os) }
                     }
                     tempFile.delete()
-                    Toast.makeText(context, "Backup created (all profiles)", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.backup_created_all_profiles), Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     tempFile.delete()
-                    Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.export_failed, e.message ?: ""), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -123,10 +142,10 @@ fun SettingsScreen(
                     try {
                         viewModel.importChat(tempFile)
                         tempFile.delete()
-                        Toast.makeText(context, "Chat imported successfully", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.chat_imported_successfully), Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
                         tempFile.delete()
-                        Toast.makeText(context, "Import failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.import_failed, e.message ?: ""), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -137,14 +156,14 @@ fun SettingsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(settingsSection ?: "Settings") },
+                title = { Text(settingsSection?.let { stringResource(it.title) } ?: stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (settingsSection != null) settingsSection = null else onNavigateBack()
                     }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 },
@@ -166,56 +185,57 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             if (settingsSection == null) {
-                NcySettingsPanel {
-                    listOf(
-                        Triple("General", Icons.Default.Person, "Device identity and app protection"),
-                        Triple("Sync", Icons.Default.Sync, "Paired devices and connection mode"),
-                        Triple("Interface", Icons.Default.Palette, "Theme and appearance"),
-                        Triple("Transcription", Icons.Default.Info, "Voice transcription options"),
-                        Triple("Backup", Icons.Default.Backup, "Import, export, and automatic backups"),
-                    ).forEachIndexed { index, (title, icon, subtitle) ->
+                NcyDividedCard {
+                    // Null page: Sync is its own screen rather than a page here.
+                    listOf<Triple<SettingsPage?, ImageVector, Int>>(
+                        Triple(SettingsPage.General, Icons.Default.PhoneAndroid, R.string.settings_device_name_hint),
+                        Triple(SettingsPage.Privacy, Icons.Default.Shield, R.string.settings_privacy_hint),
+                        Triple(null, Icons.Default.Sync, R.string.settings_sync_hint),
+                        Triple(SettingsPage.Interface, Icons.Default.Palette, R.string.settings_interface_hint),
+                        Triple(SettingsPage.Transcription, Icons.Default.RecordVoiceOver, R.string.settings_transcription_hint),
+                        Triple(SettingsPage.Backup, Icons.Default.Backup, R.string.settings_backup_hint),
+                    ).forEachIndexed { index, (page, icon, subtitle) ->
+                        if (index > 0) NcyRowDivider()
                         NcySettingsRow(
                             icon = icon,
-                            title = title,
-                            subtitle = subtitle,
-                            onClick = { if (title == "Sync") onOpenSync() else settingsSection = title },
+                            title = page?.let { stringResource(it.title) } ?: stringResource(R.string.sync),
+                            subtitle = stringResource(subtitle),
+                            onClick = { if (page == null) onOpenSync() else settingsSection = page },
                         )
-                        if (index < 4) NcyRowDivider()
                     }
                 }
-                NcySettingsPanel {
+                NcyDividedCard {
                     NcySettingsRow(
-                        icon = Icons.Default.NewReleases,
-                        title = "Changelog",
-                        subtitle = "Recent changes and version history",
+                        icon = Icons.Default.History,
+                        title = stringResource(R.string.changelog),
+                        subtitle = stringResource(R.string.recent_changes_and_version_history),
                         onClick = { showChangelog = true }
                     )
                     NcyRowDivider()
                     NcySettingsRow(
                         icon = Icons.Default.Info,
-                        title = "About",
-                        subtitle = "Version, credits, and open-source licenses",
-                        onClick = { settingsSection = "About" }
+                        title = stringResource(SettingsPage.About.title),
+                        subtitle = stringResource(R.string.version_credits_and_open_source_licenses),
+                        onClick = { settingsSection = SettingsPage.About }
                     )
                 }
             }
 
             // ---- Backup ----
-            if (settingsSection == "Backup") {
+            if (settingsSection == SettingsPage.Backup) {
             // Media storage. The blob store is append-only, so deleting a message
             // never removed its attachment — measure first, then offer to reclaim.
-            NcySettingsSection("Media storage") {
+            NcySettingsSection(stringResource(R.string.media_storage)) {
                 val report = mediaReport
                 NcySettingsRow(
                     icon = Icons.Default.Storage,
-                    title = "Downloaded media",
+                    title = stringResource(R.string.downloaded_media),
                     subtitle = when {
-                        mediaBusy -> "Scanning…"
+                        mediaBusy -> stringResource(R.string.scanning)
                         report == null ->
-                            "Photos, voice messages and attachments kept for your chats"
+                            stringResource(R.string.photos_voice_messages_and_attachments)
                         else ->
-                            formatStorageSize(report.totalBytes) + " across " +
-                                report.scanned + " files"
+                            stringResource(R.string.media_storage_summary, formatStorageSize(report.totalBytes), report.scanned)
                     },
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -225,9 +245,7 @@ fun SettingsScreen(
                 if (report != null && report.lockedChats.isNotEmpty()) {
                     NcyRowDivider()
                     Text(
-                        report.lockedChats.size.toString() + " protected " +
-                            (if (report.lockedChats.size == 1) "chat is" else "chats are") +
-                            " locked. Their media references are still encrypted, so their files were left alone.",
+                        pluralStringResource(R.plurals.locked_chats_skipped, report.lockedChats.size, report.lockedChats.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -237,8 +255,8 @@ fun SettingsScreen(
                     NcyRowDivider()
                     NcySettingsRow(
                         icon = Icons.Default.DeleteSweep,
-                        title = "Free up " + formatStorageSize(report.reclaimedBytes),
-                        subtitle = "Media no message refers to any more",
+                        title = stringResource(R.string.free_up) + formatStorageSize(report.reclaimedBytes),
+                        subtitle = stringResource(R.string.media_no_message_refers_to_any_more),
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             viewModel.scanMedia(dryRun = false)
@@ -247,7 +265,7 @@ fun SettingsScreen(
                 } else if (report != null) {
                     NcyRowDivider()
                     Text(
-                        "Nothing to clean up — every stored file is still in use.",
+                        stringResource(R.string.nothing_to_clean_up_every_stored_file_is),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -258,10 +276,10 @@ fun SettingsScreen(
             // Recovery for a device that is missing messages, or still showing ones
             // deleted elsewhere. This has to live here, not on the desktop: our
             // watermark is what the desktop treats as authoritative.
-            NcySettingsSection("Troubleshooting") {
+            NcySettingsSection(stringResource(R.string.troubleshooting)) {
                 NcySettingsRow(
                     icon = Icons.Default.Sync,
-                    title = "Force full resync",
+                    title = stringResource(R.string.force_full_resync),
                     subtitle = resyncNote,
                     onClick = {
                         if (!resyncing) {
@@ -270,9 +288,9 @@ fun SettingsScreen(
                             viewModel.forceFullResync { ok ->
                                 resyncing = false
                                 resyncNote = if (ok) {
-                                    "Sync progress cleared. Every device resends its history on reconnect."
+                                    context.getString(R.string.sync_progress_cleared_every_device)
                                 } else {
-                                    "Could not clear sync progress. Try again."
+                                    context.getString(R.string.could_not_clear_sync_progress_try_again)
                                 }
                             }
                         }
@@ -280,11 +298,11 @@ fun SettingsScreen(
                 )
             }
 
-            NcySettingsSection("Backup") {
+            NcySettingsSection(stringResource(R.string.import_and_export)) {
                 NcySettingsRow(
                     icon = Icons.Default.FileUpload,
-                    title = "Import chat",
-                    subtitle = "Import from .zip file",
+                    title = stringResource(R.string.import_chat),
+                    subtitle = stringResource(R.string.import_from_zip_file),
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         importLauncher.launch("application/zip")
@@ -293,8 +311,8 @@ fun SettingsScreen(
                 NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.FileDownload,
-                    title = "Back up everything",
-                    subtitle = "All chats from every profile + the profile list, as one .zip",
+                    title = stringResource(R.string.back_up_everything),
+                    subtitle = stringResource(R.string.all_chats_from_every_profile_the_profile),
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         exportAllLauncher.launch("ncy_backup.zip")
@@ -303,8 +321,8 @@ fun SettingsScreen(
                 NcyRowDivider()
                 NcySettingsToggleRow(
                     icon = Icons.Default.Backup,
-                    title = "Auto-backup",
-                    subtitle = "Periodically backs up all chats internally",
+                    title = stringResource(R.string.auto_backup),
+                    subtitle = stringResource(R.string.periodically_backs_up_all_chats),
                     checked = settings.autoBackupEnabled,
                     onCheckedChange = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -314,20 +332,20 @@ fun SettingsScreen(
                 if (settings.autoBackupEnabled) {
                     NcyRowDivider()
                     NcySettingsPanel {
-                        Text("Backup interval", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.backup_interval), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(8.dp))
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             listOf(6, 12, 24, 48).forEach { hours ->
-                                FilterChip(
+                                NcyChoiceChip(
                                     selected = settings.autoBackupIntervalHours == hours,
                                     onClick = {
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         viewModel.setAutoBackupInterval(hours)
                                     },
-                                    label = { Text(if (hours < 24) "${hours}h" else "${hours / 24}d") }
+                                    label = if (hours < 24) "${hours}h" else "${hours / 24}d",
                                 )
                             }
                         }
@@ -336,19 +354,19 @@ fun SettingsScreen(
                 NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.DeleteForever,
-                    title = "Forget deletion records",
-                    subtitle = "Advanced: stale backups may restore deleted chats or messages",
+                    title = stringResource(R.string.forget_deletion_records_2),
+                    subtitle = stringResource(R.string.advanced_stale_backups_may_restore),
                     onClick = { showPurgeTombstonesConfirm = true },
                 )
             }
             }
 
             // ---- Device identity ----
-            if (settingsSection == "General") {
-            NcySettingsSection("General") {
+            if (settingsSection == SettingsPage.General) {
+            NcySettingsSection(null) {
                 NcySettingsRow(
                     icon = Icons.Default.Person,
-                    title = "Device name",
+                    title = stringResource(R.string.device_name),
                     subtitle = settings.deviceName,
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -358,14 +376,14 @@ fun SettingsScreen(
             }
             }
 
-            // ---- Privacy ----
-            if (settingsSection == "General") {
-            NcySettingsSection("Privacy") {
+            // ---- Privacy & security ----
+            if (settingsSection == SettingsPage.Privacy) {
+            NcySettingsSection(null) {
                 val hasPin = viewModel.hasPin()
                 NcySettingsRow(
                     icon = Icons.Default.Lock,
-                    title = if (hasPin) "Change PIN" else "Set protected chats PIN",
-                    subtitle = if (hasPin) "PIN is set" else "Required to protect any chat",
+                    title = if (hasPin) stringResource(R.string.change_pin) else stringResource(R.string.set_protected_chats_pin),
+                    subtitle = if (hasPin) stringResource(R.string.pin_is_set) else stringResource(R.string.required_to_protect_any_chat),
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         showPinSetup = true
@@ -375,8 +393,8 @@ fun SettingsScreen(
                     NcyRowDivider()
                     NcySettingsRow(
                         icon = Icons.Default.LockOpen,
-                        title = "Remove PIN",
-                        subtitle = "Unprotects all chats",
+                        title = stringResource(R.string.remove_pin),
+                        subtitle = stringResource(R.string.unprotects_all_chats),
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             showRemovePinConfirm = true
@@ -386,9 +404,9 @@ fun SettingsScreen(
                     NcyRowDivider()
                     NcySettingsToggleRow(
                         icon = Icons.Default.Fingerprint,
-                        title = "Use fingerprint",
-                        subtitle = if (biometricAvailable) "Unlock protected chats with biometrics"
-                            else "No biometrics enrolled on this device",
+                        title = stringResource(R.string.use_fingerprint),
+                        subtitle = if (biometricAvailable) stringResource(R.string.unlock_protected_chats_with_biometrics)
+                            else stringResource(R.string.no_biometrics_enrolled_on_this_device),
                         checked = settings.protectionUseBiometric && biometricAvailable,
                         enabled = biometricAvailable,
                         onCheckedChange = {
@@ -399,8 +417,8 @@ fun SettingsScreen(
                     NcyRowDivider()
                     NcySettingsToggleRow(
                         icon = Icons.Default.Lock,
-                        title = "Lock app on start",
-                        subtitle = "Require PIN to open Ncy",
+                        title = stringResource(R.string.lock_app_on_start),
+                        subtitle = stringResource(R.string.require_pin_to_open_ncy),
                         checked = settings.lockOnAppStart,
                         onCheckedChange = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -409,10 +427,9 @@ fun SettingsScreen(
                     )
                     NcyRowDivider()
                     NcySettingsPanel {
-                        Text("Re-lock chats", style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.re_lock_chats), style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            "How long an unlock stays valid. Leaving Ncy for longer than this " +
-                                "(at least a minute) locks everything again.",
+                            stringResource(R.string.how_long_an_unlock_stays_valid_leaving),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -421,14 +438,14 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            listOf(0 to "Always", 1 to "1m", 5 to "5m", 15 to "15m").forEach { (mins, label) ->
-                                FilterChip(
+                            listOf(0 to stringResource(R.string.always), 1 to "1m", 5 to "5m", 15 to "15m").forEach { (mins, label) ->
+                                NcyChoiceChip(
                                     selected = settings.protectionGracePeriodMinutes == mins,
                                     onClick = {
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         viewModel.setProtectionGracePeriod(mins)
                                     },
-                                    label = { Text(label) }
+                                    label = label,
                                 )
                             }
                         }
@@ -438,84 +455,100 @@ fun SettingsScreen(
             }
 
             // ---- Appearance ----
-            if (settingsSection == "Interface") {
-            NcySettingsSection("Interface") {
+            if (settingsSection == SettingsPage.Interface) {
+            NcySettingsSection(null) {
                 NcySettingsPanel {
-                    Text("Theme", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.theme), style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ThemeMode.entries.forEach { mode ->
-                            FilterChip(
+                            NcyChoiceChip(
                                 selected = settings.themeMode == mode,
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     viewModel.setThemeMode(mode)
                                 },
-                                label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                                label = mode.name.lowercase().replaceFirstChar { it.uppercase() },
                             )
                         }
                     }
                 }
                 NcyRowDivider()
                 NcySettingsPanel {
-                    Text("Accent color", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.accent_color), style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
+                    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         AccentColor.entries.forEach { color ->
-                            val circleColor = accentPreviewColor(color)
+                            // The swatch is the colour the choice really produces, named,
+                            // so no option is a guess (the old grey "Dynamic" was violet).
+                            val swatch = accentSwatch(color, dark)
                             val isSelected = settings.accentColor == color
-                            Box(
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(circleColor)
+                                    .width(56.dp)
+                                    .clip(RoundedCornerShape(8.dp))
                                     .clickable {
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         viewModel.setAccentColor(color)
-                                    },
-                                contentAlignment = Alignment.Center
+                                    }
+                                    .semantics(mergeDescendants = true) { selected = isSelected },
                             ) {
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        modifier = Modifier.size(20.dp),
-                                        tint = Color.White
-                                    )
-                                } else if (color == AccentColor.DYNAMIC) {
-                                    Icon(
-                                        Icons.Default.Palette,
-                                        contentDescription = "Dynamic",
-                                        modifier = Modifier.size(18.dp),
-                                        tint = Color.White
-                                    )
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(swatch),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = if (swatch.luminance() > 0.4f) Color.Black else Color.White,
+                                        )
+                                    } else if (color == AccentColor.WALLPAPER) {
+                                        Icon(
+                                            Icons.Default.Wallpaper,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = if (swatch.luminance() > 0.4f) Color.Black else Color.White,
+                                        )
+                                    }
                                 }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    stringResource(color.label),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
                             }
                         }
                     }
                 }
                 NcyRowDivider()
                 NcySettingsPanel {
-                    Text("Chat order", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.chat_order), style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ChatSortMode.entries.forEach { mode ->
-                            FilterChip(
+                            NcyChoiceChip(
                                 selected = settings.chatSortMode == mode,
                                 onClick = { viewModel.setChatSortMode(mode) },
-                                label = { Text(mode.displayName) },
-                                leadingIcon = if (settings.chatSortMode == mode) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                } else null
+                                label = stringResource(mode.label),
                             )
                         }
                     }
@@ -523,13 +556,13 @@ fun SettingsScreen(
             }
             }
 
-            if (settingsSection == "Transcription") {
-                NcySettingsSection("Voice transcription") {
+            if (settingsSection == SettingsPage.Transcription) {
+                NcySettingsSection(null) {
                     NcySettingsPanel {
-                        Text("Voice transcription is not available on Android yet.")
+                        Text(stringResource(R.string.voice_transcription_is_not_available_on))
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Voice messages can still be recorded, sent, and played normally.",
+                            stringResource(R.string.voice_messages_can_still_be_recorded),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -538,19 +571,19 @@ fun SettingsScreen(
             }
 
             // ---- About ----
-            if (settingsSection == "About") {
-            NcySettingsSection("About") {
+            if (settingsSection == SettingsPage.About) {
+            NcySettingsSection(null) {
                 NcySettingsRow(
                     icon = Icons.Default.Person,
-                    title = "Ncy",
-                    subtitle = "v${context.packageManager.getPackageInfo(context.packageName, 0).versionName} \u00b7 Made by 0x89-y",
+                    title = stringResource(R.string.ncy),
+                    subtitle = stringResource(R.string.version_made_by, context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""),
                     onClick = { showAboutDialog = true }
                 )
                 NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.Info,
-                    title = "Open source licenses",
-                    subtitle = "Third-party libraries used in this app",
+                    title = stringResource(R.string.open_source_licenses),
+                    subtitle = stringResource(R.string.third_party_libraries_used_in_this_app),
                     onClick = onOpenLicenses
                 )
             }
@@ -589,20 +622,20 @@ fun SettingsScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Ncy", style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.ncy), style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "v$version · A note-to-self chat app",
+                        stringResource(R.string.v_a_note_to_self_chat_app, version ?: ""),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Made by 0x89-y",
+                        stringResource(R.string.made_by_0x89_y),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                NcySheetActionRow(Icons.Default.Person, "View on GitHub") {
+                NcySheetActionRow(Icons.Default.Person, stringResource(R.string.view_on_github)) {
                     showAboutDialog = false
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/0x89-y"))
@@ -616,14 +649,14 @@ fun SettingsScreen(
         var editedName by rememberSaveable(settings.deviceName) { mutableStateOf(settings.deviceName) }
         NcyAlertDialog(
             onDismissRequest = { showDeviceNameDialog = false },
-            title = { Text("Device name") },
+            title = { Text(stringResource(R.string.device_name)) },
             text = {
                 OutlinedTextField(
                     value = editedName,
                     onValueChange = { editedName = it.take(AuthenticatedDeviceName.MAX_LENGTH) },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.name)) },
                     supportingText = {
-                        Text("Shown to paired devices after authentication.")
+                        Text(stringResource(R.string.shown_to_paired_devices_after))
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -636,10 +669,10 @@ fun SettingsScreen(
                         viewModel.setDeviceName(editedName)
                         showDeviceNameDialog = false
                     },
-                ) { Text("Save") }
+                ) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeviceNameDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeviceNameDialog = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -657,7 +690,7 @@ fun SettingsScreen(
                     pinError = error
                     if (error == null) {
                         showPinSetup = false
-                        Toast.makeText(context, "PIN saved", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.pin_saved), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -668,17 +701,16 @@ fun SettingsScreen(
         var currentPin by remember { mutableStateOf("") }
         NcyAlertDialog(
             onDismissRequest = { if (!pinBusy) { showRemovePinConfirm = false; pinError = null } },
-            title = { Text("Remove PIN?") },
+            title = { Text(stringResource(R.string.remove_pin_2)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "Every protected chat is decrypted and stops being protected, here and " +
-                            "on paired devices. Enter the PIN to continue."
+                        stringResource(R.string.every_protected_chat_is_decrypted_and)
                     )
                     OutlinedTextField(
                         value = currentPin,
                         onValueChange = { currentPin = it.take(64) },
-                        label = { Text("Current PIN") },
+                        label = { Text(stringResource(R.string.current_pin)) },
                         singleLine = true,
                         isError = pinError != null,
                         visualTransformation = PasswordVisualTransformation(),
@@ -699,7 +731,7 @@ fun SettingsScreen(
                             pinError = error
                             if (error == null) {
                                 showRemovePinConfirm = false
-                                Toast.makeText(context, "PIN removed", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.pin_removed), Toast.LENGTH_SHORT).show()
                             }
                         }
                     },
@@ -707,11 +739,11 @@ fun SettingsScreen(
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text(if (pinBusy) "Removing…" else "Remove") }
+                ) { Text(if (pinBusy) stringResource(R.string.removing) else stringResource(R.string.remove)) }
             },
             dismissButton = {
                 TextButton(onClick = { showRemovePinConfirm = false; pinError = null }, enabled = !pinBusy) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -720,11 +752,10 @@ fun SettingsScreen(
     if (showPurgeTombstonesConfirm) {
         NcyAlertDialog(
             onDismissRequest = { showPurgeTombstonesConfirm = false },
-            title = { Text("Forget deletion records?") },
+            title = { Text(stringResource(R.string.forget_deletion_records)) },
             text = {
                 Text(
-                    "Only continue if every old device and backup containing deleted chats or messages " +
-                        "is gone. Stale history paired later can restore them. This cannot be undone."
+                    stringResource(R.string.only_continue_if_every_old_device_and)
                 )
             },
             confirmButton = {
@@ -735,16 +766,16 @@ fun SettingsScreen(
                             val removed = viewModel.purgeChatTombstones()
                             Toast.makeText(
                                 context,
-                                "Forgot $removed deletion record${if (removed == 1) "" else "s"}",
+                                context.resources.getQuantityString(R.plurals.forgot_deletion_records, removed, removed),
                                 Toast.LENGTH_LONG,
                             ).show()
                         }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text("Forget permanently") }
+                ) { Text(stringResource(R.string.forget_permanently)) }
             },
             dismissButton = {
-                TextButton(onClick = { showPurgeTombstonesConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showPurgeTombstonesConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -777,11 +808,11 @@ private fun PinSetupDialog(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(if (isChange) "Change PIN" else "Set PIN", style = MaterialTheme.typography.titleLarge)
+            Text(if (isChange) stringResource(R.string.change_pin) else stringResource(R.string.set_pin), style = MaterialTheme.typography.titleLarge)
             Text(
                 if (isChange) {
-                    "Protected chats are re-encrypted with the new PIN, which can take a moment."
-                } else "Choose a PIN of at least 4 characters.",
+                    stringResource(R.string.protected_chats_are_re_encrypted_with)
+                } else stringResource(R.string.choose_a_pin_of_at_least_4_characters),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -789,7 +820,7 @@ private fun PinSetupDialog(
                 OutlinedTextField(
                     value = current,
                     onValueChange = { current = it.take(64) },
-                    label = { Text("Current PIN") },
+                    label = { Text(stringResource(R.string.current_pin)) },
                     singleLine = true,
                     isError = error != null,
                     visualTransformation = PasswordVisualTransformation(),
@@ -803,27 +834,27 @@ private fun PinSetupDialog(
             OutlinedTextField(
                 value = pin,
                 onValueChange = { pin = it.take(64) },
-                label = { Text("New PIN") },
+                label = { Text(stringResource(R.string.new_pin)) },
                 singleLine = true,
                 isError = tooShort,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = KeyboardType.Password
                 ),
-                supportingText = if (tooShort) { { Text("Minimum 4 characters") } } else null,
+                supportingText = if (tooShort) { { Text(stringResource(R.string.minimum_4_characters)) } } else null,
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = confirm,
                 onValueChange = { confirm = it.take(64) },
-                label = { Text("Confirm PIN") },
+                label = { Text(stringResource(R.string.confirm_pin)) },
                 singleLine = true,
                 isError = mismatch,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = KeyboardType.Password
                 ),
-                supportingText = if (mismatch) { { Text("PINs don't match") } } else null,
+                supportingText = if (mismatch) { { Text(stringResource(R.string.pins_don_t_match)) } } else null,
                 modifier = Modifier.fillMaxWidth()
             )
             Button(
@@ -831,7 +862,7 @@ private fun PinSetupDialog(
                 enabled = !busy && pin.length >= 4 && pin == confirm && (!isChange || current.isNotEmpty()),
                 shape = NcyButtonShape,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "Saving…" else "Save") }
+            ) { Text(if (busy) stringResource(R.string.saving) else stringResource(R.string.save)) }
         }
     }
 }
@@ -856,14 +887,14 @@ private fun ChangelogSheet(onDismiss: () -> Unit) {
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text("What's new", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.what_s_new), style = MaterialTheme.typography.titleLarge)
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(selected = selectedSeries == "all", onClick = { selectedSeries = "all" }, label = { Text("All") })
+                NcyChoiceChip(selected = selectedSeries == "all", onClick = { selectedSeries = "all" }, label = stringResource(R.string.all))
                 series.forEach { value ->
-                    FilterChip(selected = selectedSeries == value, onClick = { selectedSeries = value }, label = { Text("$value.x") })
+                    NcyChoiceChip(selected = selectedSeries == value, onClick = { selectedSeries = value }, label = "$value.x")
                 }
             }
             visibleEntries.forEach { entry ->
@@ -898,15 +929,14 @@ private fun ChangelogSheet(onDismiss: () -> Unit) {
 private fun formatSettingFileSize(bytes: Long): String =
     if (bytes >= 1024L * 1024 * 1024) "1 GB" else "${bytes / (1024 * 1024)} MB"
 
-private fun accentPreviewColor(accent: AccentColor): Color = when (accent) {
-    AccentColor.DYNAMIC -> Color(0xFF757575)
-    AccentColor.PURPLE -> Color(0xFF6750A4)
-    AccentColor.BLUE -> Color(0xFF1976D2)
-    AccentColor.GREEN -> Color(0xFF388E3C)
-    AccentColor.RED -> Color(0xFFC62828)
-    AccentColor.ORANGE -> Color(0xFFE65100)
-    AccentColor.PINK -> Color(0xFFD81B60)
-    AccentColor.TEAL -> Color(0xFF00897B)
+/** The pages inside Settings. Sync is a screen of its own, opened from the list. */
+private enum class SettingsPage(@androidx.annotation.StringRes val title: Int) {
+    General(R.string.page_general),
+    Privacy(R.string.page_privacy),
+    Interface(R.string.page_interface),
+    Transcription(R.string.page_transcription),
+    Backup(R.string.page_backup),
+    About(R.string.page_about),
 }
 
 

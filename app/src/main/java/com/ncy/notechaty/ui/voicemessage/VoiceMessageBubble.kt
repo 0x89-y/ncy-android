@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.voicemessage
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import android.media.MediaPlayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -94,7 +96,7 @@ fun VoiceMessageBubble(
         ) {
             Icon(
                 if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play",
+                contentDescription = if (isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
                 tint = contentColor,
                 modifier = Modifier.size(20.dp)
             )

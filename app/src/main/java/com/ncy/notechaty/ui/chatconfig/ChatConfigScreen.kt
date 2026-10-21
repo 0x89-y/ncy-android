@@ -1,5 +1,8 @@
 package com.ncy.notechaty.ui.chatconfig
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -50,13 +53,15 @@ import java.io.File
 
 /** Retention windows offered per chat. 0 is the "keep everything" case. */
 private val RETENTION_CHOICES = listOf(
-    0 to "Keep forever",
-    7 to "7 days",
-    14 to "14 days",
-    30 to "30 days",
-    90 to "90 days",
-    365 to "1 year",
+    0, 7, 14, 30, 90, 365,
 )
+
+@Composable
+private fun retentionLabel(days: Int): String = when (days) {
+    0 -> stringResource(R.string.keep_forever)
+    365 -> stringResource(R.string.one_year)
+    else -> pluralStringResource(R.plurals.retention_days, days, days)
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 
@@ -164,10 +169,10 @@ fun ChatConfigScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Chat Settings") },
+                title = { Text(stringResource(R.string.chat_settings_2)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -194,7 +199,7 @@ fun ChatConfigScreen(
                 if (avatarFile != null && avatarFile.exists()) {
                     AsyncImage(
                         model = avatarFile,
-                        contentDescription = "Chat avatar",
+                        contentDescription = stringResource(R.string.chat_avatar),
                         modifier = Modifier
                             .size(120.dp)
                             .clip(NcyAvatarShape),
@@ -225,7 +230,7 @@ fun ChatConfigScreen(
                 ) {
                     Icon(
                         Icons.Default.CameraAlt,
-                        contentDescription = "Change avatar",
+                        contentDescription = stringResource(R.string.change_avatar),
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -236,7 +241,7 @@ fun ChatConfigScreen(
                 OutlinedTextField(
                     value = nameText,
                     onValueChange = { nameText = it },
-                    label = { Text("Chat name") },
+                    label = { Text(stringResource(R.string.chat_name)) },
                     singleLine = true,
                     trailingIcon = {
                         IconButton(onClick = {
@@ -245,7 +250,7 @@ fun ChatConfigScreen(
                                 editingName = false
                             }
                         }) {
-                            Icon(Icons.Default.Check, contentDescription = "Save")
+                            Icon(Icons.Default.Check, contentDescription = stringResource(R.string.save))
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -258,13 +263,13 @@ fun ChatConfigScreen(
                     )
                 ) {
                     Text(
-                        text = chat?.name ?: "Chat",
+                        text = chat?.name ?: stringResource(R.string.chat),
                         style = MaterialTheme.typography.headlineSmall
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
                         Icons.Default.Edit,
-                        contentDescription = "Edit name",
+                        contentDescription = stringResource(R.string.edit_name),
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -273,14 +278,12 @@ fun ChatConfigScreen(
 
             // Auto-delete. Deliberately global: the rule rides in ChatMetadata and
             // the deletion is an ordinary tombstone, so every paired device converges.
-            NcySettingsSection("Auto-delete old messages") {
+            NcySettingsSection(stringResource(R.string.auto_delete_old_messages)) {
                 Box {
                     NcySettingsRow(
                         icon = Icons.Default.AutoDelete,
-                        title = "Delete messages after",
-                        subtitle = RETENTION_CHOICES
-                            .firstOrNull { it.first == (chat?.retentionDays ?: 0) }
-                            ?.second ?: "Keep forever",
+                        title = stringResource(R.string.delete_messages_after),
+                        subtitle = retentionLabel(chat?.retentionDays ?: 0),
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             retentionMenuOpen = true
@@ -288,7 +291,7 @@ fun ChatConfigScreen(
                         trailing = {
                             Icon(
                                 Icons.Default.ArrowDropDown,
-                                contentDescription = "Choose a retention window",
+                                contentDescription = stringResource(R.string.choose_a_retention_window),
                             )
                         },
                     )
@@ -296,12 +299,12 @@ fun ChatConfigScreen(
                         expanded = retentionMenuOpen,
                         onDismissRequest = { retentionMenuOpen = false },
                     ) {
-                        RETENTION_CHOICES.forEach { (days, label) ->
+                        RETENTION_CHOICES.forEach { days ->
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text = { Text(retentionLabel(days)) },
                                 trailingIcon = {
                                     if ((chat?.retentionDays ?: 0) == days) {
-                                        Icon(Icons.Default.Check, contentDescription = "Selected")
+                                        Icon(Icons.Default.Check, contentDescription = stringResource(R.string.selected))
                                     }
                                 },
                                 onClick = {
@@ -314,18 +317,18 @@ fun ChatConfigScreen(
                 }
             }
             Text(
-                "Applies on every device. Starred messages and ones with an upcoming reminder are kept.",
+                stringResource(R.string.applies_on_every_device_starred_messages),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
 
             // Appearance — background image, bubble color, bubble gradient
-            NcySettingsSection("Appearance") {
+            NcySettingsSection(stringResource(R.string.appearance)) {
                 NcySettingsToggleRow(
                     icon = Icons.AutoMirrored.Filled.CompareArrows,
-                    title = "Other devices on the left",
-                    subtitle = "Show messages created on another Ncy installation as incoming",
+                    title = stringResource(R.string.other_devices_on_the_left),
+                    subtitle = stringResource(R.string.show_messages_created_on_another_ncy),
                     checked = chat?.remoteMessagesOnLeft == true,
                     onCheckedChange = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -335,8 +338,8 @@ fun ChatConfigScreen(
                 NcyRowDivider()
                 NcySettingsRow(
                     icon = Icons.Default.Wallpaper,
-                    title = "Background image",
-                    subtitle = if (chat?.backgroundFile != null) "Tap to change" else "Tap to set",
+                    title = stringResource(R.string.background_image),
+                    subtitle = if (chat?.backgroundFile != null) stringResource(R.string.tap_to_change) else stringResource(R.string.tap_to_set),
                     onClick = { bgPicker.launch("image/*") },
                     trailing = {
                         val bg = chat?.backgroundFile?.let { File(chatDir, it) }
@@ -354,7 +357,7 @@ fun ChatConfigScreen(
                 )
                 NcyRowDivider()
                 NcySettingsPanel {
-                    Text("Bubble color", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.bubble_color), style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     val defaultBubbleColor = MaterialTheme.colorScheme.primary
                     val allPresets = listOf(
@@ -389,7 +392,7 @@ fun ChatConfigScreen(
                                 if (isSelected) {
                                     Icon(
                                         Icons.Default.Check,
-                                        contentDescription = "Selected",
+                                        contentDescription = stringResource(R.string.selected),
                                         modifier = Modifier.size(20.dp),
                                         tint = checkTint
                                     )
@@ -407,13 +410,13 @@ fun ChatConfigScreen(
             }
 
             // Privacy
-            NcySettingsSection("Privacy") {
+            NcySettingsSection(stringResource(R.string.privacy)) {
                 val hasPin = viewModel.hasAppPin()
                 NcySettingsToggleRow(
                     icon = Icons.Default.Lock,
-                    title = "Protect this chat",
-                    subtitle = if (hasPin) "Require PIN/biometric to open"
-                        else "Set an app PIN in Settings first",
+                    title = stringResource(R.string.protect_this_chat),
+                    subtitle = if (hasPin) stringResource(R.string.require_pin_biometric_to_open)
+                        else stringResource(R.string.set_an_app_pin_in_settings_first),
                     checked = chat?.isProtected == true,
                     enabled = hasPin,
                     onCheckedChange = {
@@ -425,8 +428,8 @@ fun ChatConfigScreen(
                     NcyRowDivider()
                     NcySettingsToggleRow(
                         icon = Icons.Default.VisibilityOff,
-                        title = "Hide name on chat list",
-                        subtitle = "Show gibberish instead of the real name",
+                        title = stringResource(R.string.hide_name_on_chat_list),
+                        subtitle = stringResource(R.string.show_gibberish_instead_of_the_real_name),
                         checked = chat?.hideName == true,
                         onCheckedChange = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -437,11 +440,11 @@ fun ChatConfigScreen(
             }
 
             // Organization
-            NcySettingsSection("Organization") {
+            NcySettingsSection(stringResource(R.string.organization)) {
                 NcySettingsToggleRow(
                     icon = Icons.Default.PushPin,
-                    title = "Pin chat",
-                    subtitle = "Keep this chat at the top of the chat list",
+                    title = stringResource(R.string.pin_chat),
+                    subtitle = stringResource(R.string.keep_this_chat_at_the_top_of_the_chat),
                     checked = chat?.isPinned == true,
                     onCheckedChange = { viewModel.setPinned(it) }
                 )
@@ -467,7 +470,7 @@ fun ChatConfigScreen(
                                     trailingIcon = {
                                         Icon(
                                             Icons.Default.Close,
-                                            contentDescription = "Remove",
+                                            contentDescription = stringResource(R.string.remove),
                                             modifier = Modifier.size(14.dp)
                                         )
                                     }
@@ -481,7 +484,7 @@ fun ChatConfigScreen(
                         OutlinedTextField(
                             value = newTag,
                             onValueChange = { newTag = it },
-                            placeholder = { Text("Add tag") },
+                            placeholder = { Text(stringResource(R.string.add_tag)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                             textStyle = MaterialTheme.typography.bodySmall
@@ -496,26 +499,26 @@ fun ChatConfigScreen(
                                 }
                             }
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add tag")
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_tag))
                         }
                     }
                 }
                 NcyRowDivider()
                 NcySettingsToggleRow(
                     icon = Icons.Outlined.Archive,
-                    title = "Archive chat",
-                    subtitle = "Move this chat to the archived section",
+                    title = stringResource(R.string.archive_chat),
+                    subtitle = stringResource(R.string.move_this_chat_to_the_archived_section),
                     checked = chat?.isArchived == true,
                     onCheckedChange = { viewModel.toggleArchive {} }
                 )
             }
 
             // Data
-            NcySettingsSection("Data") {
+            NcySettingsSection(stringResource(R.string.data)) {
                 NcySettingsRow(
                     icon = Icons.Default.Share,
-                    title = "Export chat",
-                    subtitle = "Save as .zip file",
+                    title = stringResource(R.string.export_chat),
+                    subtitle = stringResource(R.string.save_as_zip_file),
                     onClick = { exportLauncher.launch("${chat?.name ?: "chat"}.zip") }
                 )
             }
@@ -537,7 +540,7 @@ fun ChatConfigScreen(
             ) {
                 Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Delete Chat")
+                Text(stringResource(R.string.delete_chat))
             }
         }
     }
@@ -548,16 +551,13 @@ fun ChatConfigScreen(
         val count = pendingRetentionCount
         NcyAlertDialog(
             onDismissRequest = { pendingRetention = null; pendingRetentionCount = null },
-            title = { Text("Auto-delete old messages") },
+            title = { Text(stringResource(R.string.auto_delete_old_messages)) },
             text = {
                 Text(
-                    if (count == null) "Checking…"
+                    if (count == null) stringResource(R.string.checking)
                     else if (count > 0)
-                        "Delete messages older than $days days? $count existing " +
-                            (if (count == 1) "message is" else "messages are") +
-                            " already older than that and will be deleted on every device. " +
-                            "Starred messages and ones with an upcoming reminder are kept."
-                    else "Nothing in this chat is older than $days days yet."
+                        pluralStringResource(R.plurals.retention_confirm, count, count, days)
+                    else stringResource(R.string.nothing_in_this_chat_is_older_than_days, days)
                 )
             },
             confirmButton = {
@@ -573,11 +573,11 @@ fun ChatConfigScreen(
                         contentColor = if ((count ?: 0) > 0) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.primary
                     )
-                ) { Text("Turn on") }
+                ) { Text(stringResource(R.string.turn_on)) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingRetention = null; pendingRetentionCount = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -585,8 +585,8 @@ fun ChatConfigScreen(
     if (showDeleteConfirm) {
         NcyAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Chat") },
-            text = { Text("Delete \"${chat?.name}\" and all its messages? This cannot be undone.") },
+            title = { Text(stringResource(R.string.delete_chat)) },
+            text = { Text(stringResource(R.string.delete_chat_confirm, chat?.name ?: "")) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -597,10 +597,10 @@ fun ChatConfigScreen(
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }

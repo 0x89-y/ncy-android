@@ -9,6 +9,8 @@ package com.ncy.notechaty.ui.desktoptheme
  */
 
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +35,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -130,13 +140,30 @@ fun NcySectionLabel(text: String, modifier: Modifier = Modifier) {
 /** A titled section: mono label above a bordered divided-list card. */
 @Composable
 fun NcySettingsSection(
-    label: String,
+    /** Null on a page whose title already names the section, so it is not said twice. */
+    label: String?,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        NcySectionLabel(label)
+        label?.let { NcySectionLabel(it) }
         NcyDividedCard(content = content)
     }
+}
+
+/**
+ * One option of a single-choice group. Selected options always show a check, so
+ * every choice group in the app reads the same way, not only some of them.
+ */
+@Composable
+fun NcyChoiceChip(selected: Boolean, onClick: () -> Unit, label: String) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = if (selected) {
+            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+        } else null,
+    )
 }
 
 /** Free-form content block inside a section card (chips, pickers, inputs). */
@@ -203,6 +230,10 @@ fun NcyInputSheet(
     initialValue: String = "",
 ) {
     var value by remember { mutableStateOf(initialValue) }
+    // The sheet exists to take a name, so the field takes focus (and the keyboard
+    // opens) at once; it used to wait for a second tap.
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface
@@ -220,7 +251,14 @@ fun NcyInputSheet(
                 onValueChange = { value = it },
                 label = { Text(label) },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (value.isNotBlank()) onConfirm(value.trim())
+                }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
             )
             Button(
                 onClick = { onConfirm(value.trim()) },

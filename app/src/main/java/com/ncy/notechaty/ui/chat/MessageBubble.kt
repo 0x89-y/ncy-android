@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.chat
 
+import androidx.compose.ui.res.stringResource
+import com.ncy.notechaty.R
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -25,7 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.FileDownloadOff
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -71,6 +74,7 @@ import com.ncy.notechaty.data.sync.media.MediaTransferState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
+import com.ncy.notechaty.ui.desktoptheme.withReadableWhiteText
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
 import com.ncy.notechaty.ui.voicemessage.VoiceMessageBubble
 import java.io.File
@@ -169,9 +173,9 @@ fun MessageBubble(
                     source.inputStream().use { input -> input.copyTo(output) }
                 } ?: error("Cannot open destination")
             }.onSuccess {
-                Toast.makeText(context, "Image saved", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.image_saved), Toast.LENGTH_SHORT).show()
             }.onFailure {
-                Toast.makeText(context, "Could not save image", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.could_not_save_image), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -224,19 +228,19 @@ fun MessageBubble(
         // Desktop identity: every note is "yours", so the default bubble is the
         // accent (--bubble-mine) with white-ish text. A per-chat custom colour
         // still wins when set.
+        val ownFill = bubbleColor ?: MaterialTheme.colorScheme.primary
+        // Light fills take black text; anything else takes white, on a fill darkened
+        // just enough for it to read (dark-theme accents are lighter).
+        val lightFill = ownFill.luminance() > 0.4f
         val resolvedBubbleColor = if (isRemote) {
             val seed = remember(message.authorDeviceId) {
                 remoteDeviceColor(message.authorDeviceId.orEmpty())
             }
             lerp(MaterialTheme.colorScheme.surface, seed, 0.24f)
-        } else bubbleColor ?: MaterialTheme.colorScheme.primary
+        } else if (lightFill) ownFill else remember(ownFill) { withReadableWhiteText(ownFill) }
         val contentColor = if (isRemote) {
             MaterialTheme.colorScheme.onSurface
-        } else if (bubbleColor != null) {
-            if (resolvedBubbleColor.luminance() > 0.4f) Color.Black else Color.White
-        } else {
-            MaterialTheme.colorScheme.onPrimary
-        }
+        } else if (lightFill) Color.Black else Color.White
         val subtleColor = contentColor.copy(alpha = 0.7f)
 
         // Desktop tail geometry: 18 18 4 18 (rounded except bottom-right).
@@ -332,12 +336,12 @@ fun MessageBubble(
                             val voiceHash = MediaHash.extractHash(message.voiceFile)
                             MediaStatusCard(
                                 icon = Icons.Default.Mic,
-                                title = "Voice message",
+                                title = stringResource(R.string.voice_message),
                                 contentColor = contentColor,
                                 progress = voiceHash?.let(transferProgress),
                                 failure = voiceHash?.let(transferFailure)
                                     ?: if (evictedMedia) MediaTransferState.EVICTED else null,
-                                idleText = "Not on this device",
+                                idleText = stringResource(R.string.not_on_this_device),
                                 onDownload = voiceHash?.let { h -> { onRequestMedia(h, "voice") } },
                                 onCancel = voiceHash?.let { h -> { onCancelDownload(h) } },
                             )
@@ -384,7 +388,7 @@ fun MessageBubble(
                                 mediaVersion,
                             )
                         } else {
-                            Text("File", color = contentColor)
+                            Text(stringResource(R.string.file), color = contentColor)
                         }
                     }
                     MessageType.CHECKLIST -> {
@@ -417,14 +421,14 @@ fun MessageBubble(
                     if (message.isStarred) {
                         Icon(
                             Icons.Default.Star,
-                            contentDescription = "Favorite",
+                            contentDescription = stringResource(R.string.favorite),
                             modifier = Modifier.size(12.dp),
                             tint = subtleColor
                         )
                     }
                     if (message.editedAt != null) {
                         Text(
-                            text = "edited",
+                            text = stringResource(R.string.edited),
                             style = MaterialTheme.typography.labelSmall,
                             color = subtleColor,
                             fontSize = 10.sp
@@ -445,46 +449,83 @@ fun MessageBubble(
                     onDismissRequest = { showMenu = false },
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
+                    val tap = { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+                    val copyable = message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST
+                    val editable = message.type == MessageType.TEXT || message.type == MessageType.CHECKLIST
                     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+                        // The sheet covers the bubble it was opened from, so a short
+                        // preview says which message these actions apply to.
+                        Text(
+                            replyPreviewText(message.plainTextPreview(), message.type),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
                         // Quick reactions across the top.
                         Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                             ReactionPickerStrip(
                                 current = message.reactions,
                                 onPick = { emoji ->
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    tap()
                                     showMenu = false
                                     onToggleReaction(emoji)
                                 }
                             )
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                        NcySheetActionRow(Icons.AutoMirrored.Filled.Reply, "Reply") {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            showMenu = false
-                            onReply()
-                        }
-                        if (message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST) {
-                            NcySheetActionRow(Icons.Default.ContentCopy, "Copy") {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        // The everyday actions sit in one row of large targets at the
+                        // top, so they are not hunted for at the bottom of a long list.
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            SheetQuickAction(Icons.AutoMirrored.Filled.Reply, stringResource(R.string.reply)) {
+                                tap()
                                 showMenu = false
-                                val plainText = if (message.type == MessageType.CHECKLIST) {
-                                    message.checklistItems.joinToString("\n") { item ->
-                                        "${if (item.checked) "☑" else "☐"} ${item.text}"
+                                onReply()
+                            }
+                            if (copyable) {
+                                SheetQuickAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) {
+                                    tap()
+                                    showMenu = false
+                                    val plainText = if (message.type == MessageType.CHECKLIST) {
+                                        message.checklistItems.joinToString("\n") { item ->
+                                            "${if (item.checked) "☑" else "☐"} ${item.text}"
+                                        }
+                                    } else {
+                                        message.content.joinToString("\n") { block ->
+                                            block.spans.joinToString("") { it.text }
+                                        }
                                     }
-                                } else {
-                                    message.content.joinToString("\n") { block ->
-                                        block.spans.joinToString("") { it.text }
-                                    }
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
+                                    Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
                                 }
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
-                                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                            }
+                            if (editable) {
+                                SheetQuickAction(Icons.Default.Edit, stringResource(R.string.edit)) {
+                                    tap()
+                                    showMenu = false
+                                    onEdit()
+                                }
+                            }
+                            SheetQuickAction(Icons.Outlined.CheckCircle, stringResource(R.string.select)) {
+                                tap()
+                                showMenu = false
+                                onEnterSelectionMode()
                             }
                         }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
                         localImage?.let { source ->
-                            NcySheetActionRow(Icons.Default.Download, "Save image") {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            NcySheetActionRow(Icons.Default.Download, stringResource(R.string.save_image)) {
+                                tap()
                                 showMenu = false
                                 // The blob is named by hash, which is no use to
                                 // anyone looking for it later.
@@ -493,8 +534,8 @@ fun MessageBubble(
                                         .format(Date(source.lastModified())) + ".jpg",
                                 )
                             }
-                            NcySheetActionRow(Icons.Default.Share, "Share image") {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            NcySheetActionRow(Icons.Default.Share, stringResource(R.string.share_image)) {
+                                tap()
                                 showMenu = false
                                 runCatching {
                                     val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -508,50 +549,45 @@ fun MessageBubble(
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     context.startActivity(
-                                        Intent.createChooser(intent, "Share image"),
+                                        Intent.createChooser(intent, context.getString(R.string.share_image)),
                                     )
                                 }.onFailure {
                                     Toast.makeText(
                                         context,
-                                        "Could not share image",
+                                        context.getString(R.string.could_not_share_image),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
                             }
                         }
+                        NcySheetActionRow(
+                            if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
+                            if (message.isStarred) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites)
+                        ) {
+                            tap()
+                            showMenu = false
+                            onToggleStar()
+                        }
+                        NcySheetActionRow(Icons.Default.Alarm, if (message.reminderAt != null) stringResource(R.string.edit_reminder) else stringResource(R.string.set_reminder)) {
+                            tap()
+                            showMenu = false
+                            onSetReminder()
+                        }
                         localMedia?.let { (hash, mediaType) ->
-                            NcySheetActionRow(Icons.Default.Delete, "Remove download") {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            // Not the bin: that icon belongs to Delete, and this keeps
+                            // the message.
+                            NcySheetActionRow(Icons.Default.FileDownloadOff, stringResource(R.string.remove_download)) {
+                                tap()
                                 showMenu = false
                                 onRemoveDownload(hash, mediaType)
                             }
                         }
-                        NcySheetActionRow(
-                            if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
-                            if (message.isStarred) "Remove from favorites" else "Add to favorites"
-                        ) {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            showMenu = false
-                            onToggleStar()
-                        }
-                        NcySheetActionRow(Icons.Default.Alarm, if (message.reminderAt != null) "Edit reminder" else "Set reminder") {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            showMenu = false
-                            onSetReminder()
-                        }
-                        NcySheetActionRow(Icons.Default.CheckBox, "Select") {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            showMenu = false
-                            onEnterSelectionMode()
-                        }
-                        if (message.type == MessageType.TEXT || message.type == MessageType.CHECKLIST) {
-                            NcySheetActionRow(Icons.Default.Edit, "Edit") {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                showMenu = false
-                                onEdit()
-                            }
-                        }
-                        NcySheetActionRow(Icons.Default.Delete, "Delete", destructive = true) {
+                        // Set apart from everything else, so it is not hit by a slip.
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                        NcySheetActionRow(Icons.Default.Delete, stringResource(R.string.delete), destructive = true) {
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             showMenu = false
                             onDelete()
@@ -563,19 +599,37 @@ fun MessageBubble(
     }
 }
 
+/** One labelled icon in the long-press sheet's top row. */
+@Composable
+private fun SheetQuickAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .widthIn(min = 56.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
 /**
  * One line of text standing in for a quoted message. [preview] is a frozen snapshot
  * (see `Message.replyingTo`) and is empty for voice-without-transcript and image
  * messages, which carry no text — those fall back to a label naming the type.
  */
+@Composable
 internal fun replyPreviewText(preview: String?, type: MessageType?): String =
     preview?.takeIf { it.isNotBlank() }
         ?: when (type) {
-            MessageType.VOICE -> "Voice message"
-            MessageType.IMAGE -> "Photo"
-            MessageType.FILE -> "File"
-            MessageType.CHECKLIST -> "Checklist"
-            else -> "Message"
+            MessageType.VOICE -> stringResource(R.string.voice_message)
+            MessageType.IMAGE -> stringResource(R.string.photo)
+            MessageType.FILE -> stringResource(R.string.file)
+            MessageType.CHECKLIST -> stringResource(R.string.checklist)
+            else -> stringResource(R.string.message)
         }
 
 /**
@@ -693,9 +747,9 @@ private fun FileAttachmentContent(
                     } ?: error("Cannot open destination")
                 }
             }.onSuccess {
-                Toast.makeText(context, "File saved", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.file_saved), Toast.LENGTH_SHORT).show()
             }.onFailure {
-                Toast.makeText(context, "Could not save file", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.could_not_save_file), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -703,7 +757,7 @@ private fun FileAttachmentContent(
         scope.launch {
             val readable = reader.readable(localFile)
             if (readable == null) {
-                Toast.makeText(context, "Could not open this file", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.could_not_open_this_file), Toast.LENGTH_SHORT).show()
                 return@launch
             }
             val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -715,9 +769,9 @@ private fun FileAttachmentContent(
                 setDataAndType(uri, attachment.mimeType ?: "application/octet-stream")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            runCatching { context.startActivity(Intent.createChooser(intent, "Open file")) }
+            runCatching { context.startActivity(Intent.createChooser(intent, context.getString(R.string.open_file))) }
                 .onFailure {
-                    Toast.makeText(context, "No app can open this file", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.no_app_can_open_this_file), Toast.LENGTH_SHORT).show()
                 }
         }
         Unit
@@ -739,7 +793,7 @@ private fun FileAttachmentContent(
             // Not "Downloading…": nothing is in flight in this state, and since the
             // backfill cutoff leaves older media deliberately unfetched, it is now
             // the common one. A live transfer shows its progress instead.
-            idleText = "Not on this device",
+            idleText = stringResource(R.string.not_on_this_device),
             detail = attachment.sizeBytes?.let { formatFileSize(it) },
             onDownload = hash?.let { {
                 manuallyRequested = true
@@ -778,8 +832,8 @@ private fun FileAttachmentContent(
                     attachment.sizeBytes?.let { add(formatFileSize(it)) }
                     if (deferred) {
                         add(
-                            if (automaticFileDownloadLimitBytes == 0L) "Automatic downloads are set to Always ask"
-                            else "Above your ${formatFileSize(automaticFileDownloadLimitBytes)} automatic download limit",
+                            if (automaticFileDownloadLimitBytes == 0L) stringResource(R.string.automatic_downloads_are_set_to_always)
+                            else stringResource(R.string.above_your_automatic_download_limit, formatFileSize(automaticFileDownloadLimitBytes)),
                         )
                     }
                 }.joinToString(" · ")
@@ -794,14 +848,14 @@ private fun FileAttachmentContent(
                         onDownloadAnyway(attachment)
                     },
                 ) {
-                    Text("Download anyway")
+                    Text(stringResource(R.string.download_anyway))
                 }
             } else {
                 IconButton(
                     onClick = { saveLauncher.launch(attachment.name) },
                     modifier = Modifier.size(36.dp),
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = "Save file")
+                    Icon(Icons.Default.Download, contentDescription = stringResource(R.string.save_file))
                 }
             }
         }
@@ -941,7 +995,7 @@ private fun RichTextSpans(
                         val shown = rememberReadable(imageFile, present)
                         AsyncImage(
                             model = shown,
-                            contentDescription = "Image",
+                            contentDescription = stringResource(R.string.image),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
@@ -1112,13 +1166,12 @@ private fun buildAnnotatedSpan(spans: List<RichTextSpan>, defaultColor: Color = 
             } ?: defaultColor
         )
 
+        // Links keep the text colour and are told apart by the underline. A fixed
+        // light blue read at under 3:1 on the accent bubble, and worse on pastel ones.
         // If span has an explicit link, render entire span as a link
         if (span.link != null) {
             pushStringAnnotation("URL", span.link)
-            withStyle(baseStyle.copy(
-                color = androidx.compose.ui.graphics.Color(0xFF64B5F6),
-                textDecoration = TextDecoration.Underline
-            )) {
+            withStyle(baseStyle.copy(textDecoration = TextDecoration.Underline)) {
                 append(span.text)
             }
             pop()
@@ -1135,10 +1188,7 @@ private fun buildAnnotatedSpan(spans: List<RichTextSpan>, defaultColor: Color = 
                 }
                 // The URL itself
                 pushStringAnnotation("URL", match.value)
-                withStyle(baseStyle.copy(
-                    color = androidx.compose.ui.graphics.Color(0xFF64B5F6),
-                    textDecoration = TextDecoration.Underline
-                )) {
+                withStyle(baseStyle.copy(textDecoration = TextDecoration.Underline)) {
                     append(match.value)
                 }
                 pop()
@@ -1190,7 +1240,7 @@ private fun ReactionPickerStrip(
                 Icon(
                     if (expanded) Icons.Default.KeyboardArrowUp
                     else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (expanded) "Fewer reactions" else "More reactions"
+                    contentDescription = if (expanded) stringResource(R.string.fewer_reactions) else stringResource(R.string.more_reactions)
                 )
             }
         }
@@ -1280,11 +1330,11 @@ private fun MissingImagePlaceholder(imageFile: File, reference: String, contentC
     }
     MediaStatusCard(
         icon = Icons.Default.Image,
-        title = "Image",
+        title = stringResource(R.string.image),
         contentColor = contentColor,
         progress = null,
         failure = if (evicted) MediaTransferState.EVICTED else null,
-        idleText = "Not on this device",
+        idleText = stringResource(R.string.not_on_this_device),
         onDownload = if (hash != null && request != null) {
             { request(hash, "image") }
         } else null,

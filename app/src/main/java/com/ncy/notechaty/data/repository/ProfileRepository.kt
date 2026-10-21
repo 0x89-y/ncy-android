@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.ncy.notechaty.data.model.Profile
 import com.ncy.notechaty.security.PinAttempts
 import com.ncy.notechaty.security.PinHasher
@@ -54,10 +53,15 @@ class ProfileRepository @Inject constructor(
 
     private fun load() {
         val json = prefs.getString(KEY_PROFILES, null)
+        // An array class, not a TypeToken: release builds strip the generic signature
+        // an anonymous TypeToken subclass depends on, so every launch read an empty
+        // registry. The app then made a fresh "Personal", re-added the real profiles
+        // from their folders under old names, and lost renames, PINs and icons.
         val loaded: List<Profile> = if (json != null) {
             try {
-                gson.fromJson(json, object : TypeToken<List<Profile>>() {}.type) ?: emptyList()
-            } catch (_: Exception) {
+                gson.fromJson(json, Array<Profile>::class.java)?.toList() ?: emptyList()
+            } catch (e: Exception) {
+                Log.e("ProfileRepo", "Could not read the profile registry", e)
                 emptyList()
             }
         } else emptyList()
@@ -195,6 +199,15 @@ class ProfileRepository @Inject constructor(
     fun recoverOrphanedProfileDirectories() {
         val root = rootDir()
         val knownIds = _profiles.value.mapTo(HashSet()) { it.id }
+        // Each launch that could not read the registry made a new default profile
+        // with an empty folder. Unregistered and holding nothing, they are noise.
+        root.listFiles()
+            ?.filter { dir ->
+                dir.isDirectory && dir.name.startsWith("profile_") &&
+                    dir.name.removePrefix("profile_") !in knownIds &&
+                    dir.listFiles()?.isEmpty() == true
+            }
+            ?.forEach { it.delete() }
         val orphanDirs = root.listFiles()
             ?.filter { dir ->
                 dir.isDirectory && dir.name.startsWith("profile_") &&

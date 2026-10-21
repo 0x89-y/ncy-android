@@ -31,9 +31,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
 import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
-import com.ncy.notechaty.ui.desktoptheme.NcySectionLabel
+import com.ncy.notechaty.ui.desktoptheme.NcyFlushSectionLabel
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 
 private data class LicenseEntry(
@@ -158,7 +158,7 @@ fun LicensesScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .ncyDottedGrid(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            contentPadding = PaddingValues(vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             item {
@@ -166,12 +166,12 @@ fun LicensesScreen(
                     text = "Ncy is built with these open-source libraries. Tap any to open its project.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp)
                 )
             }
-            item { NcySectionLabel("Libraries") }
+            item { NcyFlushSectionLabel("Libraries") }
             item {
-                NcyDividedCard {
+                NcyFlushList {
                     licenses.forEachIndexed { i, entry ->
                         if (i > 0) NcyRowDivider()
                         LicenseRow(entry) {
@@ -181,7 +181,7 @@ fun LicensesScreen(
                 }
             }
             item { Spacer(modifier = Modifier.height(14.dp)) }
-            item { NcySectionLabel("License") }
+            item { NcyFlushSectionLabel("License") }
             item { ApacheLicensePanel() }
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
@@ -216,7 +216,7 @@ private fun LicenseRow(entry: LicenseEntry, onClick: () -> Unit) {
 
 @Composable
 private fun ApacheLicensePanel() {
-    NcyDividedCard {
+    NcyFlushList {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

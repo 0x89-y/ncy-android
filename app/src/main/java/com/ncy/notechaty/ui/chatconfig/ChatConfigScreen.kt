@@ -189,9 +189,9 @@ fun ChatConfigScreen(
                 .padding(padding)
                 .ncyDottedGrid()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Avatar section
             Box(contentAlignment = Alignment.BottomEnd) {

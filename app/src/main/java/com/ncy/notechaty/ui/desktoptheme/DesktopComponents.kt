@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
@@ -148,9 +149,12 @@ fun NcyFlushSectionLabel(text: String) {
 /** Hairline separator between rows inside an [NcyDividedCard]. */
 @Composable
 fun NcyRowDivider() {
+    val scheme = MaterialTheme.colorScheme
     HorizontalDivider(
         thickness = Dp.Hairline,
-        color = MaterialTheme.colorScheme.outlineVariant
+        // The soft border all but vanished on a dark surface at everyday screen
+        // brightness; the stronger one keeps the rows apart without shouting.
+        color = if (scheme.surface.luminance() < 0.5f) scheme.outline else scheme.outlineVariant
     )
 }
 
@@ -173,9 +177,11 @@ fun NcySettingsSection(
     label: String?,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        label?.let { NcySectionLabel(it) }
-        NcyDividedCard(content = content)
+    // Edge to edge like the chat list; settings in inset cards looked like a
+    // different app from the screen before them.
+    Column {
+        label?.let { NcySectionLabel(it, modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp)) }
+        NcyFlushList(content = content)
     }
 }
 

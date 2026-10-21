@@ -44,7 +44,7 @@ import com.ncy.notechaty.data.sync.SyncFailurePolicy
 import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
-import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
 import com.ncy.notechaty.ui.desktoptheme.NcySettingsRow
 import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
@@ -325,8 +325,8 @@ fun SyncScreen(
                 .fillMaxSize()
                 .ncyDottedGrid()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             val unpairedDiscovered = discovered.filter { found ->
                 peers.none { it.id == found.deviceId } && hostedPeers.none { it.id == found.deviceId }
@@ -634,7 +634,7 @@ private fun HostedPeerCard(
     onRemove: () -> Unit,
 ) {
     var confirmRevoke by remember { mutableStateOf(false) }
-    NcyDividedCard {
+    NcyFlushList {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -716,7 +716,7 @@ private fun PeerCard(
     showFingerprint: Boolean,
 ) {
     var showDiagnostics by remember { mutableStateOf(false) }
-    NcyDividedCard {
+    NcyFlushList {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -881,7 +881,7 @@ private fun DiscoveredCard(
     onCancel: () -> Unit,
 ) {
     val awaitingCodeCheck = isBusy && !safetyCode.isNullOrBlank() && !codeConfirmed
-    NcyDividedCard {
+    NcyFlushList {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

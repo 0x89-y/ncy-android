@@ -54,7 +54,7 @@ import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcyChoiceChip
-import com.ncy.notechaty.ui.desktoptheme.NcyDividedCard
+import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
 import com.ncy.notechaty.ui.desktoptheme.accentSwatch
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -181,11 +181,11 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .ncyDottedGrid()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (settingsSection == null) {
-                NcyDividedCard {
+                NcyFlushList {
                     // Null page: Sync is its own screen rather than a page here.
                     listOf<Triple<SettingsPage?, ImageVector, Int>>(
                         Triple(SettingsPage.General, Icons.Default.PhoneAndroid, R.string.settings_device_name_hint),
@@ -204,7 +204,7 @@ fun SettingsScreen(
                         )
                     }
                 }
-                NcyDividedCard {
+                NcyFlushList {
                     NcySettingsRow(
                         icon = Icons.Default.History,
                         title = stringResource(R.string.changelog),

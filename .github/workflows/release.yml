@@ -118,12 +118,22 @@ jobs:
 
           $buildTools = Get-ChildItem (Join-Path $env:ANDROID_HOME build-tools) -Directory |
             Sort-Object { [version]($_.Name -replace '-.*$', '') } | Select-Object -Last 1
-          $certs = & (Join-Path $buildTools.FullName apksigner.bat) verify --verbose --print-certs $apk
-          if ($LASTEXITCODE -ne 0) { throw "apksigner verification failed" }
+          $apksigner = Join-Path $buildTools.FullName apksigner.bat
+          Write-Host "Verifying with $apksigner"
+          # Both streams, as plain strings: what a .bat prints, and where, varies
+          # between build-tools versions, and an empty match must say why.
+          $certs = @(& $apksigner verify --verbose --print-certs $apk 2>&1 | ForEach-Object { "$_" })
+          $exit = $LASTEXITCODE
           $certs | Write-Host
-          $digest = ($certs | Select-String 'Signer #1 certificate SHA-256 digest: ([0-9a-f]+)').Matches[0].Groups[1].Value
-          if ($digest -ne $env:RELEASE_CERT_SHA256) {
-            throw "APK is signed by certificate $digest, not the release certificate $env:RELEASE_CERT_SHA256"
+          if ($exit -ne 0) { throw "apksigner verification failed with exit code $exit" }
+          $digests = @($certs |
+            Select-String 'certificate SHA-256 digest:\s*([0-9a-fA-F]{64})' -AllMatches |
+            ForEach-Object { $_.Matches } |
+            ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } |
+            Sort-Object -Unique)
+          if ($digests.Count -eq 0) { throw "apksigner printed no signer certificate digest (output above)" }
+          if ($digests.Count -ne 1 -or $digests[0] -ne $env:RELEASE_CERT_SHA256) {
+            throw "APK is signed by certificate(s) $($digests -join ', '), not the release certificate $env:RELEASE_CERT_SHA256"
           }
 
           $lines = Get-ChildItem $dist -Filter '*.apk' | Sort-Object Name | ForEach-Object {

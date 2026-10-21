@@ -14,6 +14,15 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.8.0",
+        date = "2026-10-21",
+        changes = listOf(
+            "Sync now runs over the local network only. Internet sync through Pear has been removed.",
+            "The app is about a tenth of its previous size, down from around 73 MB to 6 MB.",
+            "Removed the Connection mode setting, which no longer has anything to choose between.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.8",
         date = "2026-10-21",
         changes = listOf(

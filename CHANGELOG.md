@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0 — 2026-10-21
+
+### Removed
+
+- Removed internet sync through Pear. Devices now sync while they are on the same network.
+  Pear's runtime made up about 90% of the app and needed its own native build. For syncing
+  away from home, a VPN such as Tailscale puts devices on one network and local sync works
+  over it.
+- Removed the Connection mode setting. Paired devices keep working over the local network,
+  and pairing codes from the desktop still work.
+
+### Changed
+
+- The app is about a tenth of its previous size: the arm64 release is around 6 MB instead
+  of 73 MB.
+
 ## 0.7.8 — 2026-10-21
 
 ### Changed

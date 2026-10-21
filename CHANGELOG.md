@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.8 — 2026-10-21
+
+### Changed
+
+- Settings, its pages, chat settings, sync and licenses now run edge to edge like the chat
+  list, starting directly below the top bar.
+
+### Fixed
+
+- Fixed the lines between rows being hard to see in the dark theme at everyday screen
+  brightness.
+
 ## 0.7.7 — 2026-10-21
 
 ### Added

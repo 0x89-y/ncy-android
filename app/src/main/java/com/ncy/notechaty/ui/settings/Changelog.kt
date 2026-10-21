@@ -14,6 +14,14 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.7.8",
+        date = "2026-10-21",
+        changes = listOf(
+            "The settings screens now run edge to edge, like the chat list.",
+            "Fixed the lines between rows being hard to see in the dark theme.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.7",
         date = "2026-10-21",
         changes = listOf(

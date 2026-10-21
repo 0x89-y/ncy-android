@@ -1,0 +1,145 @@
+name: Release
+
+# Push a tag such as v0.7.6 after bumping versionCode/versionName and adding the
+# matching CHANGELOG.md section. The result is a draft release; publish it from
+# the GitHub UI once its notes read well.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Windows matches the local release path: the Pear and Bare Kit scripts rely
+    # on bsdtar unpacking ZIP archives and on Windows path separators.
+    runs-on: windows-latest
+    # Signing secrets live in this environment so only release tags can read them.
+    environment: release
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      # The permanent release certificate. A different key would make every
+      # existing install refuse the update, so never publish with one.
+      RELEASE_CERT_SHA256: 3c452d2941578648d27a77bf2ce0cae6c02399942ed1ac94527cb43198c7c7d6
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # third_party/bare-kit is a submodule; the Pear notices and the Bare Kit
+          # AAR are both resolved from inside it.
+          submodules: recursive
+
+      - name: Check version and extract notes
+        id: version
+        run: |
+          $match = Select-String -Path app/build.gradle.kts -Pattern 'versionName = "([^"]+)"'
+          if (-not $match) { throw "versionName not found in app/build.gradle.kts" }
+          $version = $match.Matches[0].Groups[1].Value
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match versionName $version"
+          }
+
+          # The section runs from "## <version> — <date>" to the next "## " heading.
+          $section = $null
+          foreach ($line in Get-Content -LiteralPath CHANGELOG.md -Encoding utf8) {
+            if ($line -match '^## ') {
+              if ($null -ne $section) { break }
+              if ($line -match "^## $([regex]::Escape($version))\b") { $section = @() }
+            } elseif ($null -ne $section) {
+              $section += $line
+            }
+          }
+          if ($null -eq $section) { throw "CHANGELOG.md has no section for $version" }
+          $notes = ($section -join "`n").Trim()
+          if (-not $notes) { throw "CHANGELOG.md section for $version is empty" }
+          Set-Content -LiteralPath "$env:RUNNER_TEMP/notes.md" -Value $notes -Encoding utf8NoBOM
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # gradle/gradle-daemon-jvm.properties asks for a JetBrains 21 daemon JVM.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: jetbrains
+          java-version: 21
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # There is no Gradle wrapper script in this repo; keep this in step with
+      # gradle/wrapper/gradle-wrapper.properties.
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.13"
+
+      # Windows PowerShell, as build-apks.bat runs it locally.
+      - name: Build the Pear worker and linked Bare Kit AAR
+        shell: powershell
+        run: ./scripts/build_pear_worker.ps1
+
+      - name: Prepare signing configuration
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NCY_ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.NCY_ANDROID_KEY_ALIAS }}
+        run: |
+          if (-not $env:KEYSTORE_BASE64 -or -not $env:KEY_ALIAS) {
+            throw "Signing secrets are missing from the 'release' environment"
+          }
+          $keystore = Join-Path $env:RUNNER_TEMP "ncy-release.jks"
+          [IO.File]::WriteAllBytes($keystore, [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+          $properties = Join-Path $env:RUNNER_TEMP "android-signing.properties"
+          # java.util.Properties reads backslashes as escapes, so write forward slashes.
+          @(
+            "storeFile=$($keystore.Replace('\', '/'))"
+            "keyAlias=$env:KEY_ALIAS"
+          ) | Set-Content -LiteralPath $properties -Encoding ascii
+          "NCY_ANDROID_SIGNING_PROPERTIES=$properties" >> $env:GITHUB_ENV
+
+      # Releases ship only the arm64-v8a APK, as earlier ones did, so Obtainium
+      # keeps matching a single asset.
+      - name: Test and build signed release
+        env:
+          NCY_ANDROID_STORE_PASSWORD: ${{ secrets.NCY_ANDROID_STORE_PASSWORD }}
+          NCY_ANDROID_KEY_PASSWORD: ${{ secrets.NCY_ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon --console=plain -PncyAbis=arm64-v8a :app:testProductionDebugUnitTest :app:assembleProductionRelease
+
+      - name: Collect, verify and checksum the APK
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $apks = @(Get-ChildItem app/build/outputs/apk/production/release -Filter '*arm64-v8a*.apk')
+          if ($apks.Count -ne 1) { throw "Expected one arm64-v8a release APK but found $($apks.Count)" }
+          $dist = New-Item -ItemType Directory -Path dist -Force
+          $apk = Join-Path $dist "Ncy-$env:VERSION-arm64-v8a-release.apk"
+          Copy-Item -LiteralPath $apks[0].FullName -Destination $apk
+
+          $buildTools = Get-ChildItem (Join-Path $env:ANDROID_HOME build-tools) -Directory |
+            Sort-Object { [version]($_.Name -replace '-.*$', '') } | Select-Object -Last 1
+          $certs = & (Join-Path $buildTools.FullName apksigner.bat) verify --verbose --print-certs $apk
+          if ($LASTEXITCODE -ne 0) { throw "apksigner verification failed" }
+          $certs | Write-Host
+          $digest = ($certs | Select-String 'Signer #1 certificate SHA-256 digest: ([0-9a-f]+)').Matches[0].Groups[1].Value
+          if ($digest -ne $env:RELEASE_CERT_SHA256) {
+            throw "APK is signed by certificate $digest, not the release certificate $env:RELEASE_CERT_SHA256"
+          }
+
+          $lines = Get-ChildItem $dist -Filter '*.apk' | Sort-Object Name | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          [IO.File]::WriteAllLines((Join-Path $dist 'SHA256SUMS.txt'), [string[]]$lines, [Text.Encoding]::ASCII)
+          Get-Content (Join-Path $dist 'SHA256SUMS.txt')
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist).FullName `
+            --draft --verify-tag --title $env:GITHUB_REF_NAME --notes-file "$env:RUNNER_TEMP/notes.md"
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
+
+      - name: Remove signing material
+        if: always()
+        run: Remove-Item -LiteralPath "$env:RUNNER_TEMP/ncy-release.jks", "$env:RUNNER_TEMP/android-signing.properties" -ErrorAction SilentlyContinue

@@ -14,6 +14,17 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.8.1",
+        date = "2026-10-22",
+        changes = listOf(
+            "Automatic backups now go to a folder you choose, keeping the last 5, with a Back up now button.",
+            "Deleting several selected messages now asks first, as deleting one does.",
+            "The reminder sheet now says when reminders may ring late, with a button to allow exact alarms.",
+            "The chat list, Favorites and Reminders stay quick with a long history: unchanged chats are not read again.",
+            "Fixed automatic backups being kept inside the app, where they could not be reached.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.8.0",
         date = "2026-10-21",
         changes = listOf(

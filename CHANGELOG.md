@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.1 — 2026-10-22
+
+### Added
+
+- Automatic backups now go to a folder you choose, such as Documents, an SD card or a
+  synced folder, and the last 5 are kept there. **Back up now** saves one at once and shows
+  how the last one went. Turning automatic backups on asks for the folder first.
+- The reminder sheet now says when reminders may ring up to an hour late because exact
+  alarms are not allowed, with a button to the setting. Allowing it sets existing reminders
+  again so they ring on time.
+
+### Changed
+
+- Deleting several selected messages now asks first, as deleting a single message does.
+- The chat list, Favorites, Reminders and reminder alarms no longer re-read every chat
+  after each change; only chats that changed are read again.
+
+### Fixed
+
+- Fixed automatic backups being kept inside the app's own storage, where they could not be
+  reached and were lost with the app. Those old copies are removed. If automatic backups
+  were on, choose a folder on the Backup page to continue them.
+
 ## 0.8.0 — 2026-10-21
 
 ### Removed

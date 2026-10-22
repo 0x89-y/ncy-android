@@ -2,6 +2,7 @@ package com.ncy.notechaty.data.repository
 
 import android.content.Context
 import com.ncy.notechaty.data.model.*
+import com.ncy.notechaty.data.serialization.ChatFileCache
 import com.ncy.notechaty.data.serialization.ChatSerializer
 import com.google.gson.Gson
 import com.ncy.notechaty.data.sync.ChatEventBus
@@ -99,6 +100,12 @@ class FileChatRepository @Inject constructor(
     private val _allChats = MutableStateFlow<List<ProfileChat>>(emptyList())
     private val _changes = MutableStateFlow(0L)
 
+    /** What the chat list shows of each chat, re-read only when its file changes. */
+    private val chatSummaries = ChatFileCache<Chat>()
+
+    /** Each chat's starred and reminder messages, for Favorites and Reminders. */
+    private val savedMessages = ChatFileCache<List<Message>>()
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val rootDir: File
@@ -143,6 +150,16 @@ class FileChatRepository @Inject constructor(
     override fun observeAllProfileChats(): Flow<List<ProfileChat>> = _allChats.asStateFlow()
 
     override fun observeChanges(): Flow<Long> = _changes.asStateFlow()
+
+    override suspend fun getSavedMessagesIn(profileId: String, chatId: String): List<Message> =
+        withContext(Dispatchers.IO) {
+            val id = safeProfileId(profileId) ?: return@withContext emptyList()
+            if (!SafeId.isValid(chatId)) return@withContext emptyList()
+            val chatFile = File(File(File(rootDir, "profile_$id"), "chat_$chatId"), "chat.json")
+            savedMessages.get(chatFile) {
+                serializer.readFromFile(chatFile).messages.filter { it.isStarred || it.reminderAt != null }
+            }.orEmpty()
+        }
 
     override suspend fun getMessagesIn(profileId: String, chatId: String): List<Message> =
         withContext(Dispatchers.IO) {
@@ -1069,8 +1086,9 @@ class FileChatRepository @Inject constructor(
             ?.mapNotNull { dir ->
                 val chatFile = File(dir, "chat.json")
                 try {
-                    val data = loadOrRepairChat(dir, chatFile) ?: return@mapNotNull null
-                    data.toChat(data.chat.id, data.messages)
+                    chatSummaries.get(chatFile) {
+                        loadOrRepairChat(dir, chatFile)?.let { data -> data.toChat(data.chat.id, data.messages) }
+                    }
                 } catch (e: Exception) {
                     Log.w(
                         "FileChatRepo",

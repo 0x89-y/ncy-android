@@ -182,7 +182,6 @@
     <string name="back_up_everything">Back up everything</string>
     <string name="all_chats_from_every_profile_the_profile">All chats from every profile + the profile list, as one .zip</string>
     <string name="auto_backup">Auto-backup</string>
-    <string name="periodically_backs_up_all_chats">Periodically backs up all chats internally</string>
     <string name="forget_deletion_records_2">Forget deletion records</string>
     <string name="advanced_stale_backups_may_restore">Advanced: stale backups may restore deleted chats or messages</string>
     <string name="unprotects_all_chats">Unprotects all chats</string>
@@ -447,4 +446,29 @@
     <string name="no_archived_chats_hint">Long-press a chat and choose Archive to move it here.</string>
     <string name="no_active_chats">Every chat is archived</string>
     <string name="no_active_chats_hint">Find them under Archived chats in the filter menu, or tap + for a new one.</string>
+    <plurals name="delete_messages_title">
+        <item quantity="one">Delete %d message?</item>
+        <item quantity="other">Delete %d messages?</item>
+    </plurals>
+    <plurals name="delete_messages_confirm">
+        <item quantity="one">It is deleted here and on every paired device.</item>
+        <item quantity="other">They are deleted here and on every paired device.</item>
+    </plurals>
+    <string name="reminders_may_be_late">Reminders may ring up to an hour late until Ncy is allowed to set exact alarms.</string>
+    <string name="no_free_port_for_sync">Could not find a free port for phone sync.</string>
+    <string name="connect_to_share_pairing_code">Connect to Wi-Fi or Ethernet to share a pairing code.</string>
+    <string name="unlock_ncy">Unlock Ncy</string>
+    <string name="verify_to_open_the_app">Verify to open the app</string>
+    <string name="licenses_intro">Ncy is built with these open-source libraries. Tap one to open its project.</string>
+    <string name="libraries">Libraries</string>
+    <string name="license">License</string>
+    <string name="open_project_page">Open project page</string>
+    <string name="licenses_apache_note">The libraries above are used under the Apache License 2.0.</string>
+    <string name="auto_backup_hint">Saves everything to a folder you choose, keeping the last 5</string>
+    <string name="backup_folder">Backup folder</string>
+    <string name="backup_folder_unavailable">Can no longer be reached. Tap to choose a folder.</string>
+    <string name="back_up_now">Back up now</string>
+    <string name="backing_up">Backing up…</string>
+    <string name="backup_saved">Last backup saved</string>
+    <string name="backup_failed">Backup failed. Check the folder.</string>
 </resources>

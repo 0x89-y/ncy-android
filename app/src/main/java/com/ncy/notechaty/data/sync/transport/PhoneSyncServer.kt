@@ -1,5 +1,6 @@
 package com.ncy.notechaty.data.sync.transport
 
+import com.ncy.notechaty.R
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.LinkProperties
@@ -62,7 +63,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 /** Hosts the normal Ncy sync protocol so another Android phone can connect to this one. */
 @Singleton
 class PhoneSyncServer @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val identity: DeviceIdentity,
     private val pairingIdentity: PhonePairingIdentity,
     private val snapshot: SyncSnapshot,
@@ -167,7 +168,7 @@ class PhoneSyncServer @Inject constructor(
         val initialHost = localLanAddress()
         val port = selectServerPort(initialHost?.let(::isIpv6Host) == true)
         if (port == null) {
-            _state.value = HostState.Failed("Could not find an available port for phone sync.")
+            _state.value = HostState.Failed(context.getString(R.string.no_free_port_for_sync))
             return
         }
         _state.value = HostState.Starting
@@ -249,7 +250,7 @@ class PhoneSyncServer @Inject constructor(
                 usedFallbackPort = current.boundPort != DEFAULT_PORT,
                 lanAvailable = true,
             )
-        } else HostState.Failed(NO_NETWORK_MESSAGE)
+        } else HostState.Failed(context.getString(R.string.connect_to_share_pairing_code))
     }
 
     private inner class Server(val boundPort: Int, val ipv6: Boolean) :
@@ -1268,7 +1269,7 @@ class PhoneSyncServer @Inject constructor(
         if (!current.listening) return
         val host = localLanAddress()
         if (host == null) {
-            _state.value = HostState.Failed(NO_NETWORK_MESSAGE)
+            _state.value = HostState.Failed(context.getString(R.string.connect_to_share_pairing_code))
             advertisedHost = null
             advertisedPort = null
             advertisingRestartJob?.cancel()
@@ -1396,7 +1397,6 @@ class PhoneSyncServer @Inject constructor(
     private companion object {
         const val TAG = "PhoneSyncServer"
         const val DEFAULT_PORT = 8765
-        const val NO_NETWORK_MESSAGE = "Connect to Wi-Fi or Ethernet to share a pairing code."
         const val PAIRING_CONFIRM_TIMEOUT_MS = 60_000L
         const val AUTH_TIMEOUT_MS = 10_000L
         const val MAX_UNAUTHENTICATED_CONNECTIONS = 8

@@ -1,5 +1,6 @@
 package com.ncy.notechaty
 
+import androidx.compose.ui.res.stringResource
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
@@ -164,10 +165,10 @@ class MainActivity : FragmentActivity() {
                             // An opaque Surface also swallows touches meant for the app below.
                             Surface(modifier = Modifier.fillMaxSize()) {
                                 PinPromptContent(
-                                    title = "Ncy",
-                                    subtitle = "Enter your PIN to continue",
-                                    biometricTitle = "Unlock Ncy",
-                                    biometricSubtitle = "Verify to open the app",
+                                    title = stringResource(R.string.ncy),
+                                    subtitle = stringResource(R.string.enter_your_pin_to_continue),
+                                    biometricTitle = stringResource(R.string.unlock_ncy),
+                                    biometricSubtitle = stringResource(R.string.verify_to_open_the_app),
                                     useBiometric = settings.protectionUseBiometric,
                                     onVerify = { pin ->
                                         pinManager.verifyPin(pin).also { ok ->

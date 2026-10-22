@@ -1,5 +1,7 @@
 package com.ncy.notechaty.ui.licenses
 
+import com.ncy.notechaty.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
@@ -105,12 +107,12 @@ fun LicensesScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Open Source Licenses") },
+                title = { Text(stringResource(R.string.open_source_licenses)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 },
@@ -133,13 +135,13 @@ fun LicensesScreen(
         ) {
             item {
                 Text(
-                    text = "Ncy is built with these open-source libraries. Tap any to open its project.",
+                    text = stringResource(R.string.licenses_intro),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp)
                 )
             }
-            item { NcyFlushSectionLabel("Libraries") }
+            item { NcyFlushSectionLabel(stringResource(R.string.libraries)) }
             item {
                 NcyFlushList {
                     licenses.forEachIndexed { i, entry ->
@@ -151,7 +153,7 @@ fun LicensesScreen(
                 }
             }
             item { Spacer(modifier = Modifier.height(14.dp)) }
-            item { NcyFlushSectionLabel("License") }
+            item { NcyFlushSectionLabel(stringResource(R.string.license)) }
             item { ApacheLicensePanel() }
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
@@ -177,7 +179,7 @@ private fun LicenseRow(entry: LicenseEntry, onClick: () -> Unit) {
         }
         Icon(
             Icons.Default.OpenInNew,
-            contentDescription = "Open project page",
+            contentDescription = stringResource(R.string.open_project_page),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp)
         )
@@ -195,7 +197,7 @@ private fun ApacheLicensePanel() {
         ) {
             Text("Apache License 2.0", style = MaterialTheme.typography.titleSmall)
             Text(
-                "The libraries above are used under the Apache License 2.0.",
+                stringResource(R.string.licenses_apache_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

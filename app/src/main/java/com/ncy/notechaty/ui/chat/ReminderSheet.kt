@@ -1,5 +1,9 @@
 package com.ncy.notechaty.ui.chat
 
+import android.app.AlarmManager
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
@@ -43,6 +47,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.ncy.notechaty.R
 import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
@@ -113,6 +119,12 @@ fun ReminderSheet(
     val is24Hour = DateFormat.is24HourFormat(context)
     val now = remember { System.currentTimeMillis() }
     val presets = remember(now) { reminderPresets(now) }
+    val alarmManager = remember { context.getSystemService(AlarmManager::class.java) }
+    var exactAlarmsAllowed by remember { mutableStateOf(alarmManager.canScheduleExactAlarms()) }
+    // Checked again on return from the system setting the hint links to.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        exactAlarmsAllowed = alarmManager.canScheduleExactAlarms()
+    }
     var pickingDate by remember { mutableStateOf(false) }
     var pickedDay by remember { mutableStateOf<Long?>(null) }
 
@@ -136,6 +148,28 @@ fun ReminderSheet(
                 )
                 NcySheetActionRow(Icons.Default.AlarmOff, stringResource(R.string.remove_reminder), destructive = true) {
                     onRemove()
+                }
+            }
+            if (!exactAlarmsAllowed) {
+                // Without "Alarms & reminders" Android may hold a reminder back by
+                // up to an hour. Say so here, where it matters, with the way out.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.reminders_may_be_late),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))
+                        )
+                    }) { Text(stringResource(R.string.allow)) }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

@@ -4,6 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
 import com.ncy.notechaty.data.model.ChatData
+import com.ncy.notechaty.data.model.ChatMetadata
+import com.ncy.notechaty.data.model.Message
+import com.ncy.notechaty.data.serialization.ChatFileCache
 import com.ncy.notechaty.data.model.Profile
 import java.io.File
 
@@ -21,12 +24,17 @@ object ReminderAlarms {
     private const val PREFS = "ncy_reminder_alarms"
     private val gson = Gson()
 
+    /** A chat's details and its messages that carry a reminder, past or upcoming. */
+    private class ChatReminders(val chat: ChatMetadata, val messages: List<Message>)
+
+    private val remindersByFile = ChatFileCache<ChatReminders>()
+
     private data class Wanted(
         val chatId: String,
         val profileId: String,
         val chatName: String,
         val hideText: Boolean,
-        val message: com.ncy.notechaty.data.model.Message,
+        val message: Message,
     )
 
     /**
@@ -44,18 +52,21 @@ object ReminderAlarms {
         chatDirs(root).forEach { (profileId, chatDir) ->
             val chatFile = File(chatDir, "chat.json")
             if (!chatFile.isFile) return@forEach
-            val data = runCatching { gson.fromJson(chatFile.readText(), ChatData::class.java) }.getOrNull()
-                ?: return@forEach
-            data.messages
+            // Runs after every change; only chats whose file changed are read again.
+            val reminders = remindersByFile.get(chatFile) {
+                runCatching { gson.fromJson(chatFile.readText(), ChatData::class.java) }.getOrNull()
+                    ?.let { data -> ChatReminders(data.chat, data.messages.filter { it.reminderAt != null }) }
+            } ?: return@forEach
+            reminders.messages
                 .filter { (it.reminderAt ?: 0L) > now }
                 .forEach { message ->
                     wanted[message.id] = Wanted(
-                        chatId = data.chat.id,
+                        chatId = reminders.chat.id,
                         profileId = profileId,
-                        chatName = data.chat.name,
+                        chatName = reminders.chat.name,
                         // A notification shows on the lock screen: say nothing about
                         // what is behind a PIN, whether the chat's or the profile's.
-                        hideText = data.chat.isProtected || profileId in protectedProfiles,
+                        hideText = reminders.chat.isProtected || profileId in protectedProfiles,
                         message = message,
                     )
                 }

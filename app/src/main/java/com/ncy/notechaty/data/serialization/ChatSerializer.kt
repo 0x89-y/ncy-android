@@ -34,6 +34,7 @@ class ChatSerializer {
             replaceFile(temp, file)
         } finally {
             temp.delete()
+            ChatFileWrites.record(file)
         }
     }
 

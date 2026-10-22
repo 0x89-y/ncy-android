@@ -47,7 +47,7 @@ class StarredMessagesViewModel @Inject constructor(
             // so the list alone never re-emitted and these went stale until a restart.
             combine(visibleChats.chats, repository.observeChanges()) { chats, _ -> chats }.collectLatest { chatList ->
                 val visible = chatList.filter { !it.chat.isProtected }.map { (profileId, chat) ->
-                    chat to repository.getMessagesIn(profileId, chat.id)
+                    chat to repository.getSavedMessagesIn(profileId, chat.id)
                 }
                 val starred = mutableListOf<StarredMessage>()
                 visible.forEach { (chat, messages) ->

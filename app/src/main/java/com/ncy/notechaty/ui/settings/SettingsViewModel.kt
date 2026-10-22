@@ -2,8 +2,11 @@ package com.ncy.notechaty.ui.settings
 
 import com.ncy.notechaty.R
 import android.content.Context
+import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ncy.notechaty.backup.BackupFolder
 import com.ncy.notechaty.backup.BackupScheduler
 import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.AppSettings
@@ -198,16 +201,40 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setAutoBackupEnabled(enabled: Boolean) {
+    /** Turning automatic backups off; turning them on goes through [setAutoBackupFolder]. */
+    fun disableAutoBackup() {
         viewModelScope.launch {
-            settingsRepository.updateSettings(settings.value.copy(autoBackupEnabled = enabled))
-            if (enabled) {
-                BackupScheduler.schedule(context, settings.value.autoBackupIntervalHours)
-            } else {
-                BackupScheduler.cancel(context)
-            }
+            settingsRepository.updateSettings(settings.value.copy(autoBackupEnabled = false))
+            BackupScheduler.cancel(context)
         }
     }
+
+    /** Back up into [tree] from now on, turning automatic backups on if they were off. */
+    fun setAutoBackupFolder(tree: Uri) {
+        viewModelScope.launch {
+            val previous = settings.value.autoBackupFolder?.let(Uri::parse)
+            runCatching { BackupFolder.remember(context, tree, previous) }.onFailure {
+                Log.w("SettingsVM", "could not keep access to the backup folder", it)
+                return@launch
+            }
+            settingsRepository.updateSettings(
+                settings.value.copy(autoBackupEnabled = true, autoBackupFolder = tree.toString())
+            )
+            BackupScheduler.schedule(context, settings.value.autoBackupIntervalHours)
+            // Straight away, so a folder that does not work shows up now, not in a day.
+            BackupScheduler.runNow(context)
+        }
+    }
+
+    fun backUpNow() = BackupScheduler.runNow(context)
+
+    val backupNowState = BackupScheduler.runNowState(context)
+
+    /** The chosen folder's name, or null when none is chosen or it can no longer be reached. */
+    fun backupFolderName(): String? =
+        settings.value.autoBackupFolder?.let(Uri::parse)
+            ?.takeIf { BackupFolder.isUsable(context, it) }
+            ?.let { BackupFolder.displayName(context, it) }
 
     fun setAutoBackupInterval(hours: Int) {
         viewModelScope.launch {

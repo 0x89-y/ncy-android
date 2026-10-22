@@ -42,6 +42,12 @@ interface ChatRepository {
     suspend fun getMessagesIn(profileId: String, chatId: String): List<Message>
 
     /**
+     * Only the starred messages and those with a reminder, past or upcoming. Cheap to
+     * call for every chat after every change: unchanged chats are not read again.
+     */
+    suspend fun getSavedMessagesIn(profileId: String, chatId: String): List<Message>
+
+    /**
      * Delete a profile and its chats on every paired device: each chat gets a
      * deletion record that sync carries, and the profile cannot come back on its own.
      */

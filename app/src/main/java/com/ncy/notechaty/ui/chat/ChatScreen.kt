@@ -1,5 +1,6 @@
 package com.ncy.notechaty.ui.chat
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.ncy.notechaty.R
 import android.Manifest
@@ -113,6 +114,7 @@ fun ChatScreen(
     }
 
     var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
+    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var isRecordingVoice by remember { mutableStateOf(false) }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -359,12 +361,9 @@ fun ChatScreen(
                     },
                     actions = {
                         IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                viewModel.deleteMessages(selectedIds)
-                                selectionMode = false
-                                selectedIds = emptySet()
-                            },
+                            // Asks first, as a single delete does: it removes them on
+                            // every paired device too.
+                            onClick = { showBulkDeleteConfirm = true },
                             enabled = selectedIds.isNotEmpty()
                         ) {
                             Icon(
@@ -708,6 +707,32 @@ fun ChatScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showBulkDeleteConfirm) {
+        val count = selectedIds.size
+        NcyAlertDialog(
+            onDismissRequest = { showBulkDeleteConfirm = false },
+            title = { Text(pluralStringResource(R.plurals.delete_messages_title, count, count)) },
+            text = { Text(pluralStringResource(R.plurals.delete_messages_confirm, count, count)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        viewModel.deleteMessages(selectedIds)
+                        selectionMode = false
+                        selectedIds = emptySet()
+                        showBulkDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkDeleteConfirm = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }

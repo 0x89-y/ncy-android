@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -72,7 +73,10 @@ import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
 import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
 import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
 import com.ncy.notechaty.util.FileUtils
+import androidx.work.WorkInfo
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -111,6 +115,15 @@ fun SettingsScreen(
     val mediaBusy by viewModel.mediaBusy.collectAsState()
 
     // Export all launcher
+    val backupFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { tree -> tree?.let(viewModel::setAutoBackupFolder) }
+    val backupNowState by viewModel.backupNowState.collectAsState(initial = null)
+    // Asks the folder's provider, so off the main thread; again after each backup,
+    // which notices a folder that has since gone.
+    val backupFolderName by produceState<String?>(null, settings.autoBackupFolder, backupNowState) {
+        value = withContext(Dispatchers.IO) { viewModel.backupFolderName() }
+    }
     val exportAllLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
@@ -322,14 +335,38 @@ fun SettingsScreen(
                 NcySettingsToggleRow(
                     icon = Icons.Default.Backup,
                     title = stringResource(R.string.auto_backup),
-                    subtitle = stringResource(R.string.periodically_backs_up_all_chats),
+                    subtitle = stringResource(R.string.auto_backup_hint),
                     checked = settings.autoBackupEnabled,
-                    onCheckedChange = {
+                    onCheckedChange = { on ->
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        viewModel.setAutoBackupEnabled(it)
+                        // Turning it on starts with choosing where backups go.
+                        if (on) backupFolderPicker.launch(null) else viewModel.disableAutoBackup()
                     }
                 )
                 if (settings.autoBackupEnabled) {
+                    NcyRowDivider()
+                    NcySettingsRow(
+                        icon = Icons.Default.Folder,
+                        title = stringResource(R.string.backup_folder),
+                        subtitle = backupFolderName ?: stringResource(R.string.backup_folder_unavailable),
+                        onClick = { backupFolderPicker.launch(null) },
+                    )
+                    NcyRowDivider()
+                    NcySettingsRow(
+                        icon = Icons.Default.CloudUpload,
+                        title = stringResource(R.string.back_up_now),
+                        subtitle = when (backupNowState) {
+                            WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING, WorkInfo.State.BLOCKED ->
+                                stringResource(R.string.backing_up)
+                            WorkInfo.State.SUCCEEDED -> stringResource(R.string.backup_saved)
+                            WorkInfo.State.FAILED -> stringResource(R.string.backup_failed)
+                            else -> null
+                        },
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            viewModel.backUpNow()
+                        },
+                    )
                     NcyRowDivider()
                     NcySettingsPanel {
                         Text(stringResource(R.string.backup_interval), style = MaterialTheme.typography.bodyMedium)

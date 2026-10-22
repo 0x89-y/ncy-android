@@ -73,6 +73,9 @@ class NcyApp : Application(), Configuration.Provider {
         // in days, so an exact schedule buys nothing; the media sweep runs after it
         // because expired messages are what orphan their attachments.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            // Automatic backups used to stay in app storage, where nothing could read
+            // them; they now go to a folder the user picks.
+            java.io.File(filesDir, "NoteChaty/backups").deleteRecursively()
             // Number every stored event that lacks a receipt: all of them on the first
             // run of a receipt log, otherwise only what a crash or a copied-in file
             // left behind. A late number is caught up on the next connection.

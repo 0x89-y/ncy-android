@@ -54,10 +54,13 @@ jobs:
 
           "version=$version" >> $env:GITHUB_OUTPUT
 
-      # gradle/gradle-daemon-jvm.properties asks for a JetBrains 21 daemon JVM.
+      # Any JDK 21 to start Gradle. The JetBrains 21 runtime that
+      # gradle/gradle-daemon-jvm.properties asks for is downloaded by Gradle from
+      # the links in that file; setup-java's JetBrains lookup once offered only 11
+      # and failed the release, so it is not relied on here.
       - uses: actions/setup-java@v6
         with:
-          distribution: jetbrains
+          distribution: temurin
           java-version: 21
 
       # There is no Gradle wrapper script in this repo; keep this in step with

@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   release:
-    # Windows matches the local release path (build-apks.bat and apksigner.bat).
+    # Windows, so apksigner runs as apksigner.bat from the Android SDK on the runner.
     runs-on: windows-latest
     # Signing secrets live in this environment so only release tags can read them.
     environment: release

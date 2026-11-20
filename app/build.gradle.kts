@@ -102,7 +102,7 @@ android {
                         ?.takeIf { it.isNotEmpty() }
                         ?: error(
                             "Missing release signing password in environment variable '$name'. " +
-                                "Use build-apks.bat release so it can prompt securely."
+                                "Releases are built by GitHub Actions from the 'release' environment's secrets."
                         )
 
                 storeFile = file(requiredProperty("storeFile")).also {

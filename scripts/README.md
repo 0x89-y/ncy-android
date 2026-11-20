@@ -1,24 +1,5 @@
 # Ncy sync — test scripts
 
-## Building APKs without Android Studio
-
-Double-click `build-apks.bat` in the repository root, or run it from a terminal:
-
-```bat
-build-apks.bat
-build-apks.bat debug
-build-apks.bat release
-build-apks.bat all
-```
-
-The default `debug` mode produces installable production APKs for `arm64-v8a`,
-`armeabi-v7a`, and `x86_64`, then opens `release\android\<version>\`. Release APKs
-are optimized but remain unsigned until a release keystore is configured.
-
-APK builds stay split by ABI so each release has one stable `arm64-v8a` file name.
-`arm64-v8a` is the primary physical-device artifact, `armeabi-v7a` supports legacy
-32-bit phones, and `x86_64` supports emulators.
-
 Sync runs over the local network only. Internet sync through Pear/Bare Kit was removed
 in 0.7.9; it made up about 90% of the APK and needed its own native build.
 

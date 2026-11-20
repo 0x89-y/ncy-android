@@ -14,6 +14,20 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.9.0",
+        date = "2026-11-20",
+        changes = listOf(
+            "A new look, Notebook: warm paper, black ink and a serif for chat names and titles.",
+            "Notes run the full width with the time in the margin, and show which device wrote them.",
+            "The chat list shows Starred, Reminders and Archived as filters, with the next reminder on top.",
+            "Reminders are a timeline you can tick off, and search filters by voice, lists, starred and files.",
+            "Settings is one page, with your devices and whether they are online first.",
+            "PINs are entered on a number pad; tap Use keyboard for a PIN with letters.",
+            "A new icon, which follows Android's themed icons.",
+            "Accent colours are now five paper inks. Other choices switch to terracotta.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.8.1",
         date = "2026-10-22",
         changes = listOf(

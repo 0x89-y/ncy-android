@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.9.0 — 2026-11-20
+
+### Changed
+
+- Ncy has a new look, called Notebook: warm paper, black ink and one accent colour, with a
+  serif for chat names and titles. In dark mode the paper turns to ink.
+- Chats read like a notebook. Notes run the full width with the time in the margin instead
+  of sitting in bubbles, and a note written on another device shows that device's name.
+- The chat list shows its filters: All, Starred, Reminders and Archived, in place of the
+  filter menu. The next reminder sits at the top, and a line under the title says when the
+  phone last synced.
+- Reminders are a timeline by day. Tap the ring next to one to mark it done on every device.
+- Search covers chats and notes, with filters for voice notes, checklists, starred notes and
+  files.
+- Settings is one page, with your paired devices and whether they are online first, and the
+  theme switch right on it.
+- PINs are entered on a number pad. A PIN with letters still works: tap **Use keyboard**.
+- Recording a voice note shows the sound level as you speak, with labelled Discard and Save
+  buttons.
+- Pairing shows the QR code full screen, and the 6-digit safety code large enough to
+  compare at a glance.
+- A new icon: a ruled page with an italic n. It follows Android's themed icons, and
+  reminder notifications use the n.
+- A chat's colour is now a soft tint on its tile rather than a bubble colour.
+
+### Removed
+
+- The bright accent colours and the Wallpaper option. The accent is now one of five paper
+  inks: terracotta, ink blue, moss, plum or graphite. If you had picked another colour,
+  Ncy uses terracotta.
+
 ## 0.8.1 — 2026-10-22
 
 ### Added

@@ -3,6 +3,7 @@ package com.ncy.notechaty.data.repository
 import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.ProfileChat
+import com.ncy.notechaty.data.model.ActiveProfileChats
 import com.ncy.notechaty.data.sync.event.ChatEvent
 import kotlinx.coroutines.flow.Flow
 import java.io.File
@@ -30,6 +31,14 @@ interface ChatRepository {
      * (empty otherwise). Locked profiles are the caller's to filter out.
      */
     fun observeAllProfileChats(): Flow<List<ProfileChat>>
+
+    /**
+     * The active profile's chats together with the profile they were loaded from.
+     * [observeChats] alone cannot say which profile its list belongs to: right after
+     * a switch it still holds the previous profile's chats, and pairing those with
+     * the new active id pointed readers at chat files that do not exist.
+     */
+    fun observeActiveProfileChats(): Flow<ActiveProfileChats>
 
     /**
      * Ticks after any change to stored chats or messages, here or from a peer. The

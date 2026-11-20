@@ -98,6 +98,7 @@ class FileChatRepository @Inject constructor(
     private val gson = Gson()
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
     private val _allChats = MutableStateFlow<List<ProfileChat>>(emptyList())
+    private val _activeChats = MutableStateFlow(ActiveProfileChats("", emptyList()))
     private val _changes = MutableStateFlow(0L)
 
     /** What the chat list shows of each chat, re-read only when its file changes. */
@@ -133,6 +134,7 @@ class FileChatRepository @Inject constructor(
                     // opened; re-locking there would undo the unlock that opened it.
                     if (!profileRepository.showAllProfiles.value) chatLockState.clearChatUnlocks()
                     _chats.value = emptyList()
+                    _activeChats.value = ActiveProfileChats(it, emptyList())
                     refreshChats()
                 }
         }
@@ -149,6 +151,8 @@ class FileChatRepository @Inject constructor(
 
     override fun observeAllProfileChats(): Flow<List<ProfileChat>> = _allChats.asStateFlow()
 
+    override fun observeActiveProfileChats(): Flow<ActiveProfileChats> = _activeChats.asStateFlow()
+
     override fun observeChanges(): Flow<Long> = _changes.asStateFlow()
 
     override suspend fun getSavedMessagesIn(profileId: String, chatId: String): List<Message> =
@@ -156,9 +160,17 @@ class FileChatRepository @Inject constructor(
             val id = safeProfileId(profileId) ?: return@withContext emptyList()
             if (!SafeId.isValid(chatId)) return@withContext emptyList()
             val chatFile = File(File(File(rootDir, "profile_$id"), "chat_$chatId"), "chat.json")
-            savedMessages.get(chatFile) {
-                serializer.readFromFile(chatFile).messages.filter { it.isStarred || it.reminderAt != null }
-            }.orEmpty()
+            // A chat can be deleted, by sync or on this device, between being listed
+            // and being read here. It has no saved notes then, rather than a crash.
+            if (!chatFile.exists()) return@withContext emptyList()
+            try {
+                savedMessages.get(chatFile) {
+                    serializer.readFromFile(chatFile).messages.filter { it.isStarred || it.reminderAt != null }
+                }.orEmpty()
+            } catch (e: java.io.IOException) {
+                Log.w("FileChatRepo", "saved messages unreadable for chat ${chatId.take(8)}", e)
+                emptyList()
+            }
         }
 
     override suspend fun getMessagesIn(profileId: String, chatId: String): List<Message> =
@@ -1066,6 +1078,7 @@ class FileChatRepository @Inject constructor(
 
         if (profileRepository.activeProfileId.value == profileId) {
             _chats.value = chats
+            _activeChats.value = ActiveProfileChats(profileId, chats)
             Log.i(
                 "FileChatRepo",
                 "refresh publish active=${profileId.take(8)} chats=${chats.size} " +

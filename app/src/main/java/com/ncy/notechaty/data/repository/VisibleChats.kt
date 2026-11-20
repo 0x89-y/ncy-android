@@ -22,7 +22,7 @@ class VisibleChats @Inject constructor(
 ) {
     val chats: Flow<List<ProfileChat>> = combine(
         combine(
-            repository.observeChats(),
+            repository.observeActiveProfileChats(),
             repository.observeAllProfileChats(),
             profileRepository.showAllProfiles,
         ) { active, all, showAll -> Triple(active, all, showAll) },
@@ -31,7 +31,9 @@ class VisibleChats @Inject constructor(
         profileLockState.timestamps,
         settingsRepository.settings,
     ) { (active, all, showAll), activeId, profiles, unlockedAt, settings ->
-        if (!showAll) active.map { ProfileChat(activeId, it) }
+        // Labelled with the profile the list was read from, never the active id: just
+        // after a switch the list can still be the previous profile's.
+        if (!showAll) active.chats.map { ProfileChat(active.profileId, it) }
         else all.filter { chat ->
             isProfileOpen(
                 profiles.firstOrNull { it.id == chat.profileId } ?: return@filter false,

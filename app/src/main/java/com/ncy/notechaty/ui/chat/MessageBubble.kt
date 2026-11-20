@@ -214,22 +214,27 @@ fun MessageBubble(
     val c = NcyTheme.colors
     val contentColor = MaterialTheme.colorScheme.onSurface
     val subtleColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val paper = MaterialTheme.colorScheme.background
 
-    // A note in the journal: the time in a margin on the left, the note across the
-    // rest of the width. No bubbles; selection and search tint the whole row.
+    // A note is a bubble: yours on the right on the accent tint; with the chat's
+    // "Other devices on the left" on, notes from other devices sit left on plain paper.
+    val mine = !(isRemote && remoteOnLeft)
+    val bubbleShape = if (mine) RoundedCornerShape(18.dp, 18.dp, 6.dp, 18.dp)
+        else RoundedCornerShape(18.dp, 18.dp, 18.dp, 6.dp)
+    val maxBubble = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.84f).dp
     Box(
         modifier = modifier
             .fillMaxWidth()
             .then(
                 when {
-                    isSelected -> Modifier.background(c.accentSoft)
-                    isReplyHighlight -> Modifier.background(c.accentSoft.copy(alpha = 0.7f))
-                    isCurrentSearchResult -> Modifier.background(c.accentSoft.copy(alpha = 0.55f))
-                    isSearchResult -> Modifier.background(c.accentSoft.copy(alpha = 0.25f))
+                    isSelected -> Modifier.background(c.accentSoft.copy(alpha = 0.6f))
+                    isReplyHighlight -> Modifier.background(c.accentSoft.copy(alpha = 0.45f))
+                    isCurrentSearchResult -> Modifier.background(c.accentSoft.copy(alpha = 0.4f))
+                    isSearchResult -> Modifier.background(c.accentSoft.copy(alpha = 0.18f))
                     else -> Modifier
                 }
             )
+            .padding(horizontal = 12.dp, vertical = 3.dp),
+        contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         if (swipeProgress > 0f) {
             Icon(
@@ -238,14 +243,17 @@ fun MessageBubble(
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = swipeProgress),
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 16.dp)
+                    .padding(start = 4.dp)
                     .size(20.dp)
             )
         }
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .widthIn(max = maxBubble)
                 .graphicsLayer { translationX = dragOffset.value }
+                .clip(bubbleShape)
+                .background(if (mine) c.accentSoft else c.raised)
+                .border(1.dp, if (mine) c.accentEdge else c.line, bubbleShape)
                 .pointerInput(message.id, isSelectionMode) {
                     if (isSelectionMode) return@pointerInput
                     detectHorizontalDragGestures(
@@ -283,46 +291,9 @@ fun MessageBubble(
                         else showMenu = true
                     }
                 )
-                .padding(start = 16.dp, end = 16.dp, top = 7.dp, bottom = 7.dp),
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp),
         ) {
-            // The margin: time, then a star or "edited" under it.
-            Column(
-                modifier = Modifier.width(42.dp).padding(top = 3.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text(
-                    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.createdAt)),
-                    style = NcyTheme.type.time,
-                    color = subtleColor,
-                )
-                if (message.isStarred) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = stringResource(R.string.favorite),
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                if (message.editedAt != null) {
-                    Text(stringResource(R.string.edited), style = NcyTheme.type.time.copy(fontSize = 9.sp), color = subtleColor)
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            // Paper behind the note, so ruled lines show only between notes.
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(paper)
-                    .then(
-                        if (isRemote && remoteOnLeft) Modifier
-                            .drawBehind {
-                                drawRect(c.lineStrong, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height))
-                            }
-                            .padding(start = 10.dp)
-                        else Modifier
-                    ),
-            ) {
-                CompositionLocalProvider(LocalContentColor provides contentColor) {
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
                 if (isRemote) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
                         Icon(Icons.Outlined.Laptop, null, Modifier.size(13.dp), tint = subtleColor)
@@ -440,8 +411,30 @@ fun MessageBubble(
                     )
                 }
                 message.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let { at ->
-                    ReminderChip(at, onClick = onSetReminder)
+                    ReminderChip(at, onBubble = mine, onClick = onSetReminder)
                 }
+                // Star, "edited" and the time, small in the bubble's corner.
+                Row(
+                    modifier = Modifier.align(Alignment.End).padding(top = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    if (message.isStarred) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = stringResource(R.string.favorite),
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    if (message.editedAt != null) {
+                        Text(stringResource(R.string.edited), style = NcyTheme.type.time, color = subtleColor)
+                    }
+                    Text(
+                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.createdAt)),
+                        style = NcyTheme.type.time,
+                        color = subtleColor,
+                    )
                 }
             }
         }
@@ -611,7 +604,7 @@ fun MessageBubble(
 
 /** "Today 16:00" under a note with a reminder still to come; opens the reminder sheet. */
 @Composable
-private fun ReminderChip(at: Long, onClick: () -> Unit) {
+private fun ReminderChip(at: Long, onBubble: Boolean = false, onClick: () -> Unit) {
     val c = NcyTheme.colors
     val now = Calendar.getInstance()
     val t = Calendar.getInstance().apply { timeInMillis = at }
@@ -624,7 +617,8 @@ private fun ReminderChip(at: Long, onClick: () -> Unit) {
         modifier = Modifier
             .padding(top = 6.dp)
             .clip(RoundedCornerShape(999.dp))
-            .background(c.accentSoft)
+            // On a tinted bubble the tint would vanish, so the chip is outlined there.
+            .then(if (onBubble) Modifier.border(1.dp, c.accentEdge, RoundedCornerShape(999.dp)) else Modifier.background(c.accentSoft))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
@@ -667,7 +661,6 @@ private fun ReplyQuote(
     val accent = MaterialTheme.colorScheme.primary
     Column(
         modifier = Modifier
-            .fillMaxWidth()
             .padding(bottom = 5.dp)
             .then(if (targetExists) Modifier.clickable(onClick = onJump) else Modifier)
             .drawBehind { drawRect(accent, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) }
@@ -1280,7 +1273,6 @@ private fun ReactionChipRow(
     val c = NcyTheme.colors
     Row(
         modifier = Modifier
-            .fillMaxWidth()
             .padding(top = 6.dp)
             .horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,

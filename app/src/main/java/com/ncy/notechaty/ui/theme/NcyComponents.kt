@@ -55,6 +55,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
@@ -388,8 +389,8 @@ fun NcySettingsToggleRow(
 // ---------------------------------------------------------------------------
 
 /**
- * Pill chip. Selected chips are filled with ink, so the choice reads by fill and
- * contrast, not by colour alone.
+ * Pill chip. A selected chip takes the accent tint and bolder text, so the choice
+ * reads by fill and weight, not by colour alone.
  */
 @Composable
 fun NcyPill(
@@ -401,24 +402,32 @@ fun NcyPill(
     count: Int? = null,
 ) {
     val c = NcyTheme.colors
-    val fg = if (selected) c.onInk else MaterialTheme.colorScheme.onSurface
+    val fg = if (selected) c.onAccentSoft else MaterialTheme.colorScheme.onSurface
     Row(
         modifier = modifier
             .defaultMinSize(minHeight = 36.dp)
             .clip(CircleShape)
-            .then(if (selected) Modifier.background(c.ink) else Modifier.border(1.dp, c.lineStrong, CircleShape))
+            .then(
+                if (selected) Modifier.background(c.accentSoft).border(1.dp, c.accentEdge, CircleShape)
+                else Modifier.border(1.dp, c.lineStrong, CircleShape)
+            )
             .selectable(selected = selected, onClick = onClick, role = Role.Tab)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = fg, maxLines = 1)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
+            color = fg,
+            maxLines = 1,
+        )
         if (count != null) {
             Text(
                 count.toString(),
                 style = NcyTheme.type.time,
-                color = if (selected) c.onInk.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (selected) c.onAccentSoft else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -506,7 +515,7 @@ fun <T> NcySegmented(
             Box(
                 modifier = Modifier
                     .heightIn(min = 40.dp)
-                    .then(if (on) Modifier.background(c.ink) else Modifier)
+                    .then(if (on) Modifier.background(c.accentSoft) else Modifier)
                     .selectable(selected = on, onClick = { onSelect(option) }, role = Role.RadioButton)
                     .padding(horizontal = 13.dp),
                 contentAlignment = Alignment.Center,
@@ -514,7 +523,8 @@ fun <T> NcySegmented(
                 Text(
                     label(option),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (on) c.onInk else MaterialTheme.colorScheme.onSurface,
+                    color = if (on) c.onAccentSoft else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                 )
             }
         }

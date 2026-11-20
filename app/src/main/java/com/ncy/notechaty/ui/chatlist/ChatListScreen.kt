@@ -223,8 +223,8 @@ fun ChatListScreen(
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.new_chat_2), style = MaterialTheme.typography.labelLarge) },
                     shape = RoundedCornerShape(16.dp),
-                    containerColor = NcyTheme.colors.ink,
-                    contentColor = NcyTheme.colors.onInk,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         }

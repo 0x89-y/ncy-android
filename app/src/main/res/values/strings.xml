@@ -66,7 +66,7 @@
     <string name="remove">Remove</string>
     <string name="delete_messages_after">Delete messages after</string>
     <string name="other_devices_on_the_left">Other devices on the left</string>
-    <string name="show_messages_created_on_another_ncy">Set notes written on another device apart with a rule in the margin</string>
+    <string name="show_messages_created_on_another_ncy">Show notes written on another device on the left</string>
     <string name="background_image">Background image</string>
     <string name="protect_this_chat">Protect this chat</string>
     <string name="hide_name_on_chat_list">Hide name on chat list</string>
@@ -406,6 +406,7 @@
     </plurals>
     <string name="accent_terracotta">Terracotta</string>
     <string name="accent_ink_blue">Ink blue</string>
+    <string name="accent_violet">Violet</string>
     <string name="accent_moss">Moss</string>
     <string name="accent_plum">Plum</string>
     <string name="accent_graphite">Graphite</string>

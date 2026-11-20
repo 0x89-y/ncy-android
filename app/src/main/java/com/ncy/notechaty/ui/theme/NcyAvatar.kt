@@ -65,7 +65,7 @@ fun ncyChatHue(chat: Chat?, fallbackName: String = ""): Color {
 @Composable
 fun ncyTint(hue: Color): Color {
     val c = NcyTheme.colors
-    return mix(hue, if (c.isDark) Color(0xFF1D1A15) else Color(0xFFFBF9F5), if (c.isDark) 0.24f else 0.17f)
+    return mix(hue, MaterialTheme.colorScheme.surfaceContainer, if (c.isDark) 0.24f else 0.17f)
 }
 
 /** Glyph colour on a [ncyTint] of [hue]. */

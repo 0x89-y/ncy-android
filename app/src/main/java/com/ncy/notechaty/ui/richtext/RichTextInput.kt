@@ -406,8 +406,8 @@ fun RichTextInput(
                             modifier = Modifier.size(46.dp),
                             shape = CircleShape,
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = NcyTheme.colors.ink,
-                                contentColor = NcyTheme.colors.onInk,
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
                             ),
                         ) {
                             Icon(

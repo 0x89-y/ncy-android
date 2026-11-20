@@ -4,7 +4,7 @@ package com.ncy.notechaty.ui.theme
  * ============================================================================
  *  Ncy "Notebook" design system
  * ============================================================================
- *  Warm paper, black ink and one accent: terracotta, or another paper ink. Names and titles
+ *  Neutral paper tinted toward one accent (ink blue by default), black ink. Names and titles
  *  are set in Newsreader, the interface and notes in Instrument Sans, and times
  *  and labels in JetBrains Mono. See docs/redesign/ for the mockups this follows.
  *
@@ -62,46 +62,58 @@ val NcyMono = FontFamily(
 )
 
 // ---------------------------------------------------------------------------
-//  Paper and ink
+//  Tones: neutral greys, each tinted lightly toward the accent, so the whole app
+//  takes the accent's temperature. Ink blue gives cool blue-grey paper, moss a
+//  green one, and so on; nothing is fixed warm.
 // ---------------------------------------------------------------------------
-private object Paper {
-    // Light
-    val LightBg = Color(0xFFF5F1EA)
-    val LightSurface = Color(0xFFFBF9F5)
-    val LightRaised = Color(0xFFFFFFFF)
-    val LightSunk = Color(0xFFEDE7DD)
-    val LightText = Color(0xFF1E1A15)
-    val LightMuted = Color(0xFF685F54)
-    val LightLine = Color(0xFFE4DDD1)
-    val LightLineStrong = Color(0xFFD1C8B9)
-    /** Borders that must be seen (fields, unchecked boxes): 3:1 on paper. */
-    val LightOutline = Color(0xFF8F8678)
-    val LightDanger = Color(0xFFB42318)
-    val LightOnline = Color(0xFF2F7D48)
+private class Tones(
+    val bg: Color, val surface: Color, val raised: Color, val sunk: Color,
+    val text: Color, val muted: Color, val line: Color, val lineStrong: Color,
+    /** Borders that must be seen (fields, unchecked boxes): 3:1 against [bg]. */
+    val outline: Color,
+    val danger: Color, val online: Color,
+)
 
-    // Dark
-    val DarkBg = Color(0xFF15130F)
-    val DarkSurface = Color(0xFF1D1A15)
-    val DarkRaised = Color(0xFF25211B)
-    val DarkSunk = Color(0xFF100E0B)
-    val DarkText = Color(0xFFEFE9DF)
-    val DarkMuted = Color(0xFFA89F91)
-    val DarkLine = Color(0xFF2E2922)
-    val DarkLineStrong = Color(0xFF3E372D)
-    val DarkOutline = Color(0xFF6F675B)
-    val DarkDanger = Color(0xFFF07A6A)
-    val DarkOnline = Color(0xFF7CCB94)
-}
+private fun lightTones(a: Color) = Tones(
+    bg = mix(a, Color(0xFFF6F6F5), 0.05f),
+    surface = mix(a, Color(0xFFFBFBFA), 0.03f),
+    raised = Color.White,
+    sunk = mix(a, Color(0xFFEDEDEC), 0.06f),
+    text = mix(a, Color(0xFF18181A), 0.06f),
+    muted = mix(a, Color(0xFF5F6066), 0.10f),
+    line = mix(a, Color(0xFFE3E3E3), 0.10f),
+    lineStrong = mix(a, Color(0xFFD0D0D0), 0.12f),
+    outline = mix(a, Color(0xFF86878C), 0.12f),
+    danger = Color(0xFFB42318),
+    online = Color(0xFF2F7D48),
+)
+
+// A dark grey tinted toward the accent, never near-black, with text at about 12:1.
+private fun darkTones(a: Color) = Tones(
+    bg = mix(a, Color(0xFF1C1C1F), 0.07f),
+    surface = mix(a, Color(0xFF242428), 0.08f),
+    raised = mix(a, Color(0xFF28282C), 0.08f),
+    sunk = mix(a, Color(0xFF161618), 0.06f),
+    text = mix(a, Color(0xFFE2E2E5), 0.06f),
+    muted = mix(a, Color(0xFF9D9EA4), 0.10f),
+    line = mix(a, Color(0xFF323236), 0.10f),
+    lineStrong = mix(a, Color(0xFF414146), 0.12f),
+    outline = mix(a, Color(0xFF76777D), 0.12f),
+    danger = Color(0xFFF07A6A),
+    online = Color(0xFF7CCB94),
+)
 
 /** An accent hue for the light and dark themes. */
 private data class Accent(val light: Color, val dark: Color)
 
 private fun accentFor(accent: AccentColor): Accent = when (accent) {
-    AccentColor.TERRACOTTA -> Accent(Color(0xFFB4471F), Color(0xFFE8835C))
-    AccentColor.INK_BLUE -> Accent(Color(0xFF2F4A7A), Color(0xFF8DA6D6))
-    AccentColor.MOSS -> Accent(Color(0xFF4F6B3A), Color(0xFFA3BE84))
-    AccentColor.PLUM -> Accent(Color(0xFF7A3B5E), Color(0xFFD094B6))
-    AccentColor.GRAPHITE -> Accent(Color(0xFF3D3A36), Color(0xFFCFC8BD))
+    AccentColor.INK_BLUE -> Accent(Color(0xFF2F5AA8), Color(0xFF8FB0EA))
+    AccentColor.TEAL -> Accent(Color(0xFF0F7069), Color(0xFF6CC9BE))
+    AccentColor.MOSS -> Accent(Color(0xFF4A6E33), Color(0xFFA3C487))
+    AccentColor.VIOLET -> Accent(Color(0xFF6741C9), Color(0xFFB29BF5))
+    AccentColor.PLUM -> Accent(Color(0xFF8A3A66), Color(0xFFDB9BC0))
+    AccentColor.GRAPHITE -> Accent(Color(0xFF3F3F46), Color(0xFFCFCFD6))
+    AccentColor.TERRACOTTA -> Accent(Color(0xFFB4471F), Color(0xFFDD8662))
 }
 
 /** Linear sRGB-space mix: [pct] of [a] over [b]. */
@@ -147,8 +159,10 @@ data class NcyColors(
     val line: Color,
     /** Decorative borders: chips, cards, segmented controls. */
     val lineStrong: Color,
-    /** Accent-tinted fill: reminders, highlights, the soft side of the accent. */
+    /** Accent-tinted fill: your notes, reminders, the selected filter. */
     val accentSoft: Color,
+    /** Border of an [accentSoft] fill, so a tinted shape keeps its edge. */
+    val accentEdge: Color,
     val onAccentSoft: Color,
     /** Fields and anything that sits above a surface. */
     val raised: Color,
@@ -158,13 +172,7 @@ data class NcyColors(
 )
 
 private val LocalNcyColors = staticCompositionLocalOf {
-    NcyColors(
-        isDark = false, ink = Paper.LightText, onInk = Paper.LightSurface,
-        line = Paper.LightLine, lineStrong = Paper.LightLineStrong,
-        accentSoft = Color(0xFFF3E2D7), onAccentSoft = Color(0xFF7A2E12),
-        raised = Paper.LightRaised, sunk = Paper.LightSunk, online = Paper.LightOnline,
-        scrim = Color(0x6B1E1A15),
-    )
+    lightScheme(accentFor(AccentColor.INK_BLUE).light).second
 }
 
 // ---------------------------------------------------------------------------
@@ -235,71 +243,73 @@ private val NcyShapes = Shapes(
 //  Schemes
 // ---------------------------------------------------------------------------
 private fun lightScheme(a: Color): Pair<ColorScheme, NcyColors> {
-    val soft = mix(a, Paper.LightSurface, 0.14f)
-    val onSoft = mix(a, Color.Black, 0.6f)
+    val t = lightTones(a)
+    val soft = mix(a, Color.White, 0.11f)
+    val onSoft = mix(a, Color.Black, 0.62f)
     val scheme = lightColorScheme(
-        primary = a, onPrimary = readableOn(a, Paper.LightText),
+        primary = a, onPrimary = readableOn(a, t.text),
         primaryContainer = soft, onPrimaryContainer = onSoft,
-        secondary = Paper.LightText, onSecondary = Paper.LightSurface,
-        secondaryContainer = Paper.LightSunk, onSecondaryContainer = Paper.LightText,
-        tertiary = a, onTertiary = readableOn(a, Paper.LightText),
+        secondary = t.text, onSecondary = t.surface,
+        secondaryContainer = t.sunk, onSecondaryContainer = t.text,
+        tertiary = a, onTertiary = readableOn(a, t.text),
         tertiaryContainer = soft, onTertiaryContainer = onSoft,
-        background = Paper.LightBg, onBackground = Paper.LightText,
-        surface = Paper.LightBg, onSurface = Paper.LightText,
-        surfaceVariant = Paper.LightSunk, onSurfaceVariant = Paper.LightMuted,
+        background = t.bg, onBackground = t.text,
+        surface = t.bg, onSurface = t.text,
+        surfaceVariant = t.sunk, onSurfaceVariant = t.muted,
         surfaceTint = Color.Transparent,
-        surfaceBright = Paper.LightRaised, surfaceDim = Paper.LightSunk,
-        surfaceContainerLowest = Paper.LightRaised,
-        surfaceContainerLow = Paper.LightSurface,
-        surfaceContainer = Paper.LightSurface,
-        surfaceContainerHigh = Paper.LightSurface,
-        surfaceContainerHighest = Paper.LightSunk,
-        inverseSurface = Paper.LightText, inverseOnSurface = Paper.LightSurface, inversePrimary = mix(a, Color.White, 0.5f),
-        outline = Paper.LightOutline, outlineVariant = Paper.LightLine,
-        error = Paper.LightDanger, onError = Color.White,
-        errorContainer = mix(Paper.LightDanger, Paper.LightSurface, 0.12f), onErrorContainer = mix(Paper.LightDanger, Color.Black, 0.55f),
-        scrim = Color(0xFF1E1A15),
+        surfaceBright = t.raised, surfaceDim = t.sunk,
+        surfaceContainerLowest = t.raised,
+        surfaceContainerLow = t.surface,
+        surfaceContainer = t.surface,
+        surfaceContainerHigh = t.surface,
+        surfaceContainerHighest = t.sunk,
+        inverseSurface = t.text, inverseOnSurface = t.surface, inversePrimary = mix(a, Color.White, 0.5f),
+        outline = t.outline, outlineVariant = t.line,
+        error = t.danger, onError = Color.White,
+        errorContainer = mix(t.danger, t.surface, 0.12f), onErrorContainer = mix(t.danger, Color.Black, 0.55f),
+        scrim = Color(0xFF18181A),
     )
     return scheme to NcyColors(
-        isDark = false, ink = Paper.LightText, onInk = Paper.LightSurface,
-        line = Paper.LightLine, lineStrong = Paper.LightLineStrong,
-        accentSoft = soft, onAccentSoft = onSoft,
-        raised = Paper.LightRaised, sunk = Paper.LightSunk, online = Paper.LightOnline,
-        scrim = Color(0x6B1E1A15),
+        isDark = false, ink = t.text, onInk = t.surface,
+        line = t.line, lineStrong = t.lineStrong,
+        accentSoft = soft, accentEdge = mix(a, Color.White, 0.26f), onAccentSoft = onSoft,
+        raised = t.raised, sunk = t.sunk, online = t.online,
+        scrim = Color(0x6B18181A),
     )
 }
 
 private fun darkScheme(a: Color): Pair<ColorScheme, NcyColors> {
-    val soft = mix(a, Paper.DarkSurface, 0.18f)
+    val t = darkTones(a)
+    val soft = mix(a, Color(0xFF28282C), 0.20f)
     val onSoft = mix(a, Color.White, 0.55f)
     val scheme = darkColorScheme(
-        primary = a, onPrimary = readableOn(a, Paper.DarkBg),
+        primary = a, onPrimary = readableOn(a, t.bg),
         primaryContainer = soft, onPrimaryContainer = onSoft,
-        secondary = Paper.DarkText, onSecondary = Paper.DarkBg,
-        secondaryContainer = Paper.DarkRaised, onSecondaryContainer = Paper.DarkText,
-        tertiary = a, onTertiary = readableOn(a, Paper.DarkBg),
+        secondary = t.text, onSecondary = t.bg,
+        secondaryContainer = t.raised, onSecondaryContainer = t.text,
+        tertiary = a, onTertiary = readableOn(a, t.bg),
         tertiaryContainer = soft, onTertiaryContainer = onSoft,
-        background = Paper.DarkBg, onBackground = Paper.DarkText,
-        surface = Paper.DarkBg, onSurface = Paper.DarkText,
-        surfaceVariant = Paper.DarkRaised, onSurfaceVariant = Paper.DarkMuted,
+        background = t.bg, onBackground = t.text,
+        surface = t.bg, onSurface = t.text,
+        surfaceVariant = t.raised, onSurfaceVariant = t.muted,
         surfaceTint = Color.Transparent,
-        surfaceBright = Paper.DarkRaised, surfaceDim = Paper.DarkSunk,
-        surfaceContainerLowest = Paper.DarkSunk,
-        surfaceContainerLow = Paper.DarkSurface,
-        surfaceContainer = Paper.DarkSurface,
-        surfaceContainerHigh = Paper.DarkSurface,
-        surfaceContainerHighest = Paper.DarkRaised,
-        inverseSurface = Paper.DarkText, inverseOnSurface = Paper.DarkBg, inversePrimary = mix(a, Color.Black, 0.5f),
-        outline = Paper.DarkOutline, outlineVariant = Paper.DarkLine,
-        error = Paper.DarkDanger, onError = Paper.DarkBg,
-        errorContainer = mix(Paper.DarkDanger, Paper.DarkSurface, 0.18f), onErrorContainer = mix(Paper.DarkDanger, Color.White, 0.5f),
+        surfaceBright = t.raised, surfaceDim = t.sunk,
+        surfaceContainerLowest = t.sunk,
+        surfaceContainerLow = t.surface,
+        surfaceContainer = t.surface,
+        surfaceContainerHigh = t.surface,
+        surfaceContainerHighest = t.raised,
+        inverseSurface = t.text, inverseOnSurface = t.bg, inversePrimary = mix(a, Color.Black, 0.5f),
+        outline = t.outline, outlineVariant = t.line,
+        error = t.danger, onError = t.bg,
+        errorContainer = mix(t.danger, t.surface, 0.18f), onErrorContainer = mix(t.danger, Color.White, 0.5f),
         scrim = Color.Black,
     )
     return scheme to NcyColors(
-        isDark = true, ink = Paper.DarkText, onInk = Paper.DarkBg,
-        line = Paper.DarkLine, lineStrong = Paper.DarkLineStrong,
-        accentSoft = soft, onAccentSoft = onSoft,
-        raised = Paper.DarkRaised, sunk = Paper.DarkSunk, online = Paper.DarkOnline,
+        isDark = true, ink = t.text, onInk = t.bg,
+        line = t.line, lineStrong = t.lineStrong,
+        accentSoft = soft, accentEdge = mix(a, Color(0xFF28282C), 0.34f), onAccentSoft = onSoft,
+        raised = t.raised, sunk = t.sunk, online = t.online,
         scrim = Color(0x8C000000),
     )
 }
@@ -314,7 +324,7 @@ fun accentSwatch(accentColor: AccentColor, dark: Boolean): Color =
 @Composable
 fun NcyTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    accentColor: AccentColor = AccentColor.TERRACOTTA,
+    accentColor: AccentColor = AccentColor.INK_BLUE,
     content: @Composable () -> Unit
 ) {
     val dark = when (themeMode) {

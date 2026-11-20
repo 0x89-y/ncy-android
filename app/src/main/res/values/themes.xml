@@ -4,7 +4,7 @@
 
     <!-- The launcher icon's ruled page on the app's own paper; ink at night (values-night). -->
     <style name="Theme.Ncy.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#F5F1EA</item>
+        <item name="windowSplashScreenBackground">#F6F6F5</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
         <item name="postSplashScreenTheme">@style/Theme.Ncy</item>
     </style>

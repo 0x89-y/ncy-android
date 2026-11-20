@@ -462,8 +462,8 @@ fun ChatScreen(
                 // with `windowSoftInputMode="adjustResize"`. Consume the IME
                 // insets here so the input bar stays visible above the keyboard.
                 .imePadding()
-                // Ruled paper; a per-chat background image, when set, draws on top.
-                .ncyRuledPaper()
+                // Plain paper; a per-chat background image, when set, draws on top.
+                .ncyPaper()
         ) {
             val bgFile = uiState.chat?.backgroundFile?.let { File(chatDir, it) }
             if (bgFile != null && bgFile.exists()) {

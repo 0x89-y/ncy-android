@@ -408,7 +408,7 @@ fun NcyPill(
             .defaultMinSize(minHeight = 36.dp)
             .clip(CircleShape)
             .then(
-                if (selected) Modifier.background(c.accentSoft).border(1.dp, c.accentEdge, CircleShape)
+                if (selected) Modifier.background(c.accentSelected).border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
                 else Modifier.border(1.dp, c.lineStrong, CircleShape)
             )
             .selectable(selected = selected, onClick = onClick, role = Role.Tab)

@@ -202,15 +202,14 @@ fun ChatListScreen(
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         homeTab = tab
                     }
-                    HomeChips(
+                    HomeTabs(
                         listOf(
-                            HomeChip(stringResource(R.string.all), null, chats.size, homeTab == HomeTab.CHATS) { select(HomeTab.CHATS) },
-                            HomeChip(stringResource(R.string.home_starred), Icons.Outlined.StarOutline, starredMessages.size.takeIf { it > 0 }, homeTab == HomeTab.STARRED) { select(HomeTab.STARRED) },
-                            HomeChip(stringResource(R.string.reminders), Icons.Outlined.NotificationsNone, reminderMessages.size.takeIf { it > 0 }, homeTab == HomeTab.REMINDERS) { select(HomeTab.REMINDERS) },
-                            HomeChip(stringResource(R.string.home_archived), Icons.Outlined.Archive, archivedChats.size.takeIf { it > 0 }, homeTab == HomeTab.ARCHIVED) { select(HomeTab.ARCHIVED) },
+                            HomeChip(stringResource(R.string.all), null, null, homeTab == HomeTab.CHATS) { select(HomeTab.CHATS) },
+                            HomeChip(stringResource(R.string.home_starred), null, null, homeTab == HomeTab.STARRED) { select(HomeTab.STARRED) },
+                            HomeChip(stringResource(R.string.reminders), null, null, homeTab == HomeTab.REMINDERS) { select(HomeTab.REMINDERS) },
+                            HomeChip(stringResource(R.string.home_archived), null, null, homeTab == HomeTab.ARCHIVED) { select(HomeTab.ARCHIVED) },
                         )
                     )
-                    NcyRowDivider()
                 }
             }
         },

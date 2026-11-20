@@ -49,6 +49,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -216,6 +224,67 @@ internal fun HomeChips(chips: List<HomeChip>) {
             .padding(bottom = 12.dp),
     ) {
         chips.forEach { NcyPill(selected = it.selected, onClick = it.onClick, label = it.label, icon = it.icon, count = it.count) }
+    }
+}
+
+/**
+ * The home's views as plain words on the list's top line, the current one
+ * bold with an accent underline. Draws its own bottom rule.
+ */
+@Composable
+internal fun HomeTabs(tabs: List<HomeChip>) {
+    val line = NcyTheme.colors.line
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val h = 1.dp.toPx()
+                drawRect(line, topLeft = Offset(0f, size.height - h), size = Size(size.width, h))
+            }
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = NcyGutter)
+            .selectableGroup(),
+    ) {
+        tabs.forEach { tab -> HomeTabItem(tab) }
+    }
+}
+
+@Composable
+private fun HomeTabItem(tab: HomeChip) {
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .heightIn(min = 44.dp)
+            .selectable(
+                selected = tab.selected,
+                onClick = tab.onClick,
+                role = Role.Tab,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            )
+            .drawBehind {
+                if (tab.selected) {
+                    val h = 2.dp.toPx()
+                    drawRoundRect(
+                        accent,
+                        topLeft = Offset(0f, size.height - h),
+                        size = Size(size.width, h),
+                        cornerRadius = CornerRadius(h / 2),
+                    )
+                }
+            }
+            .padding(top = 4.dp, bottom = 8.dp),
+    ) {
+        Text(
+            tab.label,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = if (tab.selected) FontWeight.SemiBold else FontWeight.Normal,
+            ),
+            color = if (tab.selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 

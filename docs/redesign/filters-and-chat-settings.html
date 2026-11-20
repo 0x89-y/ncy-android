@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ncy Filters And Chat Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--page-bg:#EDEDED;--page-text:#1A1A1A;--page-muted:#5E5E5E;--page-line:#D4D4D4;--page-card:#F7F7F7}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page-bg:#111112;--page-text:#ECECEC;--page-muted:#A0A0A0;--page-line:#2C2C2E;--page-card:#1A1A1B}}
+:root[data-theme="dark"]{--page-bg:#111112;--page-text:#ECECEC;--page-muted:#A0A0A0;--page-line:#2C2C2E;--page-card:#1A1A1B}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page-bg);color:var(--page-text)}
+html.embedded,html.embedded body{background:transparent}
+body{font-family:'Geist',system-ui,sans-serif;font-size:15px;line-height:1.5;padding:28px 16px 64px}
+html.embedded body{padding:8px 0 24px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-weight:600;font-size:30px;letter-spacing:-.03em;line-height:1.1}
+h2{font-weight:600;font-size:21px;letter-spacing:-.02em;margin:34px 0 4px}
+.lede{color:var(--page-muted);max-width:760px;margin:6px 0 16px}
+.controls{display:flex;gap:8px;margin-bottom:10px}
+.controls button{font:inherit;cursor:pointer;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--page-line);background:var(--page-card);color:var(--page-text);font-size:13.5px}
+.controls button[aria-pressed="true"]{outline:2px solid var(--page-text);outline-offset:1px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px;margin-top:14px}
+.opt{background:var(--page-card);border:1px solid var(--page-line);border-radius:16px;padding:14px}
+.opt h3{font-size:15px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.opt h3 span{font-family:'Geist Mono',monospace;font-size:11px;color:var(--page-muted);font-weight:400;letter-spacing:.06em}
+.opt p{font-size:13px;color:var(--page-muted);margin:3px 0 12px}
+.lab2{font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--page-muted);margin:10px 0 5px}
+/* app surfaces */
+.app{background:var(--bg);color:var(--text);border:1px solid var(--line-strong);border-radius:14px;overflow:hidden}
+.hd{padding:10px 14px 12px}
+.prof{font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.07em;color:var(--muted);display:flex;gap:6px;align-items:center}
+.prof i{width:15px;height:15px;border-radius:5px;background:var(--text);display:block}
+.ttl{font-weight:600;font-size:24px;letter-spacing:-.03em;line-height:1.15;margin-top:4px}
+.ttl.sm{font-size:20px}
+.sl{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:center;margin-top:2px}
+.sl::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--online)}
+.row{display:flex;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
+.tile{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex:none}
+.rn{font-weight:600;font-size:13px}.rp{font-size:11.5px;color:var(--muted)}
+.cnt{font-family:'Geist Mono',monospace;font-size:10px;color:var(--muted);font-weight:400}
+/* A chips (current, stronger) */
+.chips{display:flex;gap:5px;margin-top:10px;flex-wrap:nowrap;overflow:hidden}
+.chips span{font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line-strong);white-space:nowrap;display:inline-flex;gap:4px;align-items:center}
+.chips span.on{background:var(--sel);border-color:var(--accent);color:var(--on-soft);font-weight:600}
+/* B segmented */
+.segm{display:flex;margin-top:10px;background:var(--sunk);border-radius:10px;padding:3px;gap:2px}
+.segm span{flex:1;text-align:center;font-size:11.5px;padding:5px 0;border-radius:8px;color:var(--muted);white-space:nowrap}
+.segm span.on{background:var(--raised);color:var(--text);font-weight:600;box-shadow:0 0 0 1px var(--line-strong)}
+/* C underline tabs */
+.tabs{display:flex;gap:16px;margin-top:8px;border-bottom:1px solid var(--line);margin-left:-14px;margin-right:-14px;padding:0 14px}
+.tabs span{font-size:12.5px;padding:7px 0 8px;color:var(--muted);position:relative;white-space:nowrap}
+.tabs span.on{color:var(--text);font-weight:600}
+.tabs span.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:2px;background:var(--accent)}
+.hd.tabbed{padding-bottom:0}
+/* D title switcher */
+.sw{display:inline-flex;gap:6px;align-items:center}
+.sw b{font-size:13px;color:var(--muted);font-weight:400}
+.menu{margin-top:8px;border:1px solid var(--line-strong);border-radius:10px;background:var(--raised);padding:4px;width:180px}
+.menu div{font-size:12px;padding:6px 8px;border-radius:7px;display:flex;justify-content:space-between}
+.menu div.on{background:var(--sel);color:var(--on-soft);font-weight:600}
+/* desktop chat settings */
+.win{background:var(--bg);color:var(--text);border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;display:flex;height:780px;margin-top:14px;position:relative}
+.chatcol{flex:1;display:flex;flex-direction:column;opacity:.55}
+.ch{padding:10px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.ch b{font-size:15px}
+.th{flex:1;padding:16px 24px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.bb{background:var(--soft);border:1px solid var(--edge);border-radius:14px 14px 5px 14px;padding:7px 11px;font-size:13px;max-width:70%}
+.drawer{width:380px;flex:none;border-left:1px solid var(--line-strong);background:var(--surface);display:flex;flex-direction:column}
+.dh{display:flex;align-items:center;padding:12px 14px 0;color:var(--muted)}
+.dh span{margin-left:auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.hero{display:flex;flex-direction:column;align-items:center;padding:4px 18px 14px;text-align:center}
+.hero .av{width:72px;height:72px;border-radius:22px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:28px;position:relative}
+.hero .ed{position:absolute;right:-6px;bottom:-6px;width:26px;height:26px;border-radius:50%;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center;border:3px solid var(--surface);font-size:11px}
+.hero .nm{font-weight:600;font-size:20px;letter-spacing:-.02em;margin-top:10px;display:flex;gap:6px;align-items:center}
+.hero .nm i{font-style:normal;font-size:12px;color:var(--muted)}
+.hero .sub{font-size:12px;color:var(--muted)}
+.dl{font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--muted);padding:14px 18px 6px;line-height:1.2}
+.dr{display:flex;align-items:center;gap:12px;padding:0 18px;min-height:44px;border-top:1px solid var(--line);font-size:13.5px}
+.dr .sp{flex:1}
+.tog{width:34px;height:20px;border-radius:10px;background:var(--line-strong);position:relative;flex:none}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff}
+.tog.on{background:var(--accent)}.tog.on::after{left:17px}
+.pills{display:flex;gap:5px;flex-wrap:wrap;padding:2px 18px 8px}
+.pills span{font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line-strong)}
+.pills span.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.hues{display:flex;gap:7px;padding:2px 18px 10px}
+.hues span{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.hues span.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text)}
+.hues span i{width:9px;height:9px;border-radius:50%;display:block}
+.tag{font-size:11.5px;padding:2px 8px;border-radius:6px;background:var(--sunk);color:var(--text)}
+.link{color:var(--accent);font-weight:600;font-size:12.5px}
+.new{font-family:'Geist Mono',monospace;font-size:9.5px;color:var(--accent);border:1px solid var(--edge);border-radius:5px;padding:0 4px;margin-left:6px}
+.danger{color:var(--danger)}
+.notes{margin:12px 4px 0;padding-left:18px;font-size:13.5px;color:var(--page-muted)}
+.notes li{margin:3px 0}.notes b{color:var(--page-text);font-weight:600}
+@media (max-width:760px){.win{zoom:.62}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Filters and desktop chat settings</h1>
+  <p class="lede">Four ways to switch between All, Starred, Reminders and Archived, each shown on the phone and in the desktop list. Below that, the desktop's chat settings rebuilt to match the phone's.</p>
+  <div class="controls"><button data-t="light" aria-pressed="true">Light</button><button data-t="dark" aria-pressed="false">Dark</button></div>
+
+  <h2>1 · The filter row</h2>
+  <div class="opts" id="opts"></div>
+
+  <h2>2 · Desktop chat settings</h2>
+  <div class="win" id="win">
+    <div class="chatcol"><div class="ch"><span class="tile" data-h="#B4471F">I</span><b>Ideas</b></div>
+      <div class="th"><div class="bb">Maybe pinned chats become cards at the top.</div><div class="bb">Ask Sam about the sync edge-cases doc</div></div></div>
+    <div class="drawer">
+      <div class="dh"><span>✕</span></div>
+      <div class="hero"><div class="av" data-h="#B4471F">I<span class="ed">✎</span></div><div class="nm">Ideas <i>✎</i></div><div class="sub">84 notes · started 3 March</div></div>
+      <div class="dl">ORGANISE</div>
+      <div class="dr">Pin to top<span class="sp"></span><span class="tog on"></span></div>
+      <div class="dr">Tags<span class="sp"></span><span class="tag">#work</span><span class="tag">#ideas</span><span class="link">Edit</span></div>
+      <div class="dl">LOOK</div>
+      <div class="dr" style="border-top:0;min-height:0;padding:2px 18px 6px">Colour<span class="new">NEW</span></div>
+      <div class="hues" id="hues"></div>
+      <div class="dr">Picture<span class="sp"></span><span class="link">Change</span><span class="link" style="color:var(--muted)">Remove</span></div>
+      <div class="dr">Background<span class="sp"></span><span class="link">Set</span></div>
+      <div class="dr">Other devices on the left<span class="sp"></span><span class="tog"></span></div>
+      <div class="dl">DELETE NOTES OLDER THAN</div>
+      <div class="pills"><span class="on">Keep forever</span><span>7 days</span><span>30 days</span><span>90 days</span><span>1 year</span></div>
+      <div class="dr">Protect with a PIN<span class="sp"></span><span class="tog"></span></div>
+      <div class="dr">Archive chat</div>
+      <div class="dr danger">Delete chat</div>
+    </div>
+  </div>
+  <ul class="notes">
+    <li><b>A side panel, the full height of the window,</b> instead of a pop-over list of buttons. The chat stays visible beside it.</li>
+    <li><b>The chat's identity on top:</b> its tile with an edit badge for the picture, and the name, edited in place.</li>
+    <li><b>Switches and choices</b> where the old panel had paired buttons ("Pin" / "Unpin", "Other devices on left" / "Keep all on right"). The retention choices are pills instead of a ticked list.</li>
+    <li><b>Colour is new on the desktop</b> and needs a small back-end addition, since the desktop can't set a chat's colour yet. Everything else uses what it already does.</li>
+    <li>Delete stays set apart at the bottom.</li>
+  </ul>
+</div>
+<script>
+(function(){
+  try{if(window.self!==window.top)document.documentElement.classList.add('embedded')}catch(e){document.documentElement.classList.add('embedded')}
+  function hex(h){h=h.replace('#','');return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)})}
+  function out(c){return '#'+c.map(function(v){return Math.round(v).toString(16).padStart(2,'0')}).join('')}
+  function mix(a,b,p){a=hex(a);b=hex(b);return out(a.map(function(v,i){return v*p+b[i]*(1-p)}))}
+  function pal(dark){var x=dark?'#8FB0EA':'#2F5AA8';
+    if(!dark)return {bg:mix(x,'#F6F6F5',.05),surface:'#FFFFFF',raised:'#FFFFFF',sunk:mix(x,'#EDEDEC',.06),text:mix(x,'#18181A',.06),muted:mix(x,'#5F6066',.10),line:mix(x,'#E3E3E3',.10),'line-strong':mix(x,'#D0D0D0',.12),accent:x,'on-accent':'#FFFFFF',soft:mix(x,'#FFFFFF',.11),edge:mix(x,'#FFFFFF',.26),sel:mix(x,'#FFFFFF',.18),'on-soft':mix(x,'#000000',.62),online:'#2F7D48',danger:'#B42318'};
+    return {bg:mix(x,'#1C1C1F',.07),surface:mix(x,'#28282C',.08),raised:mix(x,'#28282C',.08),sunk:mix(x,'#161618',.06),text:mix(x,'#E2E2E5',.06),muted:mix(x,'#9D9EA4',.10),line:mix(x,'#323236',.10),'line-strong':mix(x,'#414146',.12),accent:x,'on-accent':'#1C1C1F',soft:mix(x,'#28282C',.20),edge:mix(x,'#28282C',.34),sel:mix(x,'#28282C',.32),'on-soft':mix(x,'#FFFFFF',.55),online:'#7CCB94',danger:'#F07A6A'}}
+  var rows='<div class="row"><span class="tile" data-h="#B4471F">I</span><div><div class="rn">Ideas</div><div class="rp">Ask Sam about the sync…</div></div></div><div class="row"><span class="tile" data-h="#2F855A">G</span><div><div class="rn">Groceries</div><div class="rp">4 of 9 · Oat milk</div></div></div>';
+  var head='<div class="prof"><i></i>PERSONAL ▾</div>';
+  var opts=[
+    {k:'A',n:'Chips, made clearer',d:'Today\'s chips with the stronger tint and an accent border on the selected one. The least change; still four outlined shapes in a row.',
+      ui:function(){return '<div class="hd">'+head+'<div class="ttl">Chats</div><div class="sl">Synced with Pixel 8</div><div class="chips"><span class="on">All <b class="cnt">8</b></span><span>Starred <b class="cnt">2</b></span><span>Reminders <b class="cnt">2</b></span><span>Archived</span></div></div>'+rows}},
+    {k:'B',n:'Segmented control',d:'One quiet track with the four views inside it; the selected one lifts out in white. Reads as "one choice from these", and takes less ink than four chips.',
+      ui:function(){return '<div class="hd">'+head+'<div class="ttl">Chats</div><div class="sl">Synced with Pixel 8</div><div class="segm"><span class="on">All</span><span>Starred</span><span>Reminders</span><span>Archived</span></div></div>'+rows}},
+    {k:'C',n:'Underline tabs',d:'Plain words with an accent underline under the current one, sitting on the list\'s top line. The calmest option; counts move to the views themselves.',
+      ui:function(){return '<div class="hd tabbed">'+head+'<div class="ttl">Chats</div><div class="sl">Synced with Pixel 8</div><div class="tabs"><span class="on">All</span><span>Starred</span><span>Reminders</span><span>Archived</span></div></div>'+rows.replace('border-top:1px','')}},
+    {k:'D',n:'The title switches',d:'No row at all: the big title is the switch. "Chats ▾" opens Starred, Reminders and Archived. The most minimal, but the other views are one step less visible.',
+      ui:function(){return '<div class="hd">'+head+'<div class="ttl sw">Chats <b>▾</b></div><div class="sl">Synced with Pixel 8</div><div class="menu"><div class="on">Chats <span class="cnt">8</span></div><div>Starred <span class="cnt">2</span></div><div>Reminders <span class="cnt">2</span></div><div>Archived</div></div></div>'}},
+  ];
+  var o=document.getElementById('opts');
+  opts.forEach(function(x){var d=document.createElement('div');d.className='opt';
+    d.innerHTML='<h3>'+x.n+'<span>OPTION '+x.k+'</span></h3><p>'+x.d+'</p><div class="lab2">PHONE</div><div class="app" style="width:100%">'+x.ui()+'</div><div class="lab2">DESKTOP LIST PANE</div><div class="app">'+x.ui().replace(/ttl"/g,'ttl sm"').replace('ttl sw"','ttl sm sw"')+'</div>';o.appendChild(d)});
+  var hues=['#B4471F','#C69214','#2F855A','#0F766E','#2B6CB0','#805AD5','#B83280','#685F54'];
+  function render(dark){var p=pal(dark);document.documentElement.dataset.theme=dark?'dark':'light';
+    document.querySelectorAll('.app,.win').forEach(function(e){Object.keys(p).forEach(function(k){e.style.setProperty('--'+k,p[k])})});
+    document.querySelectorAll('[data-h]').forEach(function(t){var h=t.dataset.h;t.style.background=mix(h,dark?p.raised:'#FFFFFF',dark?.26:.17);t.style.color=mix(h,p.text,dark?.55:.72)});
+    document.getElementById('hues').innerHTML=hues.map(function(h,i){return '<span class="'+(i===0?'on':'')+'" style="background:'+mix(h,dark?p.raised:'#FFFFFF',dark?.3:.2)+'"><i style="background:'+h+'"></i></span>'}).join('');
+    document.querySelectorAll('[data-t]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.t===(dark?'dark':'light'))});}
+  document.querySelectorAll('[data-t]').forEach(function(b){b.onclick=function(){render(b.dataset.t==='dark')}});
+  render(false);
+})();
+</script>
+</body>
+</html>

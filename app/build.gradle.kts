@@ -40,8 +40,8 @@ android {
         applicationId = "com.ncy.notechaty"
         minSdk = 31
         targetSdk = 35
-        versionCode = 24
-        versionName = "0.9.0"
+        versionCode = 25
+        versionName = "0.9.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

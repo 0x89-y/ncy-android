@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.1 — 2026-11-20
+
+### Changed
+
+- Notes are in bubbles again, which makes a chat much easier to read. Your notes sit on
+  the right in your accent colour. Turn on **Other devices on the left** in a chat's
+  settings to show notes from your other devices on the left.
+- The whole app now follows your accent colour: backgrounds, cards and lines are greys
+  tinted toward it, instead of always warm paper.
+- Ink blue is the new default accent. There are seven: ink blue, teal, moss, violet, plum,
+  graphite and terracotta. If you chose an accent before 0.9.0, Ncy switches back to the
+  nearest of these, unless 0.9.0 already saved terracotta in its place.
+- Dark mode is a softer dark grey instead of near-black, and its text glares less.
+- The selected filter, the mic and **New chat** use your accent colour.
+- Ncy now uses the Geist typeface throughout.
+
+### Fixed
+
+- Fixed the app closing when switching between profiles, most often when going from
+  All chats to a single profile.
+
 ## 0.9.0 — 2026-11-20
 
 ### Changed

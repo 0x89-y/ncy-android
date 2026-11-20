@@ -14,6 +14,18 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.9.1",
+        date = "2026-11-20",
+        changes = listOf(
+            "Notes are in bubbles again, which makes chats much easier to read.",
+            "The whole app follows your accent colour, with ink blue as the new default.",
+            "Seven accents: ink blue, teal, moss, violet, plum, graphite and terracotta.",
+            "Dark mode is a softer dark grey instead of near-black.",
+            "Ncy now uses the Geist typeface.",
+            "Fixed the app closing when switching profiles, especially from All chats.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.9.0",
         date = "2026-11-20",
         changes = listOf(

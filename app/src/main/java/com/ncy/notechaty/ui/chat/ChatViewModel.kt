@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
@@ -59,11 +61,17 @@ class ChatViewModel @Inject constructor(
     private val syncManager: SyncManager,
     private val phoneSyncServer: PhoneSyncServer,
     private val transferState: MediaTransferState,
+    peerStore: com.ncy.notechaty.data.sync.peer.SyncPeerStore,
     appLockCoordinator: AppLockCoordinator,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val chatId: String = savedStateHandle["chatId"] ?: ""
+
+    /** Paired installations by device id, to name the device a synced note came from. */
+    val deviceNames: kotlinx.coroutines.flow.StateFlow<Map<String, String>> = peerStore.peers
+        .map { peers -> peers.associate { it.id to it.name } }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private var hasUnlockToken: Boolean = chatLockState.isUnlocked(
         chatId,

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -32,7 +33,7 @@ fun FormattingToolbar(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 4.dp),
+                .padding(start = 10.dp, end = 10.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             FormatToggle(
@@ -198,15 +199,18 @@ private fun FormatToggle(
     isActive: Boolean,
     onClick: () -> Unit
 ) {
+    // Active styles are filled with ink, so the state reads without colour.
     IconButton(
         onClick = onClick,
         colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer
+            containerColor = if (isActive) com.ncy.notechaty.ui.theme.NcyTheme.colors.ink
             else Color.Transparent,
-            contentColor = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+            contentColor = if (isActive) com.ncy.notechaty.ui.theme.NcyTheme.colors.onInk
             else MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        modifier = Modifier.size(36.dp)
+        modifier = Modifier
+            .size(42.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
     ) {
         Icon(
             imageVector = icon,

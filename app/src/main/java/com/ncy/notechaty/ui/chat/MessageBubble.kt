@@ -77,14 +77,29 @@ import com.ncy.notechaty.ui.theme.NcySheetActionRow
 import com.ncy.notechaty.ui.theme.withReadableWhiteText
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
 import com.ncy.notechaty.ui.voicemessage.VoiceMessageBubble
+import com.ncy.notechaty.ui.theme.NcyTheme
+import com.ncy.notechaty.ui.theme.NcyRowDivider
+import com.ncy.notechaty.ui.theme.NcySheetShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.automirrored.outlined.Reply
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FileDownloadOff
+import androidx.compose.material.icons.outlined.Laptop
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.filled.Check
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-
-private fun remoteDeviceColor(deviceId: String): Color {
-    val hue = (deviceId.hashCode().toUInt() % 360u).toFloat()
-    return Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.65f, 0.85f)))
-}
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -126,6 +141,10 @@ fun MessageBubble(
     isSearchResult: Boolean = false,
     isCurrentSearchResult: Boolean = false,
     isRemote: Boolean = false,
+    /** Name of the installation that wrote a note from another device. */
+    remoteDeviceName: String? = null,
+    /** The chat's "Other devices on the left" option: set such notes apart with a rule. */
+    remoteOnLeft: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -192,64 +211,40 @@ fun MessageBubble(
     var armed by remember { mutableStateOf(false) }
     val swipeProgress = (dragOffset.value / triggerPx).coerceIn(0f, 1f)
 
+    val c = NcyTheme.colors
+    val contentColor = MaterialTheme.colorScheme.onSurface
+    val subtleColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val paper = MaterialTheme.colorScheme.background
+
+    // A note in the journal: the time in a margin on the left, the note across the
+    // rest of the width. No bubbles; selection and search tint the whole row.
     Box(
         modifier = modifier
             .fillMaxWidth()
             .then(
                 when {
-                    isSelected -> Modifier.background(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                    )
-                    isReplyHighlight -> Modifier.background(
-                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.22f)
-                    )
-                    isCurrentSearchResult -> Modifier.background(
-                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
-                    )
-                    isSearchResult -> Modifier.background(
-                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.07f)
-                    )
+                    isSelected -> Modifier.background(c.accentSoft)
+                    isReplyHighlight -> Modifier.background(c.accentSoft.copy(alpha = 0.7f))
+                    isCurrentSearchResult -> Modifier.background(c.accentSoft.copy(alpha = 0.55f))
+                    isSearchResult -> Modifier.background(c.accentSoft.copy(alpha = 0.25f))
                     else -> Modifier
                 }
             )
-            .padding(horizontal = 12.dp, vertical = 3.dp),
-        contentAlignment = if (isRemote) Alignment.CenterStart else Alignment.CenterEnd
     ) {
         if (swipeProgress > 0f) {
             Icon(
                 Icons.AutoMirrored.Filled.Reply,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = swipeProgress),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = swipeProgress),
                 modifier = Modifier
                     .align(Alignment.CenterStart)
+                    .padding(start = 16.dp)
                     .size(20.dp)
             )
         }
-        // Desktop identity: every note is "yours", so the default bubble is the
-        // accent (--bubble-mine) with white-ish text. A per-chat custom colour
-        // still wins when set.
-        val ownFill = bubbleColor ?: MaterialTheme.colorScheme.primary
-        // Light fills take black text; anything else takes white, on a fill darkened
-        // just enough for it to read (dark-theme accents are lighter).
-        val lightFill = ownFill.luminance() > 0.4f
-        val resolvedBubbleColor = if (isRemote) {
-            val seed = remember(message.authorDeviceId) {
-                remoteDeviceColor(message.authorDeviceId.orEmpty())
-            }
-            lerp(MaterialTheme.colorScheme.surface, seed, 0.24f)
-        } else if (lightFill) ownFill else remember(ownFill) { withReadableWhiteText(ownFill) }
-        val contentColor = if (isRemote) {
-            MaterialTheme.colorScheme.onSurface
-        } else if (lightFill) Color.Black else Color.White
-        val subtleColor = contentColor.copy(alpha = 0.7f)
-
-        // Desktop tail geometry: 18 18 4 18 (rounded except bottom-right).
-        val bubbleShape = if (isRemote) {
-            RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)
-        } else RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
-        Surface(
+        Row(
             modifier = Modifier
-                .widthIn(max = 300.dp)
+                .fillMaxWidth()
                 .graphicsLayer { translationX = dragOffset.value }
                 .pointerInput(message.id, isSelectionMode) {
                     if (isSelectionMode) return@pointerInput
@@ -287,23 +282,58 @@ fun MessageBubble(
                         if (isSelectionMode) onToggleSelect()
                         else showMenu = true
                     }
-                ),
-            shape = bubbleShape,
-            color = if (useGradient) Color.Transparent else resolvedBubbleColor,
-            contentColor = contentColor,
-            // Flat like the desktop — depth comes from the accent fill, not shadow.
-            tonalElevation = 0.dp
-        ) {
-            val bgModifier = if (useGradient) {
-                val gradientTop = lerp(resolvedBubbleColor, Color.White, 0.3f)
-                Modifier.background(
-                    Brush.verticalGradient(
-                        colors = listOf(gradientTop, resolvedBubbleColor)
-                    ),
-                    shape = bubbleShape
                 )
-            } else Modifier
-            Column(modifier = bgModifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                .padding(start = 16.dp, end = 16.dp, top = 7.dp, bottom = 7.dp),
+        ) {
+            // The margin: time, then a star or "edited" under it.
+            Column(
+                modifier = Modifier.width(42.dp).padding(top = 3.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.createdAt)),
+                    style = NcyTheme.type.time,
+                    color = subtleColor,
+                )
+                if (message.isStarred) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = stringResource(R.string.favorite),
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (message.editedAt != null) {
+                    Text(stringResource(R.string.edited), style = NcyTheme.type.time.copy(fontSize = 9.sp), color = subtleColor)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            // Paper behind the note, so ruled lines show only between notes.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(paper)
+                    .then(
+                        if (isRemote && remoteOnLeft) Modifier
+                            .drawBehind {
+                                drawRect(c.lineStrong, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height))
+                            }
+                            .padding(start = 10.dp)
+                        else Modifier
+                    ),
+            ) {
+                CompositionLocalProvider(LocalContentColor provides contentColor) {
+                if (isRemote) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
+                        Icon(Icons.Outlined.Laptop, null, Modifier.size(13.dp), tint = subtleColor)
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            remoteDeviceName ?: stringResource(R.string.chat_another_device),
+                            style = NcyTheme.type.time,
+                            color = subtleColor,
+                        )
+                    }
+                }
                 if (message.replyToId != null) {
                     ReplyQuote(
                         message = message,
@@ -355,15 +385,11 @@ fun MessageBubble(
                                 )
                             }
                         }
-                        // Transcript rides on the Message and is populated by
-                        // whichever paired device ran whisper on the audio
-                        // (currently desktop-only). Rendered inline under the
-                        // audio player in muted italic text.
+                        // The transcript reads as a quote under the recording.
                         message.transcript?.takeIf { it.isNotBlank() }?.let { t ->
                             Text(
-                                text = t,
-                                fontSize = 13.sp,
-                                fontStyle = FontStyle.Italic,
+                                text = "“$t”",
+                                style = NcyTheme.type.quote,
                                 color = subtleColor,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
@@ -413,207 +439,198 @@ fun MessageBubble(
                         }
                     )
                 }
-                Row(
-                    modifier = Modifier.align(Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (message.isStarred) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = stringResource(R.string.favorite),
-                            modifier = Modifier.size(12.dp),
-                            tint = subtleColor
-                        )
-                    }
-                    if (message.editedAt != null) {
-                        Text(
-                            text = stringResource(R.string.edited),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = subtleColor,
-                            fontSize = 10.sp
-                        )
-                    }
-                    Text(
-                        text = SimpleDateFormat("HH:mm", Locale.getDefault())
-                            .format(Date(message.createdAt)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = subtleColor,
-                        fontSize = 10.sp
-                    )
+                message.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let { at ->
+                    ReminderChip(at, onClick = onSetReminder)
+                }
                 }
             }
+        }
+    }
 
-            if (showMenu) {
-                ModalBottomSheet(
-                    onDismissRequest = { showMenu = false },
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    containerColor = MaterialTheme.colorScheme.surface
+    if (showMenu) {
+        ModalBottomSheet(
+            onDismissRequest = { showMenu = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = NcySheetShape,
+        ) {
+            val tap = { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+            val copyable = message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST ||
+                (message.type == MessageType.VOICE && !message.transcript.isNullOrBlank())
+            val editable = message.type == MessageType.TEXT || message.type == MessageType.CHECKLIST
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                // The sheet covers the note it was opened from, so the note is shown
+                // here, lifted, to say what these actions apply to.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(c.raised)
+                        .border(1.dp, c.line, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    val tap = { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
-                    val copyable = message.type == MessageType.TEXT || message.type == MessageType.IMAGE || message.type == MessageType.CHECKLIST
-                    val editable = message.type == MessageType.TEXT || message.type == MessageType.CHECKLIST
-                    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
-                        // The sheet covers the bubble it was opened from, so a short
-                        // preview says which message these actions apply to.
-                        Text(
-                            replyPreviewText(message.plainTextPreview(), message.type),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                    Text(
+                        (if (isRemote) (remoteDeviceName ?: stringResource(R.string.chat_another_device)) + " · " else "") +
+                            SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.createdAt)),
+                        style = NcyTheme.type.time,
+                        color = subtleColor,
+                    )
+                    Text(
+                        replyPreviewText(message.plainTextPreview(), message.type),
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                // Reactions on top, as one row of large round targets.
+                Box(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 10.dp, bottom = 6.dp)) {
+                    ReactionPickerStrip(
+                        current = message.reactions,
+                        onPick = { emoji ->
+                            tap()
+                            showMenu = false
+                            onToggleReaction(emoji)
+                        }
+                    )
+                }
+                NcyRowDivider()
+                NcySheetActionRow(Icons.AutoMirrored.Outlined.Reply, stringResource(R.string.reply)) {
+                    tap()
+                    showMenu = false
+                    onReply()
+                }
+                if (copyable) {
+                    NcySheetActionRow(
+                        Icons.Outlined.ContentCopy,
+                        stringResource(if (message.type == MessageType.VOICE) R.string.chat_copy_transcript else R.string.chat_copy_text),
+                    ) {
+                        tap()
+                        showMenu = false
+                        val plainText = when (message.type) {
+                            MessageType.CHECKLIST -> message.checklistItems.joinToString("\n") { item ->
+                                "${if (item.checked) "☑" else "☐"} ${item.text}"
+                            }
+                            MessageType.VOICE -> message.transcript.orEmpty()
+                            else -> message.content.joinToString("\n") { block ->
+                                block.spans.joinToString("") { it.text }
+                            }
+                        }
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
+                        Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
+                    }
+                }
+                if (editable) {
+                    NcySheetActionRow(Icons.Outlined.Edit, stringResource(R.string.edit)) {
+                        tap()
+                        showMenu = false
+                        onEdit()
+                    }
+                }
+                NcySheetActionRow(
+                    if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
+                    if (message.isStarred) stringResource(R.string.chat_unstar) else stringResource(R.string.chat_star),
+                    iconTint = if (message.isStarred) MaterialTheme.colorScheme.primary else null,
+                ) {
+                    tap()
+                    showMenu = false
+                    onToggleStar()
+                }
+                NcySheetActionRow(
+                    Icons.Outlined.Alarm,
+                    if (message.reminderAt != null) stringResource(R.string.edit_reminder) else stringResource(R.string.chat_remind_me),
+                ) {
+                    tap()
+                    showMenu = false
+                    onSetReminder()
+                }
+                localImage?.let { source ->
+                    NcySheetActionRow(Icons.Outlined.Download, stringResource(R.string.save_image)) {
+                        tap()
+                        showMenu = false
+                        // The blob is named by hash, which is no use to
+                        // anyone looking for it later.
+                        imageSaveLauncher.launch(
+                            "Ncy-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+                                .format(Date(source.lastModified())) + ".jpg",
                         )
-                        // Quick reactions across the top.
-                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                            ReactionPickerStrip(
-                                current = message.reactions,
-                                onPick = { emoji ->
-                                    tap()
-                                    showMenu = false
-                                    onToggleReaction(emoji)
-                                }
+                    }
+                    NcySheetActionRow(Icons.Outlined.Share, stringResource(R.string.share_image)) {
+                        tap()
+                        showMenu = false
+                        runCatching {
+                            val uri = androidx.core.content.FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                source,
                             )
-                        }
-                        // The everyday actions sit in one row of large targets at the
-                        // top, so they are not hunted for at the bottom of a long list.
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            SheetQuickAction(Icons.AutoMirrored.Filled.Reply, stringResource(R.string.reply)) {
-                                tap()
-                                showMenu = false
-                                onReply()
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "image/jpeg"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            if (copyable) {
-                                SheetQuickAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) {
-                                    tap()
-                                    showMenu = false
-                                    val plainText = if (message.type == MessageType.CHECKLIST) {
-                                        message.checklistItems.joinToString("\n") { item ->
-                                            "${if (item.checked) "☑" else "☐"} ${item.text}"
-                                        }
-                                    } else {
-                                        message.content.joinToString("\n") { block ->
-                                            block.spans.joinToString("") { it.text }
-                                        }
-                                    }
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("message", plainText))
-                                    Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            if (editable) {
-                                SheetQuickAction(Icons.Default.Edit, stringResource(R.string.edit)) {
-                                    tap()
-                                    showMenu = false
-                                    onEdit()
-                                }
-                            }
-                            SheetQuickAction(Icons.Outlined.CheckCircle, stringResource(R.string.select)) {
-                                tap()
-                                showMenu = false
-                                onEnterSelectionMode()
-                            }
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                        localImage?.let { source ->
-                            NcySheetActionRow(Icons.Default.Download, stringResource(R.string.save_image)) {
-                                tap()
-                                showMenu = false
-                                // The blob is named by hash, which is no use to
-                                // anyone looking for it later.
-                                imageSaveLauncher.launch(
-                                    "Ncy-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
-                                        .format(Date(source.lastModified())) + ".jpg",
-                                )
-                            }
-                            NcySheetActionRow(Icons.Default.Share, stringResource(R.string.share_image)) {
-                                tap()
-                                showMenu = false
-                                runCatching {
-                                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        source,
-                                    )
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "image/jpeg"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(
-                                        Intent.createChooser(intent, context.getString(R.string.share_image)),
-                                    )
-                                }.onFailure {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.could_not_share_image),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                }
-                            }
-                        }
-                        NcySheetActionRow(
-                            if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarOutline,
-                            if (message.isStarred) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites)
-                        ) {
-                            tap()
-                            showMenu = false
-                            onToggleStar()
-                        }
-                        NcySheetActionRow(Icons.Default.Alarm, if (message.reminderAt != null) stringResource(R.string.edit_reminder) else stringResource(R.string.set_reminder)) {
-                            tap()
-                            showMenu = false
-                            onSetReminder()
-                        }
-                        localMedia?.let { (hash, mediaType) ->
-                            // Not the bin: that icon belongs to Delete, and this keeps
-                            // the message.
-                            NcySheetActionRow(Icons.Default.FileDownloadOff, stringResource(R.string.remove_download)) {
-                                tap()
-                                showMenu = false
-                                onRemoveDownload(hash, mediaType)
-                            }
-                        }
-                        // Set apart from everything else, so it is not hit by a slip.
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                        NcySheetActionRow(Icons.Default.Delete, stringResource(R.string.delete), destructive = true) {
-                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                            showMenu = false
-                            onDelete()
+                            context.startActivity(
+                                Intent.createChooser(intent, context.getString(R.string.share_image)),
+                            )
+                        }.onFailure {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.could_not_share_image),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         }
                     }
+                }
+                localMedia?.let { (hash, mediaType) ->
+                    // Not the bin: that icon belongs to Delete, and this keeps
+                    // the message.
+                    NcySheetActionRow(Icons.Outlined.FileDownloadOff, stringResource(R.string.remove_download)) {
+                        tap()
+                        showMenu = false
+                        onRemoveDownload(hash, mediaType)
+                    }
+                }
+                NcySheetActionRow(Icons.Outlined.CheckCircle, stringResource(R.string.chat_select_more)) {
+                    tap()
+                    showMenu = false
+                    onEnterSelectionMode()
+                }
+                // Set apart from everything else, so it is not hit by a slip.
+                Spacer(Modifier.height(4.dp))
+                NcyRowDivider()
+                Spacer(Modifier.height(4.dp))
+                NcySheetActionRow(Icons.Outlined.Delete, stringResource(R.string.delete), destructive = true) {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    showMenu = false
+                    onDelete()
                 }
             }
         }
     }
 }
 
-/** One labelled icon in the long-press sheet's top row. */
+/** "Today 16:00" under a note with a reminder still to come; opens the reminder sheet. */
 @Composable
-private fun SheetQuickAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+private fun ReminderChip(at: Long, onClick: () -> Unit) {
+    val c = NcyTheme.colors
+    val now = Calendar.getInstance()
+    val t = Calendar.getInstance().apply { timeInMillis = at }
+    val sameDay = now.get(Calendar.YEAR) == t.get(Calendar.YEAR) && now.get(Calendar.DAY_OF_YEAR) == t.get(Calendar.DAY_OF_YEAR)
+    val label = if (sameDay) {
+        stringResource(R.string.today) + " " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(at))
+    } else SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(at))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(c.accentSoft)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .widthIn(min = 56.dp)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium)
+        Icon(Icons.Outlined.NotificationsNone, null, Modifier.size(13.dp), tint = c.onAccentSoft)
+        Spacer(Modifier.width(5.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = c.onAccentSoft)
     }
 }
 
@@ -647,39 +664,29 @@ private fun ReplyQuote(
     onJump: () -> Unit
 ) {
     val text = replyPreviewText(message.replyToPreview, message.replyToType)
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = contentColor.copy(alpha = 0.14f),
-        contentColor = contentColor,
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 4.dp)
+            .padding(bottom = 5.dp)
             .then(if (targetExists) Modifier.clickable(onClick = onJump) else Modifier)
+            .drawBehind { drawRect(accent, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) }
+            .padding(start = 10.dp, top = 1.dp, bottom = 1.dp)
     ) {
-        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight()
-                    .background(contentColor.copy(alpha = 0.8f))
+        message.replyToCreatedAt?.let { at ->
+            Text(
+                text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(at)),
+                style = NcyTheme.type.time,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
-                message.replyToCreatedAt?.let { at ->
-                    Text(
-                        text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(at)),
-                        fontSize = 10.sp,
-                        color = contentColor.copy(alpha = 0.7f)
-                    )
-                }
-                Text(
-                    text = text,
-                    fontSize = 13.sp,
-                    color = contentColor.copy(alpha = 0.9f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -1082,68 +1089,50 @@ private fun ChecklistContent(
     onToggleItem: (String) -> Unit
 ) {
     val doneCount = items.count { it.checked }
-    val total = items.size
-
-    Column(modifier = Modifier.width(IntrinsicSize.Max)) {
-        // Progress header
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 2.dp)
-        ) {
-            Icon(
-                Icons.Default.Checklist,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = contentColor.copy(alpha = 0.7f)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "$doneCount / $total",
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor.copy(alpha = 0.7f)
-            )
-        }
-        if (total > 0) {
-            LinearProgressIndicator(
-                progress = { doneCount.toFloat() / total },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .padding(bottom = 4.dp),
-                color = contentColor.copy(alpha = 0.7f),
-                trackColor = contentColor.copy(alpha = 0.15f)
-            )
-        }
-
-        // Checklist items
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "$doneCount / ${items.size}",
+            style = NcyTheme.type.time,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
         items.forEach { item ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clickable { onToggleItem(item.id) }
-                    .padding(vertical = 4.dp)
+                    .fillMaxWidth()
+                    .heightIn(min = 36.dp)
+                    .toggleable(value = item.checked, role = Role.Checkbox) { onToggleItem(item.id) }
             ) {
-                Checkbox(
-                    checked = item.checked,
-                    onCheckedChange = { onToggleItem(item.id) },
-                    modifier = Modifier.size(24.dp),
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = contentColor.copy(alpha = 0.7f),
-                        uncheckedColor = contentColor.copy(alpha = 0.5f),
-                        checkmarkColor = if (contentColor.luminance() > 0.5f) Color.Black else Color.White
-                    )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                NcyCheckBox(item.checked)
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = item.text,
-                    style = MaterialTheme.typography.bodyMedium.copy(
+                    style = MaterialTheme.typography.bodyLarge.copy(
                         textDecoration = if (item.checked) TextDecoration.LineThrough else null
                     ),
-                    color = if (item.checked) contentColor.copy(alpha = 0.5f) else contentColor
+                    color = if (item.checked) MaterialTheme.colorScheme.onSurfaceVariant else contentColor
                 )
             }
         }
+    }
+}
+
+/** Square Notebook checkbox: a hairline box, or the accent with a tick. */
+@Composable
+internal fun NcyCheckBox(checked: Boolean) {
+    val shape = RoundedCornerShape(5.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(19.dp)
+            .clip(shape)
+            .then(
+                if (checked) Modifier.background(MaterialTheme.colorScheme.primary)
+                else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, shape)
+            ),
+    ) {
+        if (checked) Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary)
     }
 }
 
@@ -1268,19 +1257,17 @@ private fun ReactionPickerButton(
     active: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+    Box(
+        contentAlignment = Alignment.Center,
         modifier = Modifier
-            .padding(2.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .padding(3.dp)
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.background)
+            .then(if (active) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier)
             .clickable(onClick = onClick)
     ) {
-        Text(
-            text = emoji,
-            fontSize = 20.sp,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
+        Text(text = emoji, fontSize = 21.sp)
     }
 }
 
@@ -1290,25 +1277,27 @@ private fun ReactionChipRow(
     contentColor: Color,
     onToggleReaction: (String) -> Unit
 ) {
+    val c = NcyTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 2.dp)
+            .padding(top = 6.dp)
             .horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         reactions.forEach { emoji ->
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = contentColor.copy(alpha = 0.12f),
-                modifier = Modifier.clickable { onToggleReaction(emoji) }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .heightIn(min = 30.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(c.raised)
+                    .border(1.dp, c.lineStrong, RoundedCornerShape(999.dp))
+                    .clickable { onToggleReaction(emoji) }
+                    .padding(horizontal = 10.dp)
             ) {
-                Text(
-                    text = emoji,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
+                Text(text = emoji, fontSize = 14.sp)
             }
         }
     }

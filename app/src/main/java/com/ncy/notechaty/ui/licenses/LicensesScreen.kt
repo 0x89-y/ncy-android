@@ -96,6 +96,24 @@ private val licenses = listOf(
         author = "JourneyApps / ZXing",
         url = "https://github.com/journeyapps/zxing-android-embedded"
     ),
+    LicenseEntry(
+        name = "Newsreader",
+        author = "Production Type",
+        license = "OFL-1.1",
+        url = "https://fonts.google.com/specimen/Newsreader"
+    ),
+    LicenseEntry(
+        name = "Instrument Sans",
+        author = "Instrument",
+        license = "OFL-1.1",
+        url = "https://fonts.google.com/specimen/Instrument+Sans"
+    ),
+    LicenseEntry(
+        name = "JetBrains Mono",
+        author = "JetBrains",
+        license = "OFL-1.1",
+        url = "https://fonts.google.com/specimen/JetBrains+Mono"
+    ),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

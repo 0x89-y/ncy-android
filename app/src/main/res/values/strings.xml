@@ -66,7 +66,7 @@
     <string name="remove">Remove</string>
     <string name="delete_messages_after">Delete messages after</string>
     <string name="other_devices_on_the_left">Other devices on the left</string>
-    <string name="show_messages_created_on_another_ncy">Show messages created on another Ncy installation as incoming</string>
+    <string name="show_messages_created_on_another_ncy">Set notes written on another device apart with a rule in the margin</string>
     <string name="background_image">Background image</string>
     <string name="protect_this_chat">Protect this chat</string>
     <string name="hide_name_on_chat_list">Hide name on chat list</string>
@@ -498,4 +498,44 @@
     <string name="home_filter_files">Files</string>
     <string name="home_photo">Photo</string>
     <string name="home_note_count">%1$d notes</string>
+
+    <!-- Notebook redesign: chat -->
+    <string name="chat_another_device">Another device</string>
+    <string name="chat_copy_text">Copy text</string>
+    <string name="chat_copy_transcript">Copy transcript</string>
+    <string name="chat_star">Star</string>
+    <string name="chat_unstar">Unstar</string>
+    <string name="chat_remind_me">Remind me</string>
+    <string name="chat_select_more">Select more</string>
+    <string name="recorder_tap_to_start">Tap record to start</string>
+    <string name="recorder_discard">Discard</string>
+    <string name="recorder_save">Save</string>
+    <string name="recorder_record">Record</string>
+    <string name="chat_colour">Colour</string>
+    <string name="composer_placeholder">Write a note…</string>
+    <string name="chat_note_count">%1$d notes</string>
+    <string name="chat_note_count_starred">%1$d notes · %2$d starred</string>
+
+    <!-- Notebook redesign: settings -->
+    <string name="sync_devices_title">Devices</string>
+    <string name="settings_this_phone">This phone</string>
+    <string name="settings_synced_ago">Synced %1$s</string>
+    <string name="settings_online">online</string>
+    <string name="settings_away">away</string>
+    <string name="settings_pair_device">Pair a device</string>
+    <string name="settings_pair_first">Pair your first device</string>
+    <string name="settings_protected_chats">Protected chats</string>
+    <string name="settings_on">On</string>
+    <string name="settings_off">Off</string>
+    <string name="settings_look">Look</string>
+    <string name="settings_theme_auto">Auto</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+
+    <!-- Notebook redesign: PIN keypad -->
+    <string name="pin_try_again_in">Too many attempts. Try again in %1$s.</string>
+    <string name="pin_wrong">Wrong PIN</string>
+    <string name="pin_delete_digit">Delete digit</string>
+    <string name="pin_use_keyboard">Use keyboard</string>
+    <string name="pin_use_keypad">Use number pad</string>
 </resources>

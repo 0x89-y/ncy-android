@@ -613,6 +613,7 @@ private fun CreateChatDialog(
     )
 }
 
+/** Full-screen PIN keypad over the list, for a protected chat. */
 @Composable
 private fun ChatUnlockDialog(
     chat: Chat,
@@ -621,96 +622,24 @@ private fun ChatUnlockDialog(
     onVerify: (String) -> Boolean,
     onUnlocked: () -> Unit
 ) {
-    var pin by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
-    var failedAttempts by remember { mutableIntStateOf(0) }
-    val lockoutSeconds = rememberPinLockoutSeconds(failedAttempts)
-    val context = LocalContext.current
-    val activity = context as? FragmentActivity
-    val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
-
-    LaunchedEffect(canUseBio) {
-        // canUseBio already includes `activity != null` — Kotlin's flow
-        // analysis flags the second check as redundant. `!!` is safe.
-        if (canUseBio) {
-            BiometricHelper.authenticate(
-                activity = activity!!,
-                title = context.getString(R.string.unlock_chat),
-                subtitle = context.getString(R.string.verify_to_open_this_protected_chat),
-                onSuccess = onUnlocked
-            )
-        }
-    }
-
-    NcyAlertDialog(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text(stringResource(R.string.protected_chat)) },
-        text = {
-            Column {
-                Text(
-                    stringResource(R.string.enter_your_pin_to_open_this_chat),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = pin,
-                    onValueChange = {
-                        pin = it.take(64)
-                        error = false
-                    },
-                    label = { Text(stringResource(R.string.pin)) },
-                    singleLine = true,
-                    isError = error,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.Password
-                    ),
-                    supportingText = pinSupportingText(error, lockoutSeconds),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (canUseBio) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = {
-                            BiometricHelper.authenticate(
-                                activity = activity!!,
-                                title = context.getString(R.string.unlock_chat),
-                                subtitle = context.getString(R.string.verify_to_open_this_protected_chat),
-                                onSuccess = onUnlocked
-                            )
-                        }
-                    ) {
-                        Icon(Icons.Default.Fingerprint, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.use_fingerprint))
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (onVerify(pin)) {
-                        onUnlocked()
-                    } else {
-                        error = true
-                        pin = ""
-                        failedAttempts++
-                    }
-                },
-                enabled = pin.isNotEmpty() && lockoutSeconds == 0
-            ) {
-                Text(stringResource(R.string.unlock))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
-    )
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        com.ncy.notechaty.security.PinPromptContent(
+            title = if (chat.hideName) gibberishFor(chat.id) else chat.name,
+            subtitle = stringResource(R.string.enter_your_pin_to_open_this_chat),
+            biometricTitle = stringResource(R.string.unlock_chat),
+            biometricSubtitle = stringResource(R.string.verify_to_open_this_protected_chat),
+            useBiometric = useBiometric,
+            onVerify = onVerify,
+            onUnlocked = onUnlocked,
+            onCancel = onDismiss,
+        )
+    }
 }
 
+/** Full-screen PIN keypad for switching to a protected profile. */
 @Composable
 private fun ProfileUnlockDialog(
     profile: Profile,
@@ -719,92 +648,21 @@ private fun ProfileUnlockDialog(
     onVerify: (String) -> Boolean,
     onUnlocked: () -> Unit
 ) {
-    var pin by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
-    var failedAttempts by remember { mutableIntStateOf(0) }
-    val lockoutSeconds = rememberPinLockoutSeconds(failedAttempts)
-    val context = LocalContext.current
-    val activity = context as? FragmentActivity
-    val canUseBio = useBiometric && activity != null && BiometricHelper.canUseBiometric(context)
-
-    LaunchedEffect(canUseBio) {
-        // canUseBio already includes `activity != null` — Kotlin's flow
-        // analysis flags the second check as redundant. `!!` is safe.
-        if (canUseBio) {
-            BiometricHelper.authenticate(
-                activity = activity!!,
-                title = context.getString(R.string.switch_to, profile.name),
-                subtitle = context.getString(R.string.verify_to_open_this_profile),
-                onSuccess = onUnlocked
-            )
-        }
-    }
-
-    NcyAlertDialog(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text(stringResource(R.string.switch_to, profile.name)) },
-        text = {
-            Column {
-                Text(
-                    stringResource(R.string.enter_the_pin_for_this_profile),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = pin,
-                    onValueChange = {
-                        pin = it.take(64)
-                        error = false
-                    },
-                    label = { Text(stringResource(R.string.pin)) },
-                    singleLine = true,
-                    isError = error,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.Password
-                    ),
-                    supportingText = pinSupportingText(error, lockoutSeconds),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (canUseBio) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = {
-                            BiometricHelper.authenticate(
-                                activity = activity!!,
-                                title = context.getString(R.string.switch_to, profile.name),
-                                subtitle = context.getString(R.string.verify_to_open_this_profile),
-                                onSuccess = onUnlocked
-                            )
-                        }
-                    ) {
-                        Icon(Icons.Default.Fingerprint, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.use_fingerprint))
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (onVerify(pin)) {
-                        onUnlocked()
-                    } else {
-                        error = true
-                        pin = ""
-                        failedAttempts++
-                    }
-                },
-                enabled = pin.isNotEmpty() && lockoutSeconds == 0
-            ) { Text(stringResource(R.string.switch_label)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
-    )
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        com.ncy.notechaty.security.PinPromptContent(
+            title = profile.name,
+            subtitle = stringResource(R.string.enter_the_pin_for_this_profile),
+            biometricTitle = stringResource(R.string.switch_to, profile.name),
+            biometricSubtitle = stringResource(R.string.verify_to_open_this_profile),
+            useBiometric = useBiometric,
+            onVerify = onVerify,
+            onUnlocked = onUnlocked,
+            onCancel = onDismiss,
+        )
+    }
 }
 
 @Composable

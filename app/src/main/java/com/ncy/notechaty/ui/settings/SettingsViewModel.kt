@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.stateIn
 import java.io.File
 import javax.inject.Inject
 
@@ -47,6 +48,12 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = settingsRepository.settings
+
+    /** Paired devices, each with whether it is connected right now. */
+    val devices: StateFlow<List<Pair<com.ncy.notechaty.data.sync.peer.SyncPeer, Boolean>>> =
+        kotlinx.coroutines.flow.combine(peerStore.peers, syncManager.states) { peers, states ->
+            peers.map { it to (states[it.id] is SyncManager.PeerState.Connected) }
+        }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Last media-storage scan, or null before one has run. */
     private val _mediaReport = MutableStateFlow<MediaCleanupReport?>(null)

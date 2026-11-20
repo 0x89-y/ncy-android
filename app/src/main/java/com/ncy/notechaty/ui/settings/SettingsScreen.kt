@@ -71,6 +71,25 @@ import com.ncy.notechaty.ui.theme.NcySettingsSection
 import com.ncy.notechaty.ui.theme.NcySettingsToggleRow
 import com.ncy.notechaty.ui.theme.NcySheetActionRow
 import com.ncy.notechaty.ui.theme.ncyPaper
+import com.ncy.notechaty.ui.theme.NcyTheme
+import com.ncy.notechaty.ui.theme.NcyPageTitle
+import com.ncy.notechaty.ui.theme.NcyInkTile
+import com.ncy.notechaty.ui.theme.NcyPresence
+import com.ncy.notechaty.ui.theme.NcySegmented
+import android.text.format.DateUtils
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Contrast
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Laptop
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Shield
 import com.ncy.notechaty.util.FileUtils
 import androidx.work.WorkInfo
 import kotlinx.coroutines.Dispatchers
@@ -103,6 +122,7 @@ fun SettingsScreen(
     var pinError by remember { mutableStateOf<String?>(null) }
     var showPurgeTombstonesConfirm by remember { mutableStateOf(false) }
     var showDeviceNameDialog by remember { mutableStateOf(false) }
+    val devices by viewModel.devices.collectAsState()
     var settingsSection by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
     // A page is local state, not a nav destination, so the system back gesture has
     // to be told; without this it left Settings entirely instead of returning here.
@@ -168,7 +188,8 @@ fun SettingsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(settingsSection?.let { stringResource(it.title) } ?: stringResource(R.string.settings)) },
+                // The landing page names itself in a big serif title below the bar.
+                title = { settingsSection?.let { Text(stringResource(it.title)) } },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (settingsSection != null) settingsSection = null else onNavigateBack()
@@ -193,39 +214,145 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .ncyPaper()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (settingsSection == null) {
-                NcyFlushList {
-                    // Null page: Sync is its own screen rather than a page here.
-                    listOf<Triple<SettingsPage?, ImageVector, Int>>(
-                        Triple(SettingsPage.General, Icons.Default.PhoneAndroid, R.string.settings_device_name_hint),
-                        Triple(SettingsPage.Privacy, Icons.Default.Shield, R.string.settings_privacy_hint),
-                        Triple(null, Icons.Default.Sync, R.string.settings_sync_hint),
-                        Triple(SettingsPage.Interface, Icons.Default.Palette, R.string.settings_interface_hint),
-                        Triple(SettingsPage.Transcription, Icons.Default.RecordVoiceOver, R.string.settings_transcription_hint),
-                        Triple(SettingsPage.Backup, Icons.Default.Backup, R.string.settings_backup_hint),
-                    ).forEachIndexed { index, (page, icon, subtitle) ->
-                        if (index > 0) NcyRowDivider()
+                NcyPageTitle(stringResource(R.string.settings))
+                // This device: its name, and which profile is in use.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, NcyTheme.colors.lineStrong, RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .clickable { settingsSection = SettingsPage.General }
+                        .padding(14.dp),
+                ) {
+                    NcyInkTile(size = 44.dp) { Icon(Icons.Outlined.PhoneAndroid, null, Modifier.size(22.dp)) }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(settings.deviceName, style = NcyTheme.type.name)
+                        Text(stringResource(R.string.settings_this_phone), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                NcySettingsSection(stringResource(R.string.sync)) {
+                    devices.forEachIndexed { i, (peer, online) ->
+                        if (i > 0) NcyRowDivider(inset = 58.dp)
                         NcySettingsRow(
-                            icon = icon,
-                            title = page?.let { stringResource(it.title) } ?: stringResource(R.string.sync),
-                            subtitle = stringResource(subtitle),
-                            onClick = { if (page == null) onOpenSync() else settingsSection = page },
+                            icon = Icons.Outlined.Laptop,
+                            title = peer.name,
+                            subtitle = peer.lastSyncAt?.let {
+                                stringResource(R.string.settings_synced_ago, DateUtils.getRelativeTimeSpanString(it, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString().lowercase())
+                            },
+                            onClick = onOpenSync,
+                            trailing = {
+                                NcyPresence(online, stringResource(if (online) R.string.settings_online else R.string.settings_away))
+                            },
+                        )
+                    }
+                    if (devices.isNotEmpty()) NcyRowDivider(inset = 58.dp)
+                    NcySettingsRow(
+                        icon = Icons.Outlined.Add,
+                        title = stringResource(if (devices.isEmpty()) R.string.settings_pair_first else R.string.settings_pair_device),
+                        subtitle = if (devices.isEmpty()) stringResource(R.string.settings_sync_hint) else null,
+                        onClick = onOpenSync,
+                        trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    )
+                }
+
+                NcySettingsSection(stringResource(R.string.page_privacy)) {
+                    NcySettingsRow(
+                        icon = Icons.Outlined.Shield,
+                        title = stringResource(R.string.settings_protected_chats),
+                        subtitle = stringResource(R.string.settings_privacy_hint),
+                        value = stringResource(if (viewModel.hasPin()) R.string.settings_on else R.string.settings_off),
+                        onClick = { settingsSection = SettingsPage.Privacy },
+                    )
+                    if (viewModel.hasPin()) {
+                        NcyRowDivider(inset = 58.dp)
+                        NcySettingsToggleRow(
+                            icon = Icons.Outlined.Lock,
+                            title = stringResource(R.string.lock_app_on_start),
+                            subtitle = null,
+                            checked = settings.lockOnAppStart,
+                            onCheckedChange = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.setLockOnAppStart(it)
+                            },
                         )
                     }
                 }
-                NcyFlushList {
+
+                NcySettingsSection(stringResource(R.string.settings_look)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp).padding(horizontal = 20.dp),
+                    ) {
+                        Icon(Icons.Outlined.Contrast, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(16.dp))
+                        Text(stringResource(R.string.theme), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        NcySegmented(
+                            options = listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK),
+                            selected = settings.themeMode,
+                            label = { mode ->
+                                stringResource(
+                                    when (mode) {
+                                        ThemeMode.SYSTEM -> R.string.settings_theme_auto
+                                        ThemeMode.LIGHT -> R.string.settings_theme_light
+                                        ThemeMode.DARK -> R.string.settings_theme_dark
+                                    }
+                                )
+                            },
+                            onSelect = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.setThemeMode(it)
+                            },
+                        )
+                    }
+                    NcyRowDivider(inset = 58.dp)
                     NcySettingsRow(
-                        icon = Icons.Default.History,
+                        icon = Icons.Outlined.Palette,
+                        title = stringResource(R.string.accent_color),
+                        subtitle = stringResource(settings.accentColor.label),
+                        onClick = { settingsSection = SettingsPage.Interface },
+                        trailing = {
+                            Box(Modifier.size(18.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                        },
+                    )
+                }
+
+                NcySettingsSection(stringResource(R.string.data)) {
+                    NcySettingsRow(
+                        icon = Icons.Outlined.Backup,
+                        title = stringResource(R.string.page_backup),
+                        subtitle = stringResource(R.string.settings_backup_hint),
+                        value = stringResource(if (settings.autoBackupEnabled) R.string.settings_on else R.string.settings_off),
+                        onClick = { settingsSection = SettingsPage.Backup },
+                    )
+                    NcyRowDivider(inset = 58.dp)
+                    NcySettingsRow(
+                        icon = Icons.Outlined.GraphicEq,
+                        title = stringResource(R.string.page_transcription),
+                        subtitle = stringResource(R.string.settings_transcription_hint),
+                        onClick = { settingsSection = SettingsPage.Transcription },
+                    )
+                }
+
+                NcySettingsSection(stringResource(R.string.page_about)) {
+                    NcySettingsRow(
+                        icon = Icons.Outlined.History,
                         title = stringResource(R.string.changelog),
                         subtitle = stringResource(R.string.recent_changes_and_version_history),
                         onClick = { showChangelog = true }
                     )
-                    NcyRowDivider()
+                    NcyRowDivider(inset = 58.dp)
                     NcySettingsRow(
-                        icon = Icons.Default.Info,
+                        icon = Icons.Outlined.Info,
                         title = stringResource(SettingsPage.About.title),
                         subtitle = stringResource(R.string.version_credits_and_open_source_licenses),
                         onClick = { settingsSection = SettingsPage.About }

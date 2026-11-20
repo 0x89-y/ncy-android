@@ -114,14 +114,10 @@ fun ProfileSwitcherSheet(
         onDismissRequest = onDismiss,
         // Fully open at once: half-open, the lower profiles were below the fold.
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface,
+        shape = com.ncy.notechaty.ui.theme.NcySheetShape,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
-            Text(
-                stringResource(R.string.profiles),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            )
+            com.ncy.notechaty.ui.theme.NcySheetTitle(stringResource(R.string.profiles))
             if (profiles.size > 1) {
                 val total = chatCounts?.values?.sum()
                 SwitcherRow(
@@ -147,10 +143,9 @@ fun ProfileSwitcherSheet(
                     onClick = { onProfileSelected(profile.id) },
                 )
             }
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant,
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
+            Spacer(Modifier.padding(top = 6.dp))
+            com.ncy.notechaty.ui.theme.NcyRowDivider()
+            Spacer(Modifier.padding(top = 6.dp))
             NcySheetActionRow(Icons.Default.Add, stringResource(R.string.add_profile), onClick = onAddProfile)
             NcySheetActionRow(Icons.Default.Settings, stringResource(R.string.manage_profiles), onClick = onManageProfiles)
         }
@@ -169,12 +164,9 @@ private fun SwitcherRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .clickable(onClick = onClick)
             .semantics { this.selected = selected }
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 22.dp, vertical = 10.dp),
     ) {
         leading()
         Spacer(Modifier.width(14.dp))
@@ -197,7 +189,7 @@ private fun SwitcherRow(
             Icon(
                 Icons.Default.Check,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                tint = MaterialTheme.colorScheme.primary,
             )
         }
     }
@@ -284,19 +276,16 @@ fun ProfileAvatar(profile: Profile?, size: Dp) {
 }
 
 @Composable
-private fun AllChatsBadge(size: Dp) = AvatarTile(
-    icon = Icons.Outlined.Layers,
-    color = MaterialTheme.colorScheme.primary,
-    size = size,
-    tint = MaterialTheme.colorScheme.onPrimary,
-)
+private fun AllChatsBadge(size: Dp) {
+    com.ncy.notechaty.ui.theme.NcyInkTile(size = size) {
+        Icon(Icons.Outlined.Layers, contentDescription = null, modifier = Modifier.size(size * 0.52f))
+    }
+}
 
+/** A profile's icon on a paper tint of its colour, like a chat's tile. */
 @Composable
-private fun AvatarTile(icon: ImageVector, color: Color, size: Dp, tint: Color = Color.White) {
-    Box(
-        modifier = Modifier.size(size).clip(NcyAvatarShape).background(color),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.56f))
+private fun AvatarTile(icon: ImageVector, color: Color, size: Dp) {
+    com.ncy.notechaty.ui.theme.NcyTile(hue = color, size = size) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(size * 0.52f))
     }
 }

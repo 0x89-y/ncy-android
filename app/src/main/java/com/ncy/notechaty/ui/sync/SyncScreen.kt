@@ -48,6 +48,17 @@ import com.ncy.notechaty.ui.theme.NcySettingsSection
 import com.ncy.notechaty.ui.theme.NcySettingsRow
 import com.ncy.notechaty.ui.theme.NcyRowDivider
 import com.ncy.notechaty.ui.theme.ncyPaper
+import com.ncy.notechaty.ui.theme.NcyTheme
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Close
+import com.ncy.notechaty.ui.theme.NcyPageTitle
+import com.ncy.notechaty.ui.theme.NcyInkButton
+import com.ncy.notechaty.ui.theme.NcyLineButton
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.PairingPayload
@@ -243,7 +254,8 @@ fun SyncScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.sync)) },
+                // The page names itself in a big serif title below the bar.
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -271,6 +283,7 @@ fun SyncScreen(
                 .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            NcyPageTitle(stringResource(R.string.sync_devices_title))
             val unpairedDiscovered = discovered.filter { found ->
                 peers.none { it.id == found.deviceId } && hostedPeers.none { it.id == found.deviceId }
             }
@@ -433,10 +446,34 @@ private fun PairingDialog(
         }
         copiedPayload = null
     }
-    AlertDialog(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.pair_with_this_phone)) },
-        text = {
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        // A full-screen step with one job: the code, and how to use it.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .ncyPaper()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(Modifier.fillMaxWidth().height(56.dp)) {
+                IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.done))
+                }
+            }
+            Text(
+                stringResource(R.string.pair_with_this_phone),
+                style = NcyTheme.type.pageTitle.copy(fontSize = 30.sp, lineHeight = 34.sp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.padding(horizontal = 24.dp)) {
             when (state) {
                 PhoneSyncServer.HostState.Disabled -> Text(
                     stringResource(R.string.turn_on_let_other_devices_connect_to),
@@ -457,11 +494,20 @@ private fun PairingDialog(
                 ) {
                     val qr = remember(state.pairingJson) { pairingQrBitmap(state.pairingJson) }
                     if (qr != null) {
-                        Image(
-                            bitmap = qr.asImageBitmap(),
-                            contentDescription = stringResource(R.string.phone_pairing_qr_code),
-                            modifier = Modifier.size(240.dp),
-                        )
+                        // On white in both themes, so any camera reads it.
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(Color.White)
+                                .border(1.dp, NcyTheme.colors.lineStrong, RoundedCornerShape(22.dp))
+                                .padding(16.dp)
+                        ) {
+                            Image(
+                                bitmap = qr.asImageBitmap(),
+                                contentDescription = stringResource(R.string.phone_pairing_qr_code),
+                                modifier = Modifier.size(232.dp),
+                            )
+                        }
                     }
                     Text(
                         stringResource(R.string.this_code_only_works_on_the_same_wi_fi),
@@ -508,11 +554,15 @@ private fun PairingDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
-        },
-    )
+            }
+            Spacer(Modifier.height(20.dp))
+            NcyInkButton(
+                text = stringResource(R.string.done),
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            )
+        }
+    }
 }
 
 private fun formatSyncFileSize(bytes: Long): String =
@@ -835,14 +885,19 @@ private fun DiscoveredCard(
                 val formatted = if (safetyCode.length == 6) {
                     "${safetyCode.substring(0, 3)} ${safetyCode.substring(3)}"
                 } else safetyCode
+                // The hero of this step: big mono digits, split 3 and 3 to compare.
                 Text(
                     formatted,
-                    style = MaterialTheme.typography.headlineMedium,
-                    letterSpacing = 6.sp,
-                    color = MaterialTheme.colorScheme.primary,
+                    style = NcyTheme.type.time.copy(fontSize = 38.sp, lineHeight = 44.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                    letterSpacing = 3.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 8.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(1.dp, NcyTheme.colors.lineStrong, RoundedCornerShape(16.dp))
+                        .padding(vertical = 14.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
@@ -859,14 +914,10 @@ private fun DiscoveredCard(
                         )
                         Spacer(Modifier.width(8.dp))
                     }
-                    OutlinedButton(onClick = onCancel, shape = NcyButtonShape) {
-                        Text(stringResource(R.string.cancel))
-                    }
+                    NcyLineButton(text = stringResource(R.string.cancel), onClick = onCancel)
                     if (awaitingCodeCheck) {
                         Spacer(Modifier.width(8.dp))
-                        Button(onClick = onConfirmCode, shape = NcyButtonShape) {
-                            Text(stringResource(R.string.codes_match))
-                        }
+                        NcyInkButton(text = stringResource(R.string.codes_match), onClick = onConfirmCode)
                     }
                 } else if (peer.supportsPairRequest) {
                     Button(onClick = onPair, shape = NcyButtonShape, enabled = !anyBusy) {
@@ -886,7 +937,7 @@ private fun DiscoveredCard(
 
 @Composable
 private fun statusColor(state: SyncManager.PeerState) = when (state) {
-    is SyncManager.PeerState.Connected -> MaterialTheme.colorScheme.primary
+    is SyncManager.PeerState.Connected -> NcyTheme.colors.online
     is SyncManager.PeerState.Failed -> MaterialTheme.colorScheme.error
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }

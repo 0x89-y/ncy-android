@@ -17,6 +17,13 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.ncy.notechaty.ui.theme.NcyTheme
+import com.ncy.notechaty.ui.theme.NcyRowDivider
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -86,11 +93,13 @@ fun RichTextInput(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
     ) {
+        NcyRowDivider()
         // Editing indicator (hidden when checklist edit is active — checklist banner covers it)
         if (editingMessage != null && !checklistMode) {
             Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
+                color = NcyTheme.colors.accentSoft,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -101,13 +110,13 @@ fun RichTextInput(
                         Icons.Default.Edit,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        tint = NcyTheme.colors.onAccentSoft
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         stringResource(R.string.editing_message),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = NcyTheme.colors.onAccentSoft,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(
@@ -130,7 +139,7 @@ fun RichTextInput(
         // Checklist mode indicator
         if (checklistMode) {
             Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
+                color = NcyTheme.colors.accentSoft,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -141,13 +150,13 @@ fun RichTextInput(
                         Icons.Default.Checklist,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        tint = NcyTheme.colors.onAccentSoft
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         if (editingMessage != null) stringResource(R.string.editing_checklist) else stringResource(R.string.checklist),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = NcyTheme.colors.onAccentSoft,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(
@@ -172,11 +181,6 @@ fun RichTextInput(
             }
         }
 
-        // Formatting toolbar
-        if (showToolbar && !checklistMode) {
-            FormattingToolbar(state = state)
-        }
-
         // Input row
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -189,13 +193,14 @@ fun RichTextInput(
             ) {
                 if (editingMessage == null) {
                     Box {
-                        FilledIconButton(
+                        OutlinedIconButton(
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 showAttachMenu = true
                             },
-                            modifier = Modifier.size(44.dp),
+                            modifier = Modifier.size(46.dp),
                             shape = CircleShape,
+                            border = BorderStroke(1.dp, NcyTheme.colors.lineStrong),
                         ) {
                             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add), modifier = Modifier.size(22.dp))
                         }
@@ -222,8 +227,9 @@ fun RichTextInput(
                 // Main input field area (rounded filled)
                 Surface(
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    shape = RoundedCornerShape(23.dp),
+                    color = NcyTheme.colors.raised,
+                    border = BorderStroke(1.dp, NcyTheme.colors.lineStrong),
                 ) {
                     if (checklistMode) {
                         Column(
@@ -313,7 +319,7 @@ fun RichTextInput(
                                     .heightIn(min = 44.dp, max = 150.dp),
                                 placeholder = {
                                     Text(
-                                        stringResource(R.string.message),
+                                        stringResource(R.string.composer_placeholder),
                                         style = MaterialTheme.typography.bodyLarge
                                     )
                                 },
@@ -333,11 +339,13 @@ fun RichTextInput(
                                 onClick = { showToolbar = !showToolbar },
                                 modifier = Modifier.size(40.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.TextFormat,
-                                    contentDescription = if (showToolbar) stringResource(R.string.hide_formatting) else stringResource(R.string.formatting),
-                                    tint = if (showToolbar) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                val label = if (showToolbar) stringResource(R.string.hide_formatting) else stringResource(R.string.formatting)
+                                Text(
+                                    "Aa",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (showToolbar) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.semantics { contentDescription = label },
                                 )
                             }
                         }
@@ -374,7 +382,7 @@ fun RichTextInput(
                                     showToolbar = false
                                 }
                             },
-                            modifier = Modifier.size(44.dp),
+                            modifier = Modifier.size(46.dp),
                             shape = CircleShape,
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
@@ -382,21 +390,25 @@ fun RichTextInput(
                             )
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.Send,
+                                Icons.Default.ArrowUpward,
                                 contentDescription = stringResource(R.string.send),
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     } else if (editingMessage == null) {
                         // An empty composer offers a voice note where Send will be,
                         // as messengers do; it used to sit at the bottom of the + menu.
-                        FilledTonalIconButton(
+                        FilledIconButton(
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 onVoiceClick()
                             },
-                            modifier = Modifier.size(44.dp),
+                            modifier = Modifier.size(46.dp),
                             shape = CircleShape,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = NcyTheme.colors.ink,
+                                contentColor = NcyTheme.colors.onInk,
+                            ),
                         ) {
                             Icon(
                                 Icons.Default.Mic,
@@ -405,10 +417,14 @@ fun RichTextInput(
                             )
                         }
                     } else {
-                        Spacer(modifier = Modifier.size(44.dp))
+                        Spacer(modifier = Modifier.size(46.dp))
                     }
                 }
             }
+        }
+        // Formatting sits under the field, above the keyboard.
+        if (showToolbar && !checklistMode) {
+            FormattingToolbar(state = state)
         }
     }
 }

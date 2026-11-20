@@ -19,7 +19,7 @@ fun Modifier.ncyPaper(): Modifier = background(MaterialTheme.colorScheme.backgro
 @Composable
 fun Modifier.ncyRuledPaper(): Modifier {
     val bg = MaterialTheme.colorScheme.background
-    val rule = NcyTheme.colors.line.copy(alpha = 0.55f)
+    val rule = NcyTheme.colors.line.copy(alpha = if (NcyTheme.colors.isDark) 0.45f else 0.6f)
     return this
         .background(bg)
         .drawBehind {

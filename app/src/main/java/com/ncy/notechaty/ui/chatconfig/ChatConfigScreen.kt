@@ -49,6 +49,19 @@ import com.ncy.notechaty.ui.theme.NcySettingsSection
 import com.ncy.notechaty.ui.theme.NcySettingsToggleRow
 import com.ncy.notechaty.ui.theme.ncyAvatarColor
 import com.ncy.notechaty.ui.theme.ncyPaper
+import com.ncy.notechaty.ui.theme.NcyTheme
+import com.ncy.notechaty.ui.theme.NcyPill
+import com.ncy.notechaty.ui.theme.NcyInitialTile
+import com.ncy.notechaty.ui.theme.NcyChatHues
+import com.ncy.notechaty.ui.theme.ncyChatHue
+import com.ncy.notechaty.ui.theme.ncyTint
+import com.ncy.notechaty.ui.theme.ncyOnTint
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
 import java.io.File
 
 /** Retention windows offered per chat. 0 is the "keep everything" case. */
@@ -169,7 +182,7 @@ fun ChatConfigScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.chat_settings_2)) },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -189,11 +202,11 @@ fun ChatConfigScreen(
                 .padding(padding)
                 .ncyPaper()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 16.dp),
+                .padding(top = 4.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Avatar section
+            // The chat's tile, with a small ink badge to change its picture.
             Box(contentAlignment = Alignment.BottomEnd) {
                 val avatarFile = chat?.avatarFile?.let { File(chatDir, it) }
                 if (avatarFile != null && avatarFile.exists()) {
@@ -201,40 +214,32 @@ fun ChatConfigScreen(
                         model = avatarFile,
                         contentDescription = stringResource(R.string.chat_avatar),
                         modifier = Modifier
-                            .size(120.dp)
+                            .size(88.dp)
                             .clip(NcyAvatarShape),
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    Surface(
-                        modifier = Modifier.size(120.dp),
-                        shape = NcyAvatarShape,
-                        color = ncyAvatarColor(chat?.name ?: "?")
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = (chat?.name ?: "?").take(1).uppercase(),
-                                style = MaterialTheme.typography.displayMedium,
-                                color = Color.White
-                            )
-                        }
-                    }
+                    NcyInitialTile(chat?.name ?: "?", ncyChatHue(chat), size = 88.dp)
                 }
-                FloatingActionButton(
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        avatarPicker.launch("image/*")
-                    },
-                    modifier = Modifier.size(36.dp),
-                    shape = CircleShape
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset(x = 8.dp, y = 8.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(3.dp)
+                        .clip(CircleShape)
+                        .background(NcyTheme.colors.ink)
+                        .clickable(onClickLabel = stringResource(R.string.change_avatar)) {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            avatarPicker.launch("image/*")
+                        }
                 ) {
-                    Icon(
-                        Icons.Default.CameraAlt,
-                        contentDescription = stringResource(R.string.change_avatar),
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.change_avatar), modifier = Modifier.size(15.dp), tint = NcyTheme.colors.onInk)
                 }
             }
+            Spacer(Modifier.height(8.dp))
 
             // Name section
             if (editingName) {
@@ -264,7 +269,7 @@ fun ChatConfigScreen(
                 ) {
                     Text(
                         text = chat?.name ?: stringResource(R.string.chat),
-                        style = MaterialTheme.typography.headlineSmall
+                        style = NcyTheme.type.pageTitle.copy(fontSize = 30.sp, lineHeight = 34.sp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
@@ -278,41 +283,21 @@ fun ChatConfigScreen(
 
             // Auto-delete. Deliberately global: the rule rides in ChatMetadata and
             // the deletion is an ordinary tombstone, so every paired device converges.
-            NcySettingsSection(stringResource(R.string.auto_delete_old_messages)) {
-                Box {
-                    NcySettingsRow(
-                        icon = Icons.Default.AutoDelete,
-                        title = stringResource(R.string.delete_messages_after),
-                        subtitle = retentionLabel(chat?.retentionDays ?: 0),
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            retentionMenuOpen = true
-                        },
-                        trailing = {
-                            Icon(
-                                Icons.Default.ArrowDropDown,
-                                contentDescription = stringResource(R.string.choose_a_retention_window),
-                            )
-                        },
-                    )
-                    DropdownMenu(
-                        expanded = retentionMenuOpen,
-                        onDismissRequest = { retentionMenuOpen = false },
-                    ) {
-                        RETENTION_CHOICES.forEach { days ->
-                            DropdownMenuItem(
-                                text = { Text(retentionLabel(days)) },
-                                trailingIcon = {
-                                    if ((chat?.retentionDays ?: 0) == days) {
-                                        Icon(Icons.Default.Check, contentDescription = stringResource(R.string.selected))
-                                    }
-                                },
-                                onClick = {
-                                    retentionMenuOpen = false
-                                    pendingRetention = days
-                                },
-                            )
-                        }
+            NcySettingsSection(stringResource(R.string.delete_messages_after)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                ) {
+                    RETENTION_CHOICES.forEach { days ->
+                        NcyPill(
+                            selected = (chat?.retentionDays ?: 0) == days,
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                if ((chat?.retentionDays ?: 0) != days) pendingRetention = days
+                            },
+                            label = retentionLabel(days),
+                        )
                     }
                 }
             }
@@ -320,7 +305,7 @@ fun ChatConfigScreen(
                 stringResource(R.string.applies_on_every_device_starred_messages),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
             )
 
             // Appearance — background image, bubble color, bubble gradient
@@ -357,51 +342,37 @@ fun ChatConfigScreen(
                 )
                 NcyRowDivider()
                 NcySettingsPanel {
-                    Text(stringResource(R.string.bubble_color), style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val defaultBubbleColor = MaterialTheme.colorScheme.primary
-                    val allPresets = listOf(
-                        null to defaultBubbleColor,
-                        "#DCF8C6" to Color(0xFFDCF8C6),
-                        "#BBDEFB" to Color(0xFFBBDEFB),
-                        "#F8BBD0" to Color(0xFFF8BBD0),
-                        "#FFF9C4" to Color(0xFFFFF9C4),
-                        "#005C4B" to Color(0xFF005C4B),
-                        "#1A3A5C" to Color(0xFF1A3A5C),
-                        "#4A1942" to Color(0xFF4A1942),
-                        "#5D2E0C" to Color(0xFF5D2E0C)
-                    )
+                    Text(stringResource(R.string.chat_colour), style = MaterialTheme.typography.bodyLarge)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    // Null is the colour the name gives; the rest are the paper hues.
+                    val choices: List<Pair<String?, Color>> = listOf(null to ncyAvatarColor(chat?.name ?: "")) +
+                        NcyChatHues.map { hue -> String.format("#%06X", hue.toArgb() and 0xFFFFFF) to hue }
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        allPresets.forEach { (hex, color) ->
-                            val isSelected = chat?.bubbleColor == hex
-                            val checkTint = if (color.luminance() > 0.4f) Color.Black else Color.White
+                        choices.forEach { (hex, hue) ->
+                            val isSelected = chat?.bubbleColor.equals(hex, ignoreCase = true) || (hex == null && chat?.bubbleColor == null)
+                            val ring = MaterialTheme.colorScheme.onSurface
+                            val paper = MaterialTheme.colorScheme.background
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
+                                    .size(44.dp)
+                                    .then(if (isSelected) Modifier.border(2.dp, ring, RoundedCornerShape(14.dp)) else Modifier)
+                                    .padding(4.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(ncyTint(hue))
                                     .clickable {
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         viewModel.setBubbleColor(hex)
-                                    },
+                                    }
+                                    .semantics { if (isSelected) selected = true },
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = stringResource(R.string.selected),
-                                        modifier = Modifier.size(20.dp),
-                                        tint = checkTint
-                                    )
-                                } else if (hex == null) {
-                                    Text(
-                                        "A",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                if (hex == null) {
+                                    Text("A", style = NcyTheme.type.name.copy(fontSize = 15.sp), color = ncyOnTint(hue))
+                                } else {
+                                    Box(Modifier.size(12.dp).clip(CircleShape).background(hue))
                                 }
                             }
                         }
@@ -523,24 +494,18 @@ fun ChatConfigScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Delete
-            Button(
-                onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                    showDeleteConfirm = true
-                },
-                shape = NcyButtonShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.delete_chat))
+            NcySettingsSection(null) {
+                NcyRowDivider()
+                NcySettingsRow(
+                    icon = Icons.Default.Delete,
+                    title = stringResource(R.string.delete_chat),
+                    subtitle = null,
+                    destructive = true,
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        showDeleteConfirm = true
+                    },
+                )
             }
         }
     }

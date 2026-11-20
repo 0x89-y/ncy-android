@@ -55,6 +55,8 @@ import com.ncy.notechaty.ui.theme.NcyAvatarShape
 import com.ncy.notechaty.ui.theme.NcySheetActionRow
 import com.ncy.notechaty.ui.theme.ncyAvatarColor
 import com.ncy.notechaty.ui.theme.ncyPaper
+import com.ncy.notechaty.ui.theme.ncyRuledPaper
+import com.ncy.notechaty.ui.theme.NcyRowDivider
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import com.ncy.notechaty.ui.richtext.RichTextInput
@@ -76,6 +78,7 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val deviceNames by viewModel.deviceNames.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
     val mediaProgress by viewModel.mediaProgress.collectAsState()
     val mediaFailures by viewModel.mediaFailures.collectAsState()
@@ -290,7 +293,7 @@ fun ChatScreen(
     }
 
     Scaffold(
-        topBar = {
+        topBar = { Column {
             if (isSearching) {
                 TopAppBar(
                     title = {
@@ -383,37 +386,22 @@ fun ChatScreen(
             } else {
                 TopAppBar(
                     title = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        Column(
                             modifier = Modifier.clickable(onClickLabel = stringResource(R.string.chat_settings)) { onConfigClick() }
                         ) {
-                            val avatarFile = uiState.chat?.avatarFile?.let { File(chatDir, it) }
-                            if (avatarFile != null && avatarFile.exists()) {
-                                AsyncImage(
-                                    model = avatarFile,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(NcyAvatarShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Surface(
-                                    modifier = Modifier.size(36.dp),
-                                    shape = NcyAvatarShape,
-                                    color = ncyAvatarColor(uiState.chat?.name ?: chatName)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = (uiState.chat?.name ?: chatName.ifEmpty { "?" }).take(1).uppercase(),
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
-                            Text(uiState.chat?.name ?: chatName.ifEmpty { stringResource(R.string.chat) })
+                            Text(
+                                uiState.chat?.name ?: chatName.ifEmpty { stringResource(R.string.chat) },
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            val starred = uiState.messages.count { it.isStarred }
+                            Text(
+                                if (starred > 0) stringResource(R.string.chat_note_count_starred, uiState.messages.size, starred)
+                                else stringResource(R.string.chat_note_count, uiState.messages.size),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     },
                     navigationIcon = {
@@ -462,7 +450,8 @@ fun ChatScreen(
                     )
                 )
             }
-        }
+            NcyRowDivider()
+        } }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -473,9 +462,8 @@ fun ChatScreen(
                 // with `windowSoftInputMode="adjustResize"`. Consume the IME
                 // insets here so the input bar stays visible above the keyboard.
                 .imePadding()
-                // Desktop dotted-grid ground (shared modifier). A per-chat
-                // background image, when set, draws on top of it.
-                .ncyPaper()
+                // Ruled paper; a per-chat background image, when set, draws on top.
+                .ncyRuledPaper()
         ) {
             val bgFile = uiState.chat?.backgroundFile?.let { File(chatDir, it) }
             if (bgFile != null && bgFile.exists()) {
@@ -536,10 +524,6 @@ fun ChatScreen(
                     ) { index, message ->
                         val isNew = message.id !in seenMessageIds
                         LaunchedEffect(message.id) { seenMessageIds.add(message.id) }
-                        val parsedBubbleColor = uiState.chat?.bubbleColor?.let {
-                            try { Color(android.graphics.Color.parseColor(it)) }
-                            catch (_: Exception) { null }
-                        }
                         AnimatedVisibility(
                             visible = true,
                             enter = if (isNew) fadeIn(tween(300)) + slideInVertically(
@@ -582,15 +566,15 @@ fun ChatScreen(
                                 replyTargetExists = message.replyToId != null &&
                                     message.replyToId in messageIds,
                                 isReplyHighlight = message.id == replyHighlightId,
-                                bubbleColor = parsedBubbleColor,
-                                useGradient = uiState.chat?.bubbleGradient == true,
                                 isSelectionMode = selectionMode,
                                 isSelected = message.id in selectedIds,
                                 isSearchResult = message.id in uiState.searchResultIds,
                                 isCurrentSearchResult = message.id == currentSearchMessageId,
-                                isRemote = uiState.chat?.remoteMessagesOnLeft == true &&
-                                    !message.authorDeviceId.isNullOrBlank() &&
+                                isRemote = !message.authorDeviceId.isNullOrBlank() &&
+                                    uiState.localDeviceId.isNotBlank() &&
                                     message.authorDeviceId != uiState.localDeviceId,
+                                remoteDeviceName = message.authorDeviceId?.let(deviceNames::get),
+                                remoteOnLeft = uiState.chat?.remoteMessagesOnLeft == true,
                                 onToggleSelect = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     selectedIds = if (message.id in selectedIds) {
@@ -780,11 +764,12 @@ private fun ReplyComposerBar(target: Message, onCancel: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 12.dp, end = 4.dp, top = 6.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 4.dp, top = 6.dp)
     ) {
         Box(
             modifier = Modifier
-                .width(3.dp)
+                .width(2.dp)
                 .height(32.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(MaterialTheme.colorScheme.primary)
@@ -792,8 +777,9 @@ private fun ReplyComposerBar(target: Message, onCancel: () -> Unit) {
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(R.string.replying_to),
-                style = MaterialTheme.typography.labelSmall,
+                text = stringResource(R.string.replying_to) + " · " +
+                    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(target.createdAt)),
+                style = com.ncy.notechaty.ui.theme.NcyTheme.type.time,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(

@@ -3,7 +3,7 @@ package com.ncy.notechaty.ui.chat
 import androidx.compose.ui.res.stringResource
 import com.ncy.notechaty.R
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -12,25 +12,25 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.*
 
+/** A day in the journal: the date in italic serif between two hairlines. */
 @Composable
 fun DateHeader(timestamp: Long) {
-    Box(
+    val line = com.ncy.notechaty.ui.theme.NcyTheme.colors.lineStrong
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        ) {
-            Text(
-                text = formatDateHeader(timestamp),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-        }
+        HorizontalDivider(Modifier.weight(1f), thickness = 1.dp, color = line)
+        Text(
+            text = formatDateHeader(timestamp),
+            style = com.ncy.notechaty.ui.theme.NcyTheme.type.quote,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+        HorizontalDivider(Modifier.weight(1f), thickness = 1.dp, color = line)
     }
 }
 

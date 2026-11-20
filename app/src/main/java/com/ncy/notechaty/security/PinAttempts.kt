@@ -75,7 +75,8 @@ fun pinSupportingText(wrongPin: Boolean, lockoutSeconds: Int): (@Composable () -
     else -> null
 }
 
-private fun formatWait(seconds: Int): String =
+/** "45s" or "3 min": how long a PIN lockout has left. */
+fun formatWait(seconds: Int): String =
     if (seconds < 60) "${seconds}s" else "${(seconds + 59) / 60} min"
 
 /** Seconds left on the PIN lockout, ticking down while a prompt is on screen. */

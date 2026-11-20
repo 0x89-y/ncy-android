@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
@@ -160,10 +161,21 @@ private fun SwitcherRow(
     subtitle: String?,
     onClick: () -> Unit,
 ) {
+    // The current profile: a stronger accent tint, an accent bar and a bold name,
+    // like the open chat and the active settings section. No check mark.
+    val c = com.ncy.notechaty.ui.theme.NcyTheme.colors
+    val accent = MaterialTheme.colorScheme.primary
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (selected) Modifier.background(c.accentSelected) else Modifier)
+            .then(
+                if (selected) Modifier.drawBehind {
+                    val bar = 3.dp.toPx()
+                    drawRect(accent, topLeft = androidx.compose.ui.geometry.Offset(0f, 8.dp.toPx()), size = androidx.compose.ui.geometry.Size(bar, size.height - 16.dp.toPx()))
+                } else Modifier
+            )
             .clickable(onClick = onClick)
             .semantics { this.selected = selected }
             .padding(horizontal = 22.dp, vertical = 10.dp),
@@ -173,7 +185,10 @@ private fun SwitcherRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.SemiBold,
+                ),
+                color = if (selected) c.onAccentSoft else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -185,13 +200,7 @@ private fun SwitcherRow(
                 )
             }
         }
-        if (selected) {
-            Icon(
-                Icons.Default.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
+
     }
 }
 

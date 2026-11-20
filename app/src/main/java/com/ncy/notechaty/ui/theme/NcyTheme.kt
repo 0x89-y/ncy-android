@@ -158,6 +158,8 @@ data class NcyColors(
     val accentSoft: Color,
     /** Border of an [accentSoft] fill, so a tinted shape keeps its edge. */
     val accentEdge: Color,
+    /** Stronger tint for "this one is selected": [accentSoft] sat too close to the paper. */
+    val accentSelected: Color,
     val onAccentSoft: Color,
     /** Fields and anything that sits above a surface. */
     val raised: Color,
@@ -268,7 +270,7 @@ private fun lightScheme(a: Color): Pair<ColorScheme, NcyColors> {
     return scheme to NcyColors(
         isDark = false, ink = t.text, onInk = t.surface,
         line = t.line, lineStrong = t.lineStrong,
-        accentSoft = soft, accentEdge = mix(a, Color.White, 0.26f), onAccentSoft = onSoft,
+        accentSoft = soft, accentEdge = mix(a, Color.White, 0.26f), accentSelected = mix(a, Color.White, 0.18f), onAccentSoft = onSoft,
         raised = t.raised, sunk = t.sunk, online = t.online,
         scrim = Color(0x6B18181A),
     )
@@ -304,7 +306,7 @@ private fun darkScheme(a: Color): Pair<ColorScheme, NcyColors> {
     return scheme to NcyColors(
         isDark = true, ink = t.text, onInk = t.bg,
         line = t.line, lineStrong = t.lineStrong,
-        accentSoft = soft, accentEdge = mix(a, Color(0xFF28282C), 0.34f), onAccentSoft = onSoft,
+        accentSoft = soft, accentEdge = mix(a, Color(0xFF28282C), 0.34f), accentSelected = mix(a, Color(0xFF28282C), 0.32f), onAccentSoft = onSoft,
         raised = t.raised, sunk = t.sunk, online = t.online,
         scrim = Color(0x8C000000),
     )

@@ -216,17 +216,18 @@ fun ChatListScreen(
         },
         floatingActionButton = {
             if (homeTab == HomeTab.CHATS && !searchActive) {
-                ExtendedFloatingActionButton(
+                // A plain +, as on the desktop; the label is read out to screen readers.
+                FloatingActionButton(
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         showCreateDialog = true
                     },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text(stringResource(R.string.new_chat_2), style = MaterialTheme.typography.labelLarge) },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                )
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_chat_2))
+                }
             }
         }
     ) { padding ->

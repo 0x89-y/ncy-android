@@ -179,7 +179,9 @@ private fun HomeSyncLine(status: HomeSyncStatus, onClick: () -> Unit) {
     }
     val text = when {
         online -> stringResource(R.string.home_synced_with, names(status.connectedNames), ago ?: "")
-        ago != null -> stringResource(R.string.home_peer_away, names(status.pairedNames), ago)
+        // Offline, no one device is named: with several paired, naming the most
+        // recent one suggested it was the one that mattered. Devices lists them all.
+        ago != null -> stringResource(R.string.home_peer_away, ago)
         else -> stringResource(R.string.home_paired_not_synced)
     }.trimEnd(' ', '·')
     val dot = if (online) NcyTheme.colors.online else MaterialTheme.colorScheme.onSurfaceVariant

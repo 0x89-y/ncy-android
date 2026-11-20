@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ncy Redesign Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&family=Instrument+Sans:wght@400..600&family=JetBrains+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Geist:wght@400..600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ======================= Page chrome ======================= */
+:root{
+  --page-bg:#E9E7E3; --page-text:#1B1A18; --page-muted:#5F5B55; --page-line:#D3CFC8; --page-card:#F6F5F2;
+  --page-accent:#1B1A18; --page-on-accent:#F6F5F2;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --page-bg:#111110; --page-text:#ECEAE6; --page-muted:#A29E97; --page-line:#2C2B29; --page-card:#1A1918;
+    --page-accent:#ECEAE6; --page-on-accent:#111110;
+  }
+}
+:root[data-theme="dark"]{
+  --page-bg:#111110; --page-text:#ECEAE6; --page-muted:#A29E97; --page-line:#2C2B29; --page-card:#1A1918;
+  --page-accent:#ECEAE6; --page-on-accent:#111110;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page-bg);color:var(--page-text)}
+body{font-family:'Geist',system-ui,sans-serif;font-size:15px;line-height:1.5;padding:28px 16px 64px;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.wrap{max-width:1560px;margin:0 auto}
+.intro{display:flex;flex-wrap:wrap;gap:20px 40px;align-items:flex-end;justify-content:space-between;margin-bottom:24px}
+.intro h1{font-family:'Bricolage Grotesque',sans-serif;font-size:30px;line-height:1.1;font-weight:650;letter-spacing:-.02em}
+.intro p{color:var(--page-muted);max-width:640px;margin-top:6px}
+.controls{display:flex;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--page-line);border-radius:999px;padding:3px;background:var(--page-card)}
+.seg button{padding:7px 14px;border-radius:999px;font-size:14px;color:var(--page-muted);min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--page-accent);color:var(--page-on-accent)}
+.seg button:focus-visible{outline:2px solid var(--page-text);outline-offset:2px}
+.dir-summary{border:1px solid var(--page-line);background:var(--page-card);border-radius:16px;padding:16px 20px;margin-bottom:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 28px}
+.dir-summary h2{font-size:13px;font-family:'Geist Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--page-muted);font-weight:500;margin-bottom:4px}
+.dir-summary p{font-size:14px}
+.dir-summary .swatches{display:flex;gap:6px;margin-top:8px}
+.dir-summary .swatches span{width:22px;height:22px;border-radius:6px;border:1px solid var(--page-line)}
+.gallery{display:flex;flex-wrap:wrap;gap:36px 22px;justify-content:center}
+@media (max-width:820px) and (min-width:600px){.shot{zoom:.88}.gallery{gap:28px 16px}}
+html.embedded,html.embedded body{background:transparent}
+html.embedded body{padding:8px 0 24px}
+.shot{width:360px;max-width:100%}
+.shot h3{font-size:13px;font-family:'Geist Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--page-muted);font-weight:500;margin:0 4px 10px}
+.shot ul{margin:14px 6px 0;padding-left:18px;font-size:13.5px;color:var(--page-muted)}
+.shot li{margin:3px 0}
+.shot li b{color:var(--page-text);font-weight:550}
+[data-show="a"] .dir-b, [data-show="b"] .dir-a{display:none}
+
+/* ======================= Phone frame ======================= */
+.phone{width:360px;max-width:100%;height:760px;border-radius:44px;padding:9px;background:#0A0A0B;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 30px 60px -30px rgba(0,0,0,.45)}
+.screen{height:100%;border-radius:36px;overflow:hidden;position:relative;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:var(--font-body)}
+.sb{height:34px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:4px 26px 0;font-size:13px;font-weight:600;font-family:var(--font-body)}
+.sb .ic{display:flex;gap:5px;align-items:center}
+.sb .ic i{display:block;background:currentColor;border-radius:2px}
+.gesture{height:22px;flex:none;display:flex;align-items:center;justify-content:center}
+.gesture::after{content:"";width:110px;height:4px;border-radius:4px;background:var(--text);opacity:.35}
+.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.i.sm{width:16px;height:16px}
+.i.xs{width:14px;height:14px}
+.i.fill{fill:currentColor}
+.iconbtn{width:44px;height:44px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--text)}
+.spacer{flex:1}
+[data-sketch] svg{display:block;width:100%;height:auto}
+.wave{display:flex;align-items:center;gap:2px;height:28px;flex:1;min-width:0}
+.wave i{display:block;width:3px;border-radius:2px;background:currentColor;opacity:.35}
+.wave i.p{opacity:1}
+
+/* ======================= Direction A — Notebook ======================= */
+.dir-a{
+  --bg:#F5F1EA; --surface:#FBF9F5; --raised:#FFFFFF; --text:#1E1A15; --muted:#685F54; --line:#E4DDD1; --line-strong:#D1C8B9;
+  --accent:#B4471F; --on-accent:#FFFFFF; --accent-soft:#F3E2D7; --on-accent-soft:#7A2E12;
+  --ink:#1E1A15; --on-ink:#FBF9F5; --danger:#B42318; --scrim:rgba(30,26,21,.42);
+  --font-display:'Newsreader',Georgia,serif; --font-body:'Instrument Sans',system-ui,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+.theme-dark .dir-a{
+  --bg:#15130F; --surface:#1D1A15; --raised:#25211B; --text:#EFE9DF; --muted:#A89F91; --line:#2E2922; --line-strong:#3E372D;
+  --accent:#E8835C; --on-accent:#1E1A15; --accent-soft:#3A2519; --on-accent-soft:#F4BDA2;
+  --ink:#EFE9DF; --on-ink:#15130F; --danger:#F07A6A; --scrim:rgba(0,0,0,.55);
+}
+.dir-a .a-head{padding:4px 14px 0 20px}
+.dir-a .a-top{display:flex;align-items:center;margin-right:-6px}
+.dir-a .a-profile{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);min-height:44px}
+.dir-a .a-profile .pdot{width:18px;height:18px;border-radius:6px;background:var(--ink);color:var(--on-ink);display:inline-flex;align-items:center;justify-content:center;font-size:10px}
+.dir-a .a-title{font-family:var(--font-display);font-weight:500;font-size:40px;line-height:1.05;letter-spacing:-.02em;margin-top:2px}
+.dir-a .a-sync{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);margin:6px 0 12px}
+.dir-a .a-sync .dot{width:7px;height:7px;border-radius:50%;background:#3E9B5B;box-shadow:0 0 0 3px color-mix(in srgb,#3E9B5B 22%,transparent)}
+.dir-a .a-chips{display:flex;gap:8px;padding:0 20px 12px;overflow:hidden;flex:none}
+.dir-a .chip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:999px;border:1px solid var(--line-strong);font-size:14px;color:var(--text);white-space:nowrap}
+.dir-a .chip .n{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.dir-a .chip.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.dir-a .chip.on .n{color:var(--on-ink);opacity:.7}
+.dir-a .a-scroll{flex:1;overflow:hidden;border-top:1px solid var(--line)}
+.dir-a .a-upnext{margin:14px 16px 4px;padding:12px 14px;border-radius:14px;background:var(--accent-soft);color:var(--on-accent-soft);display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;align-items:center}
+.dir-a .a-upnext .lbl{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.dir-a .a-upnext .what{grid-column:2;font-size:14.5px;color:var(--text);font-weight:500;line-height:1.35}
+.dir-a .a-upnext .when{grid-column:2;font-size:12.5px}
+.dir-a .a-upnext .i{grid-row:1/4}
+.dir-a .a-upnext .more{grid-row:1/4;grid-column:3;font-family:var(--font-mono);font-size:11px}
+.dir-a .a-label{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:16px 20px 4px}
+.dir-a .a-row{display:flex;gap:14px;padding:11px 20px;align-items:center;position:relative}
+.dir-a .a-row + .a-row::before{content:"";position:absolute;top:0;left:76px;right:0;height:1px;background:var(--line)}
+.dir-a .a-av{width:42px;height:42px;border-radius:13px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:21px;font-weight:500;
+  background:color-mix(in srgb,var(--h) 17%,var(--surface));color:color-mix(in srgb,var(--h) 72%,var(--text))}
+.theme-dark .dir-a .a-av{background:color-mix(in srgb,var(--h) 22%,var(--surface));color:color-mix(in srgb,var(--h) 55%,var(--text))}
+.dir-a .a-av.lock{background:var(--ink);color:var(--on-ink)}
+.dir-a .a-body{flex:1;min-width:0}
+.dir-a .a-r1{display:flex;align-items:baseline;gap:8px}
+.dir-a .a-name{font-family:var(--font-display);font-size:18px;font-weight:500;letter-spacing:-.005em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dir-a .a-time{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.dir-a .a-prev{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.dir-a .a-prev span{overflow:hidden;text-overflow:ellipsis}
+.dir-a .a-fab{position:absolute;right:18px;bottom:40px;height:52px;padding:0 20px 0 16px;border-radius:16px;background:var(--ink);color:var(--on-ink);display:flex;align-items:center;gap:8px;font-weight:550;font-size:15px;box-shadow:0 8px 20px -8px rgba(0,0,0,.4)}
+
+/* A — thread */
+.dir-a .a-bar{display:flex;align-items:center;gap:4px;padding:2px 6px 8px;border-bottom:1px solid var(--line);flex:none;background:var(--bg)}
+.dir-a .a-bar .tt{flex:1;min-width:0;padding-left:2px}
+.dir-a .a-bar .nm{font-family:var(--font-display);font-size:21px;font-weight:500;line-height:1.15}
+.dir-a .a-bar .st{font-size:12.5px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.dir-a .a-thread{flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:0 16px 6px;
+  background-image:linear-gradient(to bottom,transparent 27px,color-mix(in srgb,var(--line) 55%,transparent) 28px);background-size:100% 28px}
+.dir-a .a-day{display:flex;align-items:center;gap:12px;font-family:var(--font-display);font-style:italic;color:var(--muted);font-size:14.5px;margin:12px 0 4px;background:var(--bg)}
+.dir-a .a-day::before,.dir-a .a-day::after{content:"";flex:1;height:1px;background:var(--line-strong)}
+.dir-a .a-note{display:grid;grid-template-columns:38px 1fr;gap:0 10px;padding:7px 0}
+.dir-a .a-note .t{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);padding-top:4px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.dir-a .a-note .t .i{color:var(--accent)}
+.dir-a .a-note .c{font-size:15px;line-height:1.5;min-width:0;background:var(--bg)}
+.dir-a .a-note .c b{font-weight:600}
+.dir-a .a-note .dev{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-bottom:2px}
+.dir-a .a-cl-title{font-weight:600;display:flex;justify-content:space-between;align-items:baseline}
+.dir-a .a-cl-title span{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-weight:400}
+.dir-a .a-ci{display:flex;gap:10px;align-items:center;padding:3px 0}
+.dir-a .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line-strong);flex:none;display:flex;align-items:center;justify-content:center;color:var(--on-accent)}
+.dir-a .box.on{background:var(--accent);border-color:var(--accent)}
+.dir-a .a-ci.done span{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong)}
+.dir-a .a-voice{display:flex;align-items:center;gap:10px;color:var(--text)}
+.dir-a .a-voice .play{width:36px;height:36px;border-radius:50%;background:var(--ink);color:var(--on-ink);display:flex;align-items:center;justify-content:center;flex:none}
+.dir-a .a-voice .d{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.dir-a .a-voice .wave{color:var(--accent)}
+.dir-a .a-trans{font-family:var(--font-display);font-style:italic;font-size:15px;color:var(--muted);margin-top:4px;line-height:1.45}
+.dir-a .a-img{border-radius:12px;overflow:hidden;border:1px solid var(--line);display:block;width:100%;height:auto}
+.dir-a .a-cap{font-size:14px;margin-top:5px}
+.dir-a .a-quote{border-left:2px solid var(--accent);padding:1px 0 1px 10px;margin-bottom:5px;font-size:13px;color:var(--muted)}
+.dir-a .a-quote .q1{font-family:var(--font-mono);font-size:10.5px;display:flex;gap:4px;align-items:center}
+.dir-a .a-react{display:flex;gap:6px;margin-top:6px}
+.dir-a .a-react span{height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line-strong);font-size:13px;display:inline-flex;align-items:center;gap:4px;background:var(--surface)}
+.dir-a .a-react span em{font-style:normal;font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.dir-a .a-rem{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:var(--accent-soft);color:var(--on-accent-soft);font-size:12px;font-weight:500;margin-top:6px}
+.dir-a .a-file{display:flex;align-items:center;gap:12px;border:1px solid var(--line-strong);border-radius:12px;padding:9px 10px;background:var(--surface)}
+.dir-a .a-file .ft{width:36px;height:40px;border-radius:7px;background:var(--accent-soft);color:var(--on-accent-soft);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:9.5px;font-weight:500}
+.dir-a .a-file .fn{font-size:14px;font-weight:500}
+.dir-a .a-file .fs{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.dir-a .a-comp{flex:none;padding:8px 10px 4px;display:flex;align-items:flex-end;gap:6px;background:var(--bg);border-top:1px solid var(--line)}
+.dir-a .a-comp .field{flex:1;min-height:46px;border-radius:23px;background:var(--raised);border:1px solid var(--line-strong);display:flex;align-items:center;padding:0 6px 0 16px;color:var(--muted);font-size:15px}
+.dir-a .a-comp .plus{width:46px;height:46px;border-radius:50%;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;flex:none}
+.dir-a .a-comp .mic{width:46px;height:46px;border-radius:50%;background:var(--ink);color:var(--on-ink);display:flex;align-items:center;justify-content:center;flex:none}
+.dir-a .a-comp .aa{font-family:var(--font-display);font-size:17px;color:var(--text);width:38px;height:38px;display:flex;align-items:center;justify-content:center}
+
+/* A — actions sheet */
+.dir-a .scrim{position:absolute;inset:0;background:var(--scrim)}
+.dir-a .a-focus{position:absolute;left:12px;right:12px;top:200px;background:var(--surface);border-radius:16px;padding:12px 14px;box-shadow:0 20px 40px -20px rgba(0,0,0,.5)}
+.dir-a .a-sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:24px 24px 36px 36px;padding:8px 0 26px}
+.dir-a .grab{width:36px;height:4px;border-radius:4px;background:var(--line-strong);margin:4px auto 10px}
+.dir-a .a-emoji{display:flex;justify-content:space-between;padding:0 18px 12px;border-bottom:1px solid var(--line)}
+.dir-a .a-emoji span{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--bg)}
+.dir-a .a-emoji span.on{box-shadow:0 0 0 2px var(--accent)}
+.dir-a .a-act{display:flex;align-items:center;gap:16px;padding:0 22px;height:50px;font-size:15.5px}
+.dir-a .a-act .k{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.dir-a .a-act.danger{color:var(--danger)}
+.dir-a .a-acts-sep{height:1px;background:var(--line);margin:4px 0}
+
+/* A — settings */
+.dir-a .a-set{flex:1;overflow:hidden}
+.dir-a .a-me{margin:6px 16px 4px;padding:14px;border-radius:16px;border:1px solid var(--line-strong);background:var(--surface);display:flex;gap:12px;align-items:center}
+.dir-a .a-me .ph{width:44px;height:44px;border-radius:13px;background:var(--ink);color:var(--on-ink);display:flex;align-items:center;justify-content:center}
+.dir-a .a-me .n{font-family:var(--font-display);font-size:18px;font-weight:500;line-height:1.2}
+.dir-a .a-me .s{font-size:13px;color:var(--muted)}
+.dir-a .a-srow{display:flex;align-items:center;gap:14px;padding:0 20px;min-height:58px;position:relative}
+.dir-a .a-srow + .a-srow::before{content:"";position:absolute;top:0;left:56px;right:0;height:1px;background:var(--line)}
+.dir-a .a-srow .i{color:var(--muted)}
+.dir-a .a-srow .tx{flex:1;min-width:0;padding:9px 0}
+.dir-a .a-srow .t1{font-size:15.5px}
+.dir-a .a-srow .t2{font-size:13px;color:var(--muted)}
+.dir-a .a-srow .v{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+.dir-a .a-seg{display:flex;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;font-size:13px}
+.dir-a .a-seg span{padding:6px 10px}
+.dir-a .a-seg span.on{background:var(--ink);color:var(--on-ink)}
+.dir-a .online{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:11px;color:#2F7D48}
+.theme-dark .dir-a .online{color:#7CCB94}
+.dir-a .online::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.sw{width:46px;height:28px;border-radius:14px;background:var(--line-strong);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.sw.on{background:var(--accent)}
+.sw.on::after{left:21px}
+
+/* ======================= Direction B — Pocket ======================= */
+.dir-b{
+  --bg:#EEF0F5; --surface:#FFFFFF; --raised:#FFFFFF; --sunk:#E3E6EE; --text:#0F1117; --muted:#575E6E; --line:#E1E4EB; --line-strong:#CDD2DC;
+  --accent:#4F46E5; --on-accent:#FFFFFF; --accent-soft:#E7E5FD; --on-accent-soft:#3730A3; --danger:#C81E3A; --ok:#0F8A4F;
+  --font-display:'Bricolage Grotesque',system-ui,sans-serif; --font-body:'Geist',system-ui,sans-serif; --font-mono:'Geist Mono',ui-monospace,monospace;
+}
+.theme-dark .dir-b{
+  --bg:#0B0C10; --surface:#16181E; --raised:#1E2128; --sunk:#101217; --text:#ECEEF3; --muted:#9CA2B0; --line:#252831; --line-strong:#343844;
+  --accent:#8C86FF; --on-accent:#0B0C10; --accent-soft:#25234A; --on-accent-soft:#C9C6FF; --danger:#FF7A8C; --ok:#4ADE95;
+}
+.dir-b .b-head{padding:6px 16px 0}
+.dir-b .b-top{display:flex;align-items:center;gap:10px}
+.dir-b .b-prof{display:flex;align-items:center;gap:8px;min-height:44px;font-weight:550;font-size:15px}
+.dir-b .b-prof .av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6366F1,#EC4899);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.dir-b .b-online{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;background:color-mix(in srgb,var(--ok) 14%,var(--surface));color:var(--ok);font-size:12.5px;font-weight:550}
+.dir-b .b-search{margin:10px 0 4px;height:46px;border-radius:16px;background:var(--surface);display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--muted);font-size:15px;border:1px solid var(--line)}
+.dir-b .b-h2{font-family:var(--font-display);font-size:19px;font-weight:650;letter-spacing:-.01em;padding:14px 16px 8px;display:flex;align-items:baseline;justify-content:space-between}
+.dir-b .b-h2 small{font-family:var(--font-body);font-size:13px;font-weight:500;color:var(--accent)}
+.dir-b .b-pins{display:flex;gap:10px;padding:0 16px;overflow:hidden;flex:none}
+.dir-b .b-pin{width:142px;flex:none;height:132px;border-radius:22px;padding:13px;background:var(--c);color:#fff;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.dir-b .b-pin::after{content:"";position:absolute;right:-26px;top:-26px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.12)}
+.dir-b .b-pin .gl{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center}
+.dir-b .b-pin .nm{font-family:var(--font-display);font-weight:650;font-size:17px;margin-top:auto;line-height:1.15}
+.dir-b .b-pin .pv{font-size:12.5px;opacity:.88;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dir-b .b-pin .bar{height:4px;border-radius:4px;background:rgba(255,255,255,.28);margin-top:7px;overflow:hidden}
+.dir-b .b-pin .bar i{display:block;height:100%;background:#fff;border-radius:4px}
+.dir-b .b-scroll{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.dir-b .b-list{margin:0 12px;background:var(--surface);border-radius:22px;overflow:hidden;border:1px solid var(--line)}
+.dir-b .b-row{display:flex;gap:12px;align-items:center;padding:10px 12px;position:relative}
+.dir-b .b-row + .b-row::before{content:"";position:absolute;top:0;left:66px;right:12px;height:1px;background:var(--line)}
+.dir-b .b-av{width:44px;height:44px;border-radius:15px;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.dir-b .b-av.lock{background:var(--sunk);color:var(--text)}
+.dir-b .b-body{flex:1;min-width:0}
+.dir-b .b-r1{display:flex;align-items:baseline;gap:8px}
+.dir-b .b-nm{font-weight:600;font-size:15.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dir-b .b-tm{font-size:12px;color:var(--muted)}
+.dir-b .b-pv{font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:5px;align-items:center}
+.dir-b .b-pv span{overflow:hidden;text-overflow:ellipsis}
+.dir-b .b-fab{position:absolute;right:16px;bottom:104px;width:58px;height:58px;border-radius:20px;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 24px -10px color-mix(in srgb,var(--accent) 70%,transparent)}
+.dir-b .b-nav{flex:none;display:flex;justify-content:space-around;padding:8px 8px 0;background:var(--surface);border-top:1px solid var(--line)}
+.dir-b .b-nav a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:500;color:var(--muted);min-width:64px;position:relative}
+.dir-b .b-nav a .pill{width:58px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center}
+.dir-b .b-nav a.on{color:var(--text)}
+.dir-b .b-nav a.on .pill{background:var(--accent-soft);color:var(--on-accent-soft)}
+.dir-b .b-nav .badge{position:absolute;top:0;left:38px;min-width:18px;height:18px;border-radius:9px;background:var(--danger);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;border:2px solid var(--surface)}
+.dir-b .gesture{background:var(--surface)}
+
+/* B — thread */
+.dir-b .b-bar{display:flex;align-items:center;gap:6px;padding:2px 6px 8px;flex:none}
+.dir-b .b-bar .av{width:38px;height:38px;border-radius:13px;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center}
+.dir-b .b-bar .tt{flex:1;min-width:0;line-height:1.2}
+.dir-b .b-bar .nm{font-family:var(--font-display);font-weight:650;font-size:18px}
+.dir-b .b-bar .st{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.dir-b .b-bar .st i{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block}
+.dir-b .b-thread{flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;padding:0 12px 8px;
+  background:radial-gradient(120% 60% at 100% 0%,color-mix(in srgb,var(--c) 10%,transparent),transparent 70%)}
+.dir-b .b-date{align-self:center;font-size:12px;font-weight:550;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 11px;margin:8px 0 4px}
+.dir-b .msg{max-width:80%;padding:8px 12px 6px;font-size:15px;line-height:1.42;position:relative}
+.dir-b .msg.me{align-self:flex-end;background:var(--c);color:#fff;border-radius:20px 20px 6px 20px}
+.dir-b .msg.me.cont{border-radius:20px 6px 6px 20px}
+.dir-b .msg.them{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:20px 20px 20px 6px}
+.dir-b .msg .meta{font-size:11px;opacity:.78;display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:1px}
+.dir-b .msg.them .meta{color:var(--muted);opacity:1}
+.dir-b .msg .from{font-size:12px;font-weight:600;color:var(--accent);display:flex;gap:4px;align-items:center;margin-bottom:1px}
+.dir-b .msg .q{border-radius:10px;padding:5px 9px;margin:2px -4px 6px;font-size:13px;background:var(--sunk);border-left:3px solid var(--c)}
+.dir-b .msg .q b{display:block;font-size:12px;color:var(--c)}
+.theme-dark .dir-b .msg .q b{color:color-mix(in srgb,var(--c) 50%,#fff)}
+.dir-b .react{position:absolute;bottom:-12px;left:10px;display:flex;gap:2px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:1px 7px;font-size:13px}
+.dir-b .b-card{align-self:flex-end;width:80%;background:var(--surface);border:1px solid var(--line);border-radius:20px 20px 6px 20px;padding:12px 14px 8px}
+.dir-b .b-card .h{display:flex;justify-content:space-between;font-weight:600;font-size:15px}
+.dir-b .b-card .h span{font-size:12.5px;color:var(--muted);font-weight:500}
+.dir-b .b-card .prog{height:5px;border-radius:5px;background:var(--sunk);margin:8px 0 6px;overflow:hidden}
+.dir-b .b-card .prog i{display:block;height:100%;width:50%;background:var(--c);border-radius:5px}
+.dir-b .ci{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:14.5px}
+.dir-b .ci .o{width:20px;height:20px;border-radius:50%;border:2px solid var(--line-strong);flex:none;display:flex;align-items:center;justify-content:center;color:#fff}
+.dir-b .ci.done .o{background:var(--c);border-color:var(--c)}
+.dir-b .ci.done span{color:var(--muted);text-decoration:line-through}
+.dir-b .b-card .meta{font-size:11px;color:var(--muted);text-align:right}
+.dir-b .vc{display:flex;align-items:center;gap:10px;min-width:220px}
+.dir-b .vc .pl{width:36px;height:36px;border-radius:50%;background:#fff;color:var(--c);display:flex;align-items:center;justify-content:center;flex:none}
+.dir-b .vc .wave{color:#fff}
+.dir-b .vc .d{font-size:12px;opacity:.85}
+.dir-b .tr{font-size:13.5px;opacity:.9;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.22)}
+.dir-b .b-img{align-self:flex-end;width:72%;border-radius:20px 20px 6px 20px;overflow:hidden;position:relative;line-height:0}
+.dir-b .b-img svg{width:100%;height:auto}
+.dir-b .b-img .meta{position:absolute;right:8px;bottom:8px;font-size:11px;line-height:1;color:#fff;background:rgba(0,0,0,.45);padding:4px 7px;border-radius:999px}
+.dir-b .b-comp{flex:none;padding:6px 10px 4px}
+.dir-b .b-comp .bx{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:26px;padding:4px;box-shadow:0 8px 24px -16px rgba(0,0,0,.4)}
+.dir-b .b-comp .ph{flex:1;color:var(--muted);font-size:15px;padding-left:4px}
+.dir-b .b-comp .mic{width:44px;height:44px;border-radius:50%;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.dir-b .b-comp .iconbtn{color:var(--muted)}
+
+/* B — actions */
+.dir-b .blur{position:absolute;inset:0;backdrop-filter:blur(10px) saturate(.9);-webkit-backdrop-filter:blur(10px);background:color-mix(in srgb,var(--bg) 55%,transparent)}
+.dir-b .b-ctx{position:absolute;left:12px;right:12px;top:150px;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.dir-b .b-emo{display:flex;gap:2px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:0 14px 30px -14px rgba(0,0,0,.4)}
+.dir-b .b-emo span{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px}
+.dir-b .b-emo span.on{background:var(--accent-soft)}
+.dir-b .b-emo span.more{color:var(--muted);background:var(--sunk)}
+.dir-b .b-menu{width:236px;background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 24px 48px -20px rgba(0,0,0,.45)}
+.dir-b .b-menu .m{display:flex;align-items:center;gap:14px;padding:0 16px;height:48px;font-size:15px}
+.dir-b .b-menu .m + .m{border-top:1px solid var(--line)}
+.dir-b .b-menu .m .i{color:var(--muted)}
+.dir-b .b-menu .m.danger,.dir-b .b-menu .m.danger .i{color:var(--danger)}
+.dir-b .b-menu .grp{height:6px;background:var(--sunk)}
+
+/* B — settings */
+.dir-b .b-title{font-family:var(--font-display);font-weight:650;font-size:32px;letter-spacing:-.02em;padding:6px 18px 10px}
+.dir-b .b-sync{margin:0 12px;border-radius:24px;padding:16px;background:linear-gradient(140deg,#4F46E5,#7C3AED 60%,#C026D3);color:#fff;position:relative;overflow:hidden}
+.dir-b .b-sync::after{content:"";position:absolute;right:-40px;bottom:-60px;width:180px;height:180px;border-radius:50%;border:28px solid rgba(255,255,255,.08)}
+.dir-b .b-sync .k{font-size:12.5px;opacity:.85;display:flex;align-items:center;gap:6px}
+.dir-b .b-sync .big{font-family:var(--font-display);font-size:22px;font-weight:650;margin:2px 0 10px}
+.dir-b .b-sync .devs{display:flex;gap:8px;flex-wrap:wrap}
+.dir-b .b-sync .dv{display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.16);font-size:13px;font-weight:500}
+.dir-b .b-sync .dv i{width:7px;height:7px;border-radius:50%;background:#6EF0A8}
+.dir-b .b-sync .dv.off i{background:rgba(255,255,255,.45)}
+.dir-b .b-sync .dv.add{background:#fff;color:#4F46E5}
+.dir-b .b-grp{margin:14px 12px 0;background:var(--surface);border:1px solid var(--line);border-radius:22px;overflow:hidden}
+.dir-b .b-gl{font-size:13px;font-weight:600;color:var(--muted);padding:14px 26px 0}
+.dir-b .b-sr{display:flex;align-items:center;gap:12px;padding:0 14px;min-height:56px;position:relative}
+.dir-b .b-sr + .b-sr::before{content:"";position:absolute;top:0;left:60px;right:0;height:1px;background:var(--line)}
+.dir-b .b-sr .tile{width:34px;height:34px;border-radius:11px;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.dir-b .b-sr .tile .i{width:18px;height:18px}
+.dir-b .b-sr .tx{flex:1;min-width:0;padding:8px 0}
+.dir-b .b-sr .t1{font-size:15px;font-weight:500}
+.dir-b .b-sr .t2{font-size:13px;color:var(--muted)}
+.dir-b .b-sr .v{font-size:14px;color:var(--muted)}
+.dir-b .b-sr > .i.sm{color:var(--muted)}
+.dir-b .sws{display:flex;gap:6px}
+.dir-b .sws span{width:22px;height:22px;border-radius:50%;background:var(--s)}
+.dir-b .sws span.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--s)}
+</style>
+</head>
+<body data-show="a">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.2-4.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.8l2.8 5.7 6.3.9-4.55 4.43 1.07 6.27L12 17.15l-5.62 2.95 1.07-6.27L2.9 9.4l6.3-.9z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="5" rx="1"/><path d="M4.5 8.5V19a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5M10 12.5h4"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M19 10.5v1a7 7 0 0 1-14 0v-1M12 18.5v3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 11 7-7 7 7M12 20V4"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-checksq" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-reply" viewBox="0 0 24 24"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16a2 2 0 0 1-1-1.73V5a2 2 0 0 1 2-2h9.27A2 2 0 0 1 16 4"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.38 3.62a2.12 2.12 0 1 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 20h20"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18h2"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M12 20h.01M2 8.82a15 15 0 0 1 20 0M5 12.86a10 10 0 0 1 14 0M8.5 16.43a5 5 0 0 1 7 0"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></symbol>
+  <symbol id="i-audio" viewBox="0 0 24 24"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14.5 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-12z"/><path d="M14 2.5v5h5.5"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></symbol>
+  <symbol id="i-alarm" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M5 3 2 6M22 6l-3-3"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="13" rx="2"/><path d="M16 20V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v15"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+  <symbol id="i-plane" viewBox="0 0 24 24"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></symbol>
+  <symbol id="i-chef" viewBox="0 0 24 24"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.46.32-.85.74-1.05A4 4 0 0 0 15.4 6.3a4 4 0 0 0-6.8 0 4 4 0 0 0-3.34 7.3c.42.2.74.6.74 1.05V20a1 1 0 0 0 1 1zM6 17h12"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+</svg>
+
+<!-- Re-usable sketch image -->
+<template id="sketch">
+  <svg viewBox="0 0 300 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Photo of a whiteboard with a sketched app flow">
+    <rect width="300" height="190" fill="#E9E6DF"/>
+    <rect x="0" y="0" width="300" height="190" fill="url(#g)" opacity=".35"/>
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#B9B2A5"/></linearGradient></defs>
+    <g fill="none" stroke="#2B2E3A" stroke-width="2.2" stroke-linecap="round">
+      <rect x="24" y="30" width="58" height="104" rx="9"/><rect x="120" y="30" width="58" height="104" rx="9"/><rect x="216" y="30" width="58" height="104" rx="9"/>
+      <path d="M86 82h28m-6-6 6 6-6 6M182 82h28m-6-6 6 6-6 6"/>
+      <path d="M32 46h40M32 58h30M32 70h36M128 112h42M224 50h20"/>
+    </g>
+    <g fill="none" stroke="#C2410C" stroke-width="2.4" stroke-linecap="round"><path d="M128 48c8-6 20-6 30 0M226 70c12 8 26 8 40 0"/><circle cx="245" cy="104" r="12"/></g>
+    <path d="M40 160c30-8 60 6 90-2s60-10 100 0" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </svg>
+</template>
+
+<div class="wrap">
+  <header class="intro">
+    <div>
+      <h1>Ncy redesign, round 1</h1>
+      <p>Two directions for the Android app, four screens each: home, a chat, the long-press actions, and settings. The sample data covers every message type the app has: text, checklist, voice with transcript, photo, file, reply, reaction, reminder and synced notes.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Direction">
+        <button data-dir="a" aria-pressed="true">A · Notebook</button>
+        <button data-dir="b" aria-pressed="false">B · Pocket</button>
+      </div>
+      <div class="seg" role="group" aria-label="Theme">
+        <button data-theme-btn="light" aria-pressed="true">Light</button>
+        <button data-theme-btn="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="dir-summary dir-a">
+    <div><h2>Idea</h2><p>Ncy as a notebook rather than a messenger. Notes run down the page like journal entries, with no bubbles. It's calm and good for reading back, and keeps the "chat" speed for writing.</p></div>
+    <div><h2>Type</h2><p>Newsreader (serif) for names and titles, Instrument Sans for UI and notes, JetBrains Mono for times and labels.</p></div>
+    <div><h2>Colour</h2><p>Warm paper with black ink, plus one terracotta accent. Chats get muted tints, never loud fills.</p>
+      <div class="swatches"><span style="background:#F5F1EA"></span><span style="background:#1E1A15"></span><span style="background:#B4471F"></span><span style="background:#F3E2D7"></span><span style="background:#15130F"></span></div></div>
+    <div><h2>Navigation</h2><p>One home screen. Filters are visible chips (All, Starred, Reminders, Archived) instead of a hidden filter menu. Settings sits in the top bar.</p></div>
+  </section>
+  <section class="dir-summary dir-b">
+    <div><h2>Idea</h2><p>Ncy as a personal messenger: friendly, colourful and fast. Each chat has its own colour, used for its avatar, its pinned card and its bubbles, so you know where you are at a glance.</p></div>
+    <div><h2>Type</h2><p>Bricolage Grotesque for headings, Geist for UI and messages. Rounder and more playful than A.</p></div>
+    <div><h2>Colour</h2><p>Cool neutral base with an indigo accent. Six chat colours, each dark enough for white text (4.5:1 or better).</p>
+      <div class="swatches"><span style="background:#4F46E5"></span><span style="background:#B45309"></span><span style="background:#047857"></span><span style="background:#BE123C"></span><span style="background:#0369A1"></span><span style="background:#7C3AED"></span></div></div>
+    <div><h2>Navigation</h2><p>Bottom bar with Chats, Starred, Reminders and Settings, so starred notes and reminders get real homes. Pinned chats become cards with checklist progress.</p></div>
+  </section>
+
+  <!-- ===================================================== DIRECTION A ===================================================== -->
+  <div class="gallery dir-a" id="galA">
+
+    <!-- A1 Home -->
+    <figure class="shot">
+      <h3>A1 · Home</h3>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="a-head">
+          <div class="a-top">
+            <button class="a-profile"><span class="pdot">P</span>Personal<svg class="i xs"><use href="#i-down"/></svg></button>
+            <span class="spacer"></span>
+            <button class="iconbtn" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+            <button class="iconbtn" aria-label="Settings"><svg class="i"><use href="#i-sliders"/></svg></button>
+          </div>
+          <h1 class="a-title">Chats</h1>
+          <div class="a-sync"><span class="dot"></span>Synced with Desk-PC · 2 min ago</div>
+        </div>
+        <div class="a-chips">
+          <span class="chip on">All <span class="n">8</span></span>
+          <span class="chip"><svg class="i xs"><use href="#i-star"/></svg>Starred</span>
+          <span class="chip"><svg class="i xs"><use href="#i-bell"/></svg>Reminders <span class="n">2</span></span>
+          <span class="chip">Archived</span>
+        </div>
+        <div class="a-scroll">
+          <div class="a-upnext">
+            <svg class="i"><use href="#i-bell"/></svg>
+            <span class="lbl">Up next · 16:00</span>
+            <span class="what">Ask Sam about the sync edge-cases doc</span>
+            <span class="when">in Ideas</span>
+            <span class="more">+1</span>
+          </div>
+          <div class="a-label">Pinned</div>
+          <div class="a-row"><div class="a-av" style="--h:#2F855A">G</div><div class="a-body"><div class="a-r1"><span class="a-name">Groceries</span><span class="a-time">08:41</span></div><div class="a-prev"><svg class="i xs"><use href="#i-checksq"/></svg><span>4 of 9 · Oat milk, eggs, lemons</span></div></div></div>
+          <div class="a-row"><div class="a-av" style="--h:#B4471F">I</div><div class="a-body"><div class="a-r1"><span class="a-name">Ideas</span><span class="a-time">08:30</span></div><div class="a-prev"><span>Ask Sam about the sync edge-cases doc</span></div></div></div>
+          <div class="a-label">All chats</div>
+          <div class="a-row"><div class="a-av" style="--h:#2B6CB0">W</div><div class="a-body"><div class="a-r1"><span class="a-name">Work log</span><span class="a-time">Yesterday</span></div><div class="a-prev"><svg class="i xs"><use href="#i-laptop"/></svg><span>Shipped 0.8.1: backup folder, bulk delete</span></div></div></div>
+          <div class="a-row"><div class="a-av" style="--h:#805AD5">R</div><div class="a-body"><div class="a-r1"><span class="a-name">Reading list</span><span class="a-time">Mon</span></div><div class="a-prev"><span>The Overstory, chapter 12, the banyan bit</span></div></div></div>
+          <div class="a-row"><div class="a-av" style="--h:#C05621">V</div><div class="a-body"><div class="a-r1"><span class="a-name">Voice memos</span><span class="a-time">Sun</span></div><div class="a-prev"><svg class="i xs"><use href="#i-mic"/></svg><span>0:42 · "Remember to call the landlord…"</span></div></div></div>
+          <div class="a-row"><div class="a-av lock"><svg class="i sm"><use href="#i-lock"/></svg></div><div class="a-body"><div class="a-r1"><span class="a-name">Vault</span><span class="a-time">12 Nov</span></div><div class="a-prev"><span>Protected · tap to unlock</span></div></div></div>
+        </div>
+        <button class="a-fab"><svg class="i"><use href="#i-plus"/></svg>New chat</button>
+        <div class="gesture"></div>
+      </div></div>
+      <ul>
+        <li><b>Filters you can see.</b> Starred, Reminders and Archived move out of the overflow menu into chips, with counts.</li>
+        <li><b>"Up next"</b> shows the next reminder on top of the list, so reminders don't need their own row.</li>
+        <li><b>Sync status</b> sits under the title: one line, always visible, with no screen to open.</li>
+      </ul>
+    </figure>
+
+    <!-- A2 Thread -->
+    <figure class="shot">
+      <h3>A2 · Chat</h3>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="a-bar">
+          <button class="iconbtn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <div class="tt"><div class="nm">Ideas</div><div class="st">84 notes · 3 starred</div></div>
+          <button class="iconbtn" aria-label="Search in chat"><svg class="i"><use href="#i-search"/></svg></button>
+          <button class="iconbtn" aria-label="Chat options"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="a-thread">
+          <div class="a-note"><div class="t">09:14</div><div class="c">
+            <div class="a-cl-title">Redesign pass <span>2 / 4</span></div>
+            <div class="a-ci done"><span class="box on"><svg class="i xs" style="stroke-width:3"><use href="#i-check"/></svg></span><span>Audit current screens</span></div>
+            <div class="a-ci done"><span class="box on"><svg class="i xs" style="stroke-width:3"><use href="#i-check"/></svg></span><span>Pick a type pairing</span></div>
+            <div class="a-ci"><span class="box"></span><span>Mockups for home and chat</span></div>
+            <div class="a-ci"><span class="box"></span><span>Composer states</span></div>
+          </div></div>
+          <div class="a-day">Yesterday</div>
+          <div class="a-note"><div class="t">18:40</div><div class="c">
+            <div class="a-voice"><span class="play"><svg class="i sm fill"><use href="#i-play"/></svg></span><span class="wave" data-n="34" data-p=".4" data-seed="3"></span><span class="d">0:42</span></div>
+            <div class="a-trans">"Maybe pinned chats become cards at the top, with their checklist progress showing…"</div>
+          </div></div>
+          <div class="a-note"><div class="t">18:52</div><div class="c"><div data-sketch class="a-img"></div><div class="a-cap">Whiteboard from the café</div></div></div>
+          <div class="a-note"><div class="t">21:05<svg class="i xs fill"><use href="#i-star"/></svg></div><div class="c">
+            <div class="dev"><svg class="i xs"><use href="#i-laptop"/></svg>Desk-PC</div>
+            <div class="a-quote"><div class="q1"><svg class="i xs"><use href="#i-mic"/></svg>Voice · 18:40</div>Maybe pinned chats become cards…</div>
+            Yes, and show the <b>next reminder</b> on the card too.
+            <div class="a-react"><span>👍 <em>2</em></span><span>💡</span></div>
+          </div></div>
+          <div class="a-day">Today</div>
+          <div class="a-note"><div class="t">08:30</div><div class="c">Ask Sam about the sync edge-cases doc<br><span class="a-rem"><svg class="i xs"><use href="#i-bell"/></svg>Today 16:00</span></div></div>
+        </div>
+        <div class="a-comp">
+          <span class="plus" aria-label="Attach"><svg class="i"><use href="#i-plus"/></svg></span>
+          <span class="field">Write a note…<span class="spacer"></span><span class="aa" aria-label="Formatting">Aa</span></span>
+          <span class="mic" aria-label="Record voice"><svg class="i"><use href="#i-mic"/></svg></span>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <ul>
+        <li><b>No bubbles.</b> Each note gets the full width, and times sit in a margin like a diary. Long notes and checklists get more room.</li>
+        <li><b>Synced notes</b> show the device they came from instead of being pushed to the left.</li>
+        <li><b>Voice transcripts</b> read as italic quotes under the waveform.</li>
+      </ul>
+    </figure>
+
+    <!-- A3 Actions -->
+    <figure class="shot">
+      <h3>A3 · Long-press a note</h3>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="a-bar"><button class="iconbtn"><svg class="i"><use href="#i-back"/></svg></button><div class="tt"><div class="nm">Ideas</div><div class="st">84 notes · 3 starred</div></div></div>
+        <div class="a-thread" style="justify-content:flex-start;padding-top:10px">
+          <div class="a-note"><div class="t">18:52</div><div class="c"><div class="a-cap">Whiteboard from the café</div></div></div>
+        </div>
+        <div class="scrim"></div>
+        <div class="a-focus">
+          <div class="dev" style="display:flex;gap:6px;align-items:center;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-bottom:4px"><svg class="i xs"><use href="#i-laptop"/></svg>Desk-PC · 21:05</div>
+          <div style="font-size:15px">Yes, and show the <b>next reminder</b> on the card too.</div>
+        </div>
+        <div class="a-sheet">
+          <div class="grab"></div>
+          <div class="a-emoji"><span class="on">👍</span><span>💡</span><span>❤️</span><span>✅</span><span>😂</span><span style="font-size:15px;color:var(--muted)"><svg class="i"><use href="#i-plus"/></svg></span></div>
+          <div class="a-act"><svg class="i"><use href="#i-reply"/></svg>Reply</div>
+          <div class="a-act"><svg class="i"><use href="#i-copy"/></svg>Copy text</div>
+          <div class="a-act"><svg class="i"><use href="#i-edit"/></svg>Edit</div>
+          <div class="a-act"><svg class="i fill" style="color:var(--accent)"><use href="#i-star"/></svg>Unstar</div>
+          <div class="a-act"><svg class="i"><use href="#i-alarm"/></svg>Remind me<span class="k">Later today</span></div>
+          <div class="a-act"><svg class="i"><use href="#i-select"/></svg>Select more</div>
+          <div class="a-acts-sep"></div>
+          <div class="a-act danger"><svg class="i"><use href="#i-trash"/></svg>Delete</div>
+        </div>
+      </div></div>
+      <ul>
+        <li><b>One sheet for every action.</b> Reactions are on top, and Delete is set apart at the bottom.</li>
+        <li><b>The note stays readable</b> above the dimmed chat, so you can see what you're acting on.</li>
+        <li>Remind me shows a quick suggestion right in the row.</li>
+      </ul>
+    </figure>
+
+    <!-- A4 Settings -->
+    <figure class="shot">
+      <h3>A4 · Settings</h3>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="a-head" style="padding-bottom:6px">
+          <div class="a-top"><button class="iconbtn" style="margin-left:-12px" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button></div>
+          <h1 class="a-title" style="font-size:34px">Settings</h1>
+        </div>
+        <div class="a-set">
+          <div class="a-me"><span class="ph"><svg class="i"><use href="#i-phone"/></svg></span><div style="flex:1"><div class="n">Pixel 8</div><div class="s">This phone · Personal profile</div></div><svg class="i sm" style="color:var(--muted)"><use href="#i-right"/></svg></div>
+          <div class="a-label">Sync</div>
+          <div class="a-srow"><svg class="i"><use href="#i-laptop"/></svg><div class="tx"><div class="t1">Desk-PC</div><div class="t2">Same Wi-Fi</div></div><span class="online">online</span></div>
+          <div class="a-srow"><svg class="i"><use href="#i-plus"/></svg><div class="tx"><div class="t1">Pair a device</div></div><svg class="i sm"><use href="#i-right"/></svg></div>
+          <div class="a-label">Privacy</div>
+          <div class="a-srow"><svg class="i"><use href="#i-shield"/></svg><div class="tx"><div class="t1">Protected chats</div><div class="t2">PIN and fingerprint</div></div><span class="v">ON</span></div>
+          <div class="a-srow"><svg class="i"><use href="#i-lock"/></svg><div class="tx"><div class="t1">Lock when the app opens</div></div><span class="sw"></span></div>
+          <div class="a-label">Look</div>
+          <div class="a-srow"><svg class="i"><use href="#i-contrast"/></svg><div class="tx"><div class="t1">Theme</div></div><div class="a-seg"><span class="on">Auto</span><span>Light</span><span>Dark</span></div></div>
+          <div class="a-label">Data</div>
+          <div class="a-srow"><svg class="i"><use href="#i-db"/></svg><div class="tx"><div class="t1">Backups</div><div class="t2">Daily to Documents/Ncy · last 22:00</div></div><svg class="i sm"><use href="#i-right"/></svg></div>
+          <div class="a-srow"><svg class="i"><use href="#i-audio"/></svg><div class="tx"><div class="t1">Voice transcription</div><div class="t2">On this device</div></div><svg class="i sm"><use href="#i-right"/></svg></div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <ul>
+        <li><b>One page</b> instead of six sub-pages. Simple settings can be changed right here; deeper ones open a page.</li>
+        <li><b>Devices come first,</b> because sync is what sets Ncy apart, with live online status.</li>
+        <li>Each row says what it's set to, so you don't have to open it to check.</li>
+      </ul>
+    </figure>
+  </div>
+
+  <!-- ===================================================== DIRECTION B ===================================================== -->
+  <div class="gallery dir-b" id="galB">
+
+    <!-- B1 Home -->
+    <figure class="shot">
+      <h3>B1 · Home</h3>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="b-head">
+          <div class="b-top">
+            <button class="b-prof"><span class="av">P</span>Personal<svg class="i sm" style="color:var(--muted)"><use href="#i-down"/></svg></button>
+            <span class="spacer"></span>
+            <span class="b-online"><svg class="i xs"><use href="#i-wifi"/></svg>Desk-PC</span>
+          </div>
+          <div class="b-search"><svg class="i"><use href="#i-search"/></svg>Search chats and notes</div>
+        </div>
+        <div class="b-scroll">
+          <div class="b-h2">Pinned</div>
+          <div class="b-pins">
+            <div class="b-pin" style="--c:#047857"><span class="gl"><svg class="i sm"><use href="#i-cart"/></svg></span><span class="nm">Groceries</span><span class="pv">4 of 9 done</span><span class="bar"><i style="width:44%"></i></span></div>
+            <div class="b-pin" style="--c:#B45309"><span class="gl"><svg class="i sm"><use href="#i-bulb"/></svg></span><span class="nm">Ideas</span><span class="pv"><svg class="i xs" style="vertical-align:-2px"><use href="#i-bell"/></svg> 16:00 · Ask Sam…</span></div>
+            <div class="b-pin" style="--c:#0369A1"><span class="gl"><svg class="i sm"><use href="#i-brief"/></svg></span><span class="nm">Work log</span><span class="pv">Shipped 0.8.1</span></div>
+          </div>
+          <div class="b-h2">Chats <small>Sort: recent</small></div>
+          <div class="b-list">
+            <div class="b-row"><div class="b-av" style="--c:#7C3AED"><svg class="i"><use href="#i-book"/></svg></div><div class="b-body"><div class="b-r1"><span class="b-nm">Reading list</span><span class="b-tm">Mon</span></div><div class="b-pv"><span>The Overstory, chapter 12</span></div></div></div>
+            <div class="b-row"><div class="b-av" style="--c:#BE123C"><svg class="i"><use href="#i-mic"/></svg></div><div class="b-body"><div class="b-r1"><span class="b-nm">Voice memos</span><span class="b-tm">Sun</span></div><div class="b-pv"><svg class="i xs"><use href="#i-mic"/></svg><span>0:42 · Remember to call…</span></div></div></div>
+            <div class="b-row"><div class="b-av" style="--c:#0F766E"><svg class="i"><use href="#i-plane"/></svg></div><div class="b-body"><div class="b-r1"><span class="b-nm">Lisbon trip</span><span class="b-tm">12 Nov</span></div><div class="b-pv"><svg class="i xs"><use href="#i-image"/></svg><span>3 photos</span></div></div></div>
+            <div class="b-row"><div class="b-av lock"><svg class="i"><use href="#i-lock"/></svg></div><div class="b-body"><div class="b-r1"><span class="b-nm">Vault</span><span class="b-tm">12 Nov</span></div><div class="b-pv"><span>Protected</span></div></div></div>
+          </div>
+        </div>
+        <button class="b-fab" aria-label="New chat"><svg class="i"><use href="#i-plus"/></svg></button>
+        <nav class="b-nav">
+          <a class="on"><span class="pill"><svg class="i"><use href="#i-chat"/></svg></span>Chats</a>
+          <a><span class="pill"><svg class="i"><use href="#i-star"/></svg></span>Starred</a>
+          <a><span class="pill"><svg class="i"><use href="#i-bell"/></svg></span><span class="badge">2</span>Reminders</a>
+          <a><span class="pill"><svg class="i"><use href="#i-gear"/></svg></span>Settings</a>
+        </nav>
+        <div class="gesture"></div>
+      </div></div>
+      <ul>
+        <li><b>Pinned chats are cards</b> that show live state: checklist progress, the next reminder, the last entry.</li>
+        <li><b>A colour and icon per chat</b> replace initials, so you find chats by colour, not by reading.</li>
+        <li><b>Bottom bar:</b> Starred and Reminders become full tabs instead of filters.</li>
+      </ul>
+    </figure>
+
+    <!-- B2 Thread -->
+    <figure class="shot">
+      <h3>B2 · Chat</h3>
+      <div class="phone"><div class="screen" style="--c:#B45309">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="b-bar">
+          <button class="iconbtn" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+          <span class="av"><svg class="i sm"><use href="#i-bulb"/></svg></span>
+          <div class="tt"><div class="nm">Ideas</div><div class="st"><i></i>Synced · Desk-PC</div></div>
+          <button class="iconbtn" aria-label="Search in chat"><svg class="i"><use href="#i-search"/></svg></button>
+          <button class="iconbtn" aria-label="Chat options"><svg class="i"><use href="#i-more"/></svg></button>
+        </div>
+        <div class="b-thread">
+          <div class="b-card">
+            <div class="h">Redesign pass <span>2 of 4</span></div>
+            <div class="prog"><i></i></div>
+            <div class="ci done"><span class="o"><svg class="i xs" style="stroke-width:3"><use href="#i-check"/></svg></span><span>Audit current screens</span></div>
+            <div class="ci done"><span class="o"><svg class="i xs" style="stroke-width:3"><use href="#i-check"/></svg></span><span>Pick a type pairing</span></div>
+            <div class="ci"><span class="o"></span><span>Mockups for home and chat</span></div>
+            <div class="meta">09:14</div>
+          </div>
+          <div class="b-date">Yesterday</div>
+          <div class="msg me cont">
+            <div class="vc"><span class="pl"><svg class="i sm fill"><use href="#i-play"/></svg></span><span class="wave" data-n="26" data-p=".35" data-seed="3"></span><span class="d">0:42</span></div>
+            <div class="tr">Maybe pinned chats become cards at the top, with their checklist progress…</div>
+            <div class="meta">18:40</div>
+          </div>
+          <div class="b-img"><div data-sketch></div><span class="meta">18:52</span></div>
+          <div class="msg them" style="margin-bottom:14px">
+            <div class="from"><svg class="i xs"><use href="#i-laptop"/></svg>Desk-PC</div>
+            <div class="q"><b>Voice · 0:42</b>Maybe pinned chats become cards…</div>
+            Yes, and show the next reminder on the card too.
+            <div class="meta"><svg class="i xs fill" style="color:#D97706"><use href="#i-star"/></svg>21:05</div>
+            <span class="react">👍 💡</span>
+          </div>
+          <div class="b-date">Today</div>
+          <div class="msg me">Ask Sam about the sync edge-cases doc<div class="meta"><svg class="i xs"><use href="#i-bell"/></svg>16:00 · 08:30</div></div>
+        </div>
+        <div class="b-comp"><div class="bx">
+          <span class="iconbtn" aria-label="Attach"><svg class="i"><use href="#i-plus"/></svg></span>
+          <span class="ph">Note to self…</span>
+          <span class="iconbtn" aria-label="Formatting" style="font-weight:600;font-size:15px">Aa</span>
+          <span class="mic" aria-label="Record voice"><svg class="i"><use href="#i-mic"/></svg></span>
+        </div></div>
+        <div class="gesture" style="background:transparent"></div>
+      </div></div>
+      <ul>
+        <li><b>The chat's colour</b> carries through the header, bubbles and mic button.</li>
+        <li><b>Checklists are cards</b> with a progress bar, not text crammed into a bubble.</li>
+        <li><b>Synced notes sit on the left</b> under the device's name, like a second person in the chat.</li>
+      </ul>
+    </figure>
+
+    <!-- B3 Actions -->
+    <figure class="shot">
+      <h3>B3 · Long-press a message</h3>
+      <div class="phone"><div class="screen" style="--c:#B45309">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="b-bar"><button class="iconbtn"><svg class="i"><use href="#i-back"/></svg></button><span class="av"><svg class="i sm"><use href="#i-bulb"/></svg></span><div class="tt"><div class="nm">Ideas</div><div class="st"><i></i>Synced · Desk-PC</div></div></div>
+        <div class="b-thread" style="justify-content:flex-start;padding-top:8px">
+          <div class="b-img" style="width:60%"><div data-sketch></div></div>
+          <div class="msg me">Ask Sam about the sync edge-cases doc<div class="meta">08:30</div></div>
+        </div>
+        <div class="blur"></div>
+        <div class="b-ctx">
+          <div class="b-emo"><span class="on">👍</span><span>💡</span><span>❤️</span><span>✅</span><span>😂</span><span class="more"><svg class="i sm"><use href="#i-plus"/></svg></span></div>
+          <div class="msg me" style="max-width:86%">
+            <div class="vc"><span class="pl"><svg class="i sm fill"><use href="#i-play"/></svg></span><span class="wave" data-n="26" data-p=".35" data-seed="3"></span><span class="d">0:42</span></div>
+            <div class="tr">Maybe pinned chats become cards at the top, with their checklist progress…</div>
+            <div class="meta">18:40</div>
+          </div>
+          <div class="b-menu">
+            <div class="m"><svg class="i"><use href="#i-reply"/></svg>Reply</div>
+            <div class="m"><svg class="i"><use href="#i-copy"/></svg>Copy transcript</div>
+            <div class="m"><svg class="i"><use href="#i-star"/></svg>Star</div>
+            <div class="m"><svg class="i"><use href="#i-alarm"/></svg>Remind me</div>
+            <div class="m"><svg class="i"><use href="#i-share"/></svg>Share</div>
+            <div class="grp"></div>
+            <div class="m"><svg class="i"><use href="#i-select"/></svg>Select</div>
+            <div class="m danger"><svg class="i"><use href="#i-trash"/></svg>Delete</div>
+          </div>
+        </div>
+        <div class="gesture" style="background:transparent"></div>
+      </div></div>
+      <ul>
+        <li><b>A menu that opens in place:</b> the message lifts out of the blurred chat, with reactions above and actions below.</li>
+        <li><b>Actions fit the message type:</b> a voice note offers "Copy transcript", a photo offers "Save".</li>
+        <li>Faster than a bottom sheet for quick reactions; the trade-off is less room for labels.</li>
+      </ul>
+    </figure>
+
+    <!-- B4 Settings -->
+    <figure class="shot">
+      <h3>B4 · Settings</h3>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span class="ic"><i style="width:14px;height:9px"></i><i style="width:20px;height:10px;border-radius:3px"></i></span></div>
+        <div class="b-title">Settings</div>
+        <div class="b-scroll">
+          <div class="b-sync">
+            <div class="k"><svg class="i xs"><use href="#i-wifi"/></svg>Local network sync</div>
+            <div class="big">1 of 2 devices online</div>
+            <div class="devs">
+              <span class="dv"><i></i>Desk-PC</span>
+              <span class="dv off"><i></i>ThinkPad · 3d ago</span>
+              <span class="dv add"><svg class="i xs" style="stroke-width:2.5"><use href="#i-plus"/></svg>Pair</span>
+            </div>
+          </div>
+          <div class="b-gl">Privacy</div>
+          <div class="b-grp" style="margin-top:6px">
+            <div class="b-sr"><span class="tile" style="--c:#0F766E"><svg class="i"><use href="#i-shield"/></svg></span><div class="tx"><div class="t1">Protected chats</div><div class="t2">PIN · fingerprint</div></div><svg class="i sm"><use href="#i-right"/></svg></div>
+            <div class="b-sr"><span class="tile" style="--c:#334155"><svg class="i"><use href="#i-lock"/></svg></span><div class="tx"><div class="t1">Lock on open</div></div><span class="sw on"></span></div>
+          </div>
+          <div class="b-gl">Look</div>
+          <div class="b-grp" style="margin-top:6px">
+            <div class="b-sr"><span class="tile" style="--c:#7C3AED"><svg class="i"><use href="#i-contrast"/></svg></span><div class="tx"><div class="t1">Theme</div></div><span class="v">Auto</span><svg class="i sm"><use href="#i-right"/></svg></div>
+            <div class="b-sr"><span class="tile" style="--c:#BE123C"><svg class="i"><use href="#i-sliders"/></svg></span><div class="tx"><div class="t1">Accent</div></div><span class="sws"><span class="on" style="--s:#4F46E5"></span><span style="--s:#047857"></span><span style="--s:#B45309"></span><span style="--s:#BE123C"></span></span></div>
+          </div>
+          <div class="b-gl">Data</div>
+          <div class="b-grp" style="margin-top:6px">
+            <div class="b-sr"><span class="tile" style="--c:#0369A1"><svg class="i"><use href="#i-db"/></svg></span><div class="tx"><div class="t1">Backups</div><div class="t2">Daily · last at 22:00</div></div><svg class="i sm"><use href="#i-right"/></svg></div>
+          </div>
+        </div>
+        <nav class="b-nav">
+          <a><span class="pill"><svg class="i"><use href="#i-chat"/></svg></span>Chats</a>
+          <a><span class="pill"><svg class="i"><use href="#i-star"/></svg></span>Starred</a>
+          <a><span class="pill"><svg class="i"><use href="#i-bell"/></svg></span><span class="badge">2</span>Reminders</a>
+          <a class="on"><span class="pill"><svg class="i"><use href="#i-gear"/></svg></span>Settings</a>
+        </nav>
+        <div class="gesture"></div>
+      </div></div>
+      <ul>
+        <li><b>Sync is the hero card:</b> who's online, who was last seen and when, and pairing one tap away.</li>
+        <li><b>Grouped cards with colour tiles</b> make sections quick to scan.</li>
+        <li>Settings is a tab, so it's one tap from anywhere.</li>
+      </ul>
+    </figure>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Sketch image
+  var tpl=document.getElementById('sketch');
+  document.querySelectorAll('[data-sketch]').forEach(function(el){el.appendChild(tpl.content.cloneNode(true));});
+  // Waveforms
+  document.querySelectorAll('.wave').forEach(function(w){
+    var n=+w.dataset.n||30,p=+w.dataset.p||0,s=+w.dataset.seed||1;
+    for(var k=0;k<n;k++){s=(s*9301+49297)%233280;var h=6+Math.round((s/233280)*20*(0.55+0.45*Math.sin(k/3)));var b=document.createElement('i');b.style.height=Math.max(4,Math.abs(h))+'px';if(k/n<p)b.className='p';w.appendChild(b);}
+  });
+  var root=document.documentElement, body=document.body;
+  try{if(window.self!==window.top)root.classList.add('embedded')}catch(e){root.classList.add('embedded')}
+  function store(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function read(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function setDir(d){body.dataset.show=d;document.querySelectorAll('[data-dir]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.dir===d)});store('ncy-mock-dir',d)}
+  function setTheme(t){root.dataset.theme=t;body.classList.toggle('theme-dark',t==='dark');document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.themeBtn===t)});store('ncy-mock-theme',t)}
+  document.querySelectorAll('[data-dir]').forEach(function(b){b.onclick=function(){setDir(b.dataset.dir)}});
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.onclick=function(){setTheme(b.dataset.themeBtn)}});
+  setDir(read('ncy-mock-dir')||'a');
+  setTheme(read('ncy-mock-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+})();
+</script>
+</body>
+</html>

@@ -41,7 +41,7 @@ class SettingsRepository @Inject constructor(
                     ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                     ?: ThemeMode.SYSTEM,
                 accentColor = AccentColor.fromStored(prefs.getString("accentColor", null))
-                    ?: AccentColor.PURPLE,
+                    ?: AccentColor.TERRACOTTA,
                 chatSortMode = prefs.getString("chatSortMode", null)
                     ?.let { runCatching { ChatSortMode.valueOf(it) }.getOrNull() }
                     ?: ChatSortMode.LAST_MESSAGE,

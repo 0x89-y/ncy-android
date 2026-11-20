@@ -33,10 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
-import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
-import com.ncy.notechaty.ui.desktoptheme.NcyFlushSectionLabel
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.NcyFlushList
+import com.ncy.notechaty.ui.theme.NcyRowDivider
+import com.ncy.notechaty.ui.theme.NcyFlushSectionLabel
+import com.ncy.notechaty.ui.theme.ncyPaper
 
 private data class LicenseEntry(
     val name: String,
@@ -129,7 +129,7 @@ fun LicensesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .ncyDottedGrid(),
+                .ncyPaper(),
             contentPadding = PaddingValues(vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {

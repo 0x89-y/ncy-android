@@ -39,16 +39,16 @@ import coil.compose.AsyncImage
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoDelete
 import androidx.compose.material.icons.filled.Check
-import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
-import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
-import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
-import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsPanel
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsRow
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
-import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.NcyAlertDialog
+import com.ncy.notechaty.ui.theme.NcyAvatarShape
+import com.ncy.notechaty.ui.theme.NcyButtonShape
+import com.ncy.notechaty.ui.theme.NcyRowDivider
+import com.ncy.notechaty.ui.theme.NcySettingsPanel
+import com.ncy.notechaty.ui.theme.NcySettingsRow
+import com.ncy.notechaty.ui.theme.NcySettingsSection
+import com.ncy.notechaty.ui.theme.NcySettingsToggleRow
+import com.ncy.notechaty.ui.theme.ncyAvatarColor
+import com.ncy.notechaty.ui.theme.ncyPaper
 import java.io.File
 
 /** Retention windows offered per chat. 0 is the "keep everything" case. */
@@ -187,7 +187,7 @@ fun ChatConfigScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .ncyDottedGrid()
+                .ncyPaper()
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

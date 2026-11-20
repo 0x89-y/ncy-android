@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
@@ -53,25 +52,25 @@ import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.ChatSortMode
 import com.ncy.notechaty.data.model.ThemeMode
 import com.ncy.notechaty.data.sync.AuthenticatedDeviceName
-import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
-import com.ncy.notechaty.ui.desktoptheme.NcyChoiceChip
-import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
-import com.ncy.notechaty.ui.desktoptheme.accentSwatch
+import com.ncy.notechaty.ui.theme.NcyAlertDialog
+import com.ncy.notechaty.ui.theme.NcyChoiceChip
+import com.ncy.notechaty.ui.theme.NcyFlushList
+import com.ncy.notechaty.ui.theme.accentSwatch
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
-import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
-import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsPanel
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsRow
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
-import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.NcyAvatarShape
+import com.ncy.notechaty.ui.theme.NcyButtonShape
+import com.ncy.notechaty.ui.theme.NcyRowDivider
+import com.ncy.notechaty.ui.theme.NcySettingsPanel
+import com.ncy.notechaty.ui.theme.NcySettingsRow
+import com.ncy.notechaty.ui.theme.NcySettingsSection
+import com.ncy.notechaty.ui.theme.NcySettingsToggleRow
+import com.ncy.notechaty.ui.theme.NcySheetActionRow
+import com.ncy.notechaty.ui.theme.ncyPaper
 import com.ncy.notechaty.util.FileUtils
 import androidx.work.WorkInfo
 import kotlinx.coroutines.Dispatchers
@@ -192,7 +191,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .ncyDottedGrid()
+                .ncyPaper()
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -550,13 +549,6 @@ fun SettingsScreen(
                                             Icons.Default.Check,
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp),
-                                            tint = if (swatch.luminance() > 0.4f) Color.Black else Color.White,
-                                        )
-                                    } else if (color == AccentColor.WALLPAPER) {
-                                        Icon(
-                                            Icons.Default.Wallpaper,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
                                             tint = if (swatch.luminance() > 0.4f) Color.Black else Color.White,
                                         )
                                     }

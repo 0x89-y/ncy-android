@@ -40,14 +40,14 @@ import com.journeyapps.barcodescanner.ScanOptions
 import com.ncy.notechaty.data.sync.SyncManager
 import com.ncy.notechaty.data.sync.DeviceNameDisambiguation
 import com.ncy.notechaty.data.sync.SyncFailurePolicy
-import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsToggleRow
-import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
-import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsSection
-import com.ncy.notechaty.ui.desktoptheme.NcySettingsRow
-import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.NcyButtonShape
+import com.ncy.notechaty.ui.theme.NcySettingsToggleRow
+import com.ncy.notechaty.ui.theme.NcyAlertDialog
+import com.ncy.notechaty.ui.theme.NcyFlushList
+import com.ncy.notechaty.ui.theme.NcySettingsSection
+import com.ncy.notechaty.ui.theme.NcySettingsRow
+import com.ncy.notechaty.ui.theme.NcyRowDivider
+import com.ncy.notechaty.ui.theme.ncyPaper
 import com.ncy.notechaty.data.sync.discovery.DiscoveredPeer
 import com.ncy.notechaty.data.sync.peer.SyncPeer
 import com.ncy.notechaty.data.sync.peer.PairingPayload
@@ -266,7 +266,7 @@ fun SyncScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .ncyDottedGrid()
+                .ncyPaper()
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

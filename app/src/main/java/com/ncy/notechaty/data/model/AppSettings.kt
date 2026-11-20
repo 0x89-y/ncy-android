@@ -5,28 +5,25 @@ import com.ncy.notechaty.R
 
 enum class ThemeMode { LIGHT, DARK, SYSTEM }
 
+/**
+ * The accent: one ink on the paper. Muted pigments only, tuned so each carries
+ * white text on the light theme and dark text on the dark one.
+ */
 enum class AccentColor(@StringRes val label: Int) {
-    PURPLE(R.string.accent_violet),
-    BLUE(R.string.color_blue),
-    GREEN(R.string.color_green),
-    RED(R.string.color_red),
-    ORANGE(R.string.color_orange),
-    PINK(R.string.color_pink),
-    TEAL(R.string.color_teal),
-    /** Material You: the accent follows the wallpaper; neutrals stay Ncy's own. */
-    WALLPAPER(R.string.accent_wallpaper);
+    TERRACOTTA(R.string.accent_terracotta),
+    INK_BLUE(R.string.accent_ink_blue),
+    MOSS(R.string.accent_moss),
+    PLUM(R.string.accent_plum),
+    GRAPHITE(R.string.accent_graphite);
 
     companion object {
         /**
-         * Read a stored value. "DYNAMIC" was an option that always rendered violet;
-         * every install that ever saved settings stored it, chosen or not, so it reads
-         * as violet rather than as the wallpaper option that replaced it.
+         * Read a stored value. The bright presets from before the Notebook redesign
+         * (violet, blue, pink, wallpaper…) clash with the paper, so any of them,
+         * or anything unknown, falls back to terracotta.
          */
-        fun fromStored(name: String?): AccentColor? = when (name) {
-            null -> null
-            "DYNAMIC" -> PURPLE
-            else -> runCatching { valueOf(name) }.getOrNull()
-        }
+        fun fromStored(name: String?): AccentColor? =
+            name?.let { stored -> entries.firstOrNull { it.name == stored } ?: TERRACOTTA }
     }
 }
 
@@ -40,7 +37,7 @@ data class AppSettings(
     /** Installation-owned friendly name announced only after explicit pairing/authentication. */
     val deviceName: String = "Android phone",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val accentColor: AccentColor = AccentColor.PURPLE,
+    val accentColor: AccentColor = AccentColor.TERRACOTTA,
     val chatSortMode: ChatSortMode = ChatSortMode.LAST_MESSAGE,
     val autoBackupEnabled: Boolean = false,
     val autoBackupFolder: String? = null,

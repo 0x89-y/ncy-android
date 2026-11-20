@@ -19,6 +19,13 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
+/** One line of sync status for the home header. Null when nothing is paired. */
+data class HomeSyncStatus(
+    val connectedNames: List<String>,
+    val pairedNames: List<String>,
+    val lastSyncAt: Long?,
+)
+
 sealed class SwitchResult {
     object Switched : SwitchResult()
     data class RequiresAuth(val profile: Profile) : SwitchResult()
@@ -33,8 +40,18 @@ class ChatListViewModel @Inject constructor(
     private val profileLockState: ProfileLockState,
     private val visibleChats: VisibleChats,
     val pinManager: PinManager,
-    val chatLockState: ChatLockState
+    val chatLockState: ChatLockState,
+    peerStore: com.ncy.notechaty.data.sync.peer.SyncPeerStore,
+    syncManager: com.ncy.notechaty.data.sync.SyncManager,
 ) : ViewModel() {
+
+    val syncStatus: StateFlow<HomeSyncStatus?> = combine(peerStore.peers, syncManager.states) { peers, states ->
+        if (peers.isEmpty()) null else HomeSyncStatus(
+            connectedNames = peers.filter { states[it.id] is com.ncy.notechaty.data.sync.SyncManager.PeerState.Connected }.map { it.name },
+            pairedNames = peers.map { it.name },
+            lastSyncAt = peers.mapNotNull { it.lastSyncAt }.maxOrNull(),
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val baseDir: StateFlow<File> = profileRepository.activeProfileId
         .map { repository.getBaseDir() }

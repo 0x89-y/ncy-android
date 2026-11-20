@@ -38,9 +38,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
-import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
-import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.NcyAvatarShape
+import com.ncy.notechaty.ui.theme.NcyButtonShape
+import com.ncy.notechaty.ui.theme.ncyPaper
 
 @Composable
 fun PinPromptContent(
@@ -78,7 +78,7 @@ fun PinPromptContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .ncyDottedGrid()
+            .ncyPaper()
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

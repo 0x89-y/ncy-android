@@ -28,6 +28,7 @@ class StarredMessagesViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val profileRepository: ProfileRepository,
     private val visibleChats: VisibleChats,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
 
     val settings = settingsRepository.settings
@@ -61,6 +62,20 @@ class StarredMessagesViewModel @Inject constructor(
                         .filter { it.reminderAt != null && it.reminderAt >= System.currentTimeMillis() }
                         .map { StarredMessage(it, chat.name, chat.id) }
                 }.sortedBy { it.message.reminderAt }
+            }
+        }
+    }
+
+    /** Clears the reminder here and, through sync, on every device. */
+    fun clearReminder(item: StarredMessage) {
+        profileRepository.findProfileForChat(item.chatId)
+            ?.takeIf { profileRepository.showAllProfiles.value && it != profileRepository.activeProfileId.value }
+            ?.let(profileRepository::setActive)
+        _reminderMessages.value = _reminderMessages.value.filter { it.message.id != item.message.id }
+        viewModelScope.launch {
+            repository.updateMessage(item.message.copy(reminderAt = null))
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.ncy.notechaty.notifications.ReminderAlarms.reconcile(appContext)
             }
         }
     }

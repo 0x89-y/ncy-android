@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.ncy.notechaty.R
-import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
-import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
+import com.ncy.notechaty.ui.theme.NcyAlertDialog
+import com.ncy.notechaty.ui.theme.NcySheetActionRow
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale

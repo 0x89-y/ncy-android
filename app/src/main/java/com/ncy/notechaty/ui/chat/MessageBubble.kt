@@ -73,8 +73,8 @@ import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.media.MediaTransferState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
-import com.ncy.notechaty.ui.desktoptheme.withReadableWhiteText
+import com.ncy.notechaty.ui.theme.NcySheetActionRow
+import com.ncy.notechaty.ui.theme.withReadableWhiteText
 import com.ncy.notechaty.ui.imageviewer.ImageViewerDialog
 import com.ncy.notechaty.ui.voicemessage.VoiceMessageBubble
 import java.io.File

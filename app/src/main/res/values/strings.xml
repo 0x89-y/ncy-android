@@ -404,8 +404,11 @@
         <item quantity="one">Forgot %d deletion record</item>
         <item quantity="other">Forgot %d deletion records</item>
     </plurals>
-    <string name="accent_violet">Violet</string>
-    <string name="accent_wallpaper">Wallpaper</string>
+    <string name="accent_terracotta">Terracotta</string>
+    <string name="accent_ink_blue">Ink blue</string>
+    <string name="accent_moss">Moss</string>
+    <string name="accent_plum">Plum</string>
+    <string name="accent_graphite">Graphite</string>
     <string name="sort_last_message">Last message</string>
     <string name="sort_name">Name</string>
     <string name="sort_date_created">Date created</string>
@@ -471,4 +474,28 @@
     <string name="backing_up">Backing up…</string>
     <string name="backup_saved">Last backup saved</string>
     <string name="backup_failed">Backup failed. Check the folder.</string>
+
+    <!-- Notebook redesign: home -->
+    <string name="home_starred">Starred</string>
+    <string name="home_archived">Archived</string>
+    <string name="home_synced_with">Synced with %1$s · %2$s</string>
+    <string name="home_peer_away">%1$s is away · synced %2$s</string>
+    <string name="home_paired_not_synced">Paired · not synced yet</string>
+    <string name="home_peers_and_more">%1$s and %2$d more</string>
+    <string name="home_up_next">Up next</string>
+    <string name="home_in_chat">in %1$s</string>
+    <string name="home_tomorrow">Tomorrow</string>
+    <string name="home_later">Later</string>
+    <string name="home_mark_done">Mark done</string>
+    <string name="home_exact_alarms_title">Reminders may ring up to an hour late</string>
+    <string name="home_exact_alarms_body">Exact alarms are off for Ncy.</string>
+    <string name="home_allow_exact_alarms">Allow exact alarms</string>
+    <string name="home_search_notes">Search chats and notes</string>
+    <string name="home_clear_search">Clear search</string>
+    <string name="home_notes">Notes</string>
+    <string name="home_filter_voice">Voice</string>
+    <string name="home_filter_lists">Lists</string>
+    <string name="home_filter_files">Files</string>
+    <string name="home_photo">Photo</string>
+    <string name="home_note_count">%1$d notes</string>
 </resources>

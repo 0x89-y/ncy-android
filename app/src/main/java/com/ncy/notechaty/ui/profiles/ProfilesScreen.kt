@@ -8,7 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
+import com.ncy.notechaty.ui.theme.NcyAvatarShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -35,14 +35,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ncy.notechaty.data.model.Profile
-import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
-import com.ncy.notechaty.ui.desktoptheme.NcyButtonShape
-import com.ncy.notechaty.ui.desktoptheme.NcyFlushList
-import com.ncy.notechaty.ui.desktoptheme.NcyInputSheet
-import com.ncy.notechaty.ui.desktoptheme.NcyRowDivider
-import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
-import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.NcyAlertDialog
+import com.ncy.notechaty.ui.theme.NcyButtonShape
+import com.ncy.notechaty.ui.theme.NcyFlushList
+import com.ncy.notechaty.ui.theme.NcyInputSheet
+import com.ncy.notechaty.ui.theme.NcyRowDivider
+import com.ncy.notechaty.ui.theme.NcySheetActionRow
+import com.ncy.notechaty.ui.theme.ncyAvatarColor
+import com.ncy.notechaty.ui.theme.ncyPaper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +100,7 @@ fun ProfilesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .ncyDottedGrid()
+                .ncyPaper()
                 .verticalScroll(rememberScrollState()),
         ) {
             NcyFlushList {

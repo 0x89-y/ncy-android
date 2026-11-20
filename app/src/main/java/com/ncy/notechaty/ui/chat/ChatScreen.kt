@@ -50,11 +50,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.MessageType
 import com.ncy.notechaty.data.sync.transport.SyncLimits
-import com.ncy.notechaty.ui.desktoptheme.NcyAlertDialog
-import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
-import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
-import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.NcyAlertDialog
+import com.ncy.notechaty.ui.theme.NcyAvatarShape
+import com.ncy.notechaty.ui.theme.NcySheetActionRow
+import com.ncy.notechaty.ui.theme.ncyAvatarColor
+import com.ncy.notechaty.ui.theme.ncyPaper
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import com.ncy.notechaty.ui.richtext.RichTextInput
@@ -475,7 +475,7 @@ fun ChatScreen(
                 .imePadding()
                 // Desktop dotted-grid ground (shared modifier). A per-chat
                 // background image, when set, draws on top of it.
-                .ncyDottedGrid()
+                .ncyPaper()
         ) {
             val bgFile = uiState.chat?.backgroundFile?.let { File(chatDir, it) }
             if (bgFile != null && bgFile.exists()) {

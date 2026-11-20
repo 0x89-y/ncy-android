@@ -32,7 +32,7 @@ import com.ncy.notechaty.security.AppLockCoordinator
 import com.ncy.notechaty.security.ChatLockState
 import com.ncy.notechaty.security.PinManager
 import com.ncy.notechaty.security.PinPromptContent
-import com.ncy.notechaty.ui.desktoptheme.NcyDesktopTheme
+import com.ncy.notechaty.ui.theme.NcyTheme
 import com.ncy.notechaty.ui.navigation.NcyNavGraph
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -110,13 +110,13 @@ class MainActivity : FragmentActivity() {
         if (savedInstanceState == null) pendingChat.value = takeReminderChat(intent)
         setContent {
             val settings by settingsRepository.settings.collectAsState()
-            NcyDesktopTheme(
+            NcyTheme(
                 themeMode = settings.themeMode,
                 accentColor = settings.accentColor
             ) {
                 val surfaceColor = MaterialTheme.colorScheme.surface
-                val statusBarColor = MaterialTheme.colorScheme.primaryContainer
-                val navBarColor = MaterialTheme.colorScheme.surface
+                val statusBarColor = MaterialTheme.colorScheme.background
+                val navBarColor = MaterialTheme.colorScheme.background
                 val isLight = statusBarColor.luminance() > 0.5f
                 LaunchedEffect(statusBarColor, navBarColor, isLight) {
                     // `window.statusBarColor` / `navigationBarColor` are Java-side

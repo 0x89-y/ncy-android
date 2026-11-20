@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ncy.notechaty.ui.desktoptheme.ncyDottedGrid
+import com.ncy.notechaty.ui.theme.ncyPaper
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -85,7 +85,7 @@ fun SearchScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .ncyDottedGrid(),
+                        .ncyPaper(),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
@@ -96,7 +96,7 @@ fun SearchScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .ncyDottedGrid(),
+                        .ncyPaper(),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -120,7 +120,7 @@ fun SearchScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .ncyDottedGrid(),
+                        .ncyPaper(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -135,7 +135,7 @@ fun SearchScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .ncyDottedGrid()
+                        .ncyPaper()
                 ) {
                     items(results, key = { it.message.id }) { result ->
                         SearchResultItem(

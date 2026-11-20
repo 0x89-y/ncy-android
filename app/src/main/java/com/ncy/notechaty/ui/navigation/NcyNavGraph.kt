@@ -49,6 +49,9 @@ fun NcyNavGraph(navController: NavHostController) {
                 },
                 onManageProfilesClick = {
                     navController.navigate(Routes.PROFILES)
+                },
+                onSyncClick = {
+                    navController.navigate(Routes.SYNC)
                 }
             )
         }

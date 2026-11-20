@@ -52,9 +52,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ncy.notechaty.R
 import com.ncy.notechaty.data.model.Profile
-import com.ncy.notechaty.ui.desktoptheme.NcyAvatarShape
-import com.ncy.notechaty.ui.desktoptheme.NcySheetActionRow
-import com.ncy.notechaty.ui.desktoptheme.ncyAvatarColor
+import com.ncy.notechaty.ui.theme.NcyAvatarShape
+import com.ncy.notechaty.ui.theme.NcySheetActionRow
+import com.ncy.notechaty.ui.theme.ncyAvatarColor
 import com.ncy.notechaty.ui.profiles.ProfileIcons
 
 /**

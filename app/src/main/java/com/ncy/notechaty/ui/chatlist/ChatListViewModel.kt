@@ -43,7 +43,11 @@ class ChatListViewModel @Inject constructor(
     val chatLockState: ChatLockState,
     peerStore: com.ncy.notechaty.data.sync.peer.SyncPeerStore,
     syncManager: com.ncy.notechaty.data.sync.SyncManager,
+    transferState: com.ncy.notechaty.data.sync.media.MediaTransferState,
 ) : ViewModel() {
+
+    /** Bumped when downloaded media lands, so chat pictures that arrive by sync show up. */
+    val mediaVersion: StateFlow<Int> = transferState.version
 
     val syncStatus: StateFlow<HomeSyncStatus?> = combine(peerStore.peers, syncManager.states) { peers, states ->
         if (peers.isEmpty()) null else HomeSyncStatus(

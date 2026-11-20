@@ -106,6 +106,7 @@ fun ChatListScreen(
     val showAllProfiles by viewModel.showAllProfiles.collectAsState()
     val chatProfiles by viewModel.chatProfiles.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
+    val mediaVersion by viewModel.mediaVersion.collectAsState()
     var showProfileSheet by remember { mutableStateOf(false) }
     val searchQuery by searchViewModel.query.collectAsState()
     val searchResults by searchViewModel.results.collectAsState()
@@ -243,6 +244,7 @@ fun ChatListScreen(
                 HomeChatRow(
                     chat = chat,
                     baseDir = chatBaseDir(chat),
+                    mediaVersion = mediaVersion,
                     isUnlocked = chat.id in unlockedChatIds,
                     onClick = { openChat(chat) },
                     onLongClick = { longPressedChat = chat },
@@ -303,6 +305,7 @@ fun ChatListScreen(
                 HomeChatRow(
                     chat = chat,
                     baseDir = chatBaseDir(chat),
+                    mediaVersion = mediaVersion,
                     profileTag = profileTag(chat),
                     isUnlocked = chat.id in unlockedChatIds,
                     onClick = { openChat(chat) },
@@ -334,6 +337,7 @@ fun ChatListScreen(
                         HomeChatRow(
                             chat = chat,
                             baseDir = chatBaseDir(chat),
+                            mediaVersion = mediaVersion,
                             profileTag = profileTag(chat),
                             isUnlocked = chat.id in unlockedChatIds,
                             onClick = { openChat(chat) },
@@ -348,6 +352,7 @@ fun ChatListScreen(
                         HomeChatRow(
                             chat = chat,
                             baseDir = chatBaseDir(chat),
+                            mediaVersion = mediaVersion,
                             profileTag = profileTag(chat),
                             isUnlocked = chat.id in unlockedChatIds,
                             onClick = { openChat(chat) },
@@ -431,7 +436,7 @@ fun ChatListScreen(
                     modifier = Modifier.padding(horizontal = 22.dp).padding(bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    HomeChatTile(chat, chatBaseDir(chat), locked = chat.isProtected && chat.id !in unlockedChatIds, size = 36.dp)
+                    HomeChatTile(chat, chatBaseDir(chat), locked = chat.isProtected && chat.id !in unlockedChatIds, size = 36.dp, mediaVersion = mediaVersion)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(chat.name, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }

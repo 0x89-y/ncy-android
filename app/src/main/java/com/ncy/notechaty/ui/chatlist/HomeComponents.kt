@@ -79,6 +79,7 @@ import com.ncy.notechaty.data.model.Chat
 import com.ncy.notechaty.data.model.Message
 import com.ncy.notechaty.data.model.MessageType
 import com.ncy.notechaty.data.model.Profile
+import com.ncy.notechaty.data.sync.media.ChatImages
 import com.ncy.notechaty.ui.theme.NcyAvatarShape
 import com.ncy.notechaty.ui.theme.NcyGutter
 import com.ncy.notechaty.ui.theme.NcyInitialTile
@@ -267,11 +268,20 @@ internal fun HomeSearchBar(query: String, onQuery: (String) -> Unit, onClose: ()
 
 /** A chat's tile: its picture, a lock, or its initial on its colour. */
 @Composable
-internal fun HomeChatTile(chat: Chat, baseDir: File?, locked: Boolean, size: androidx.compose.ui.unit.Dp = 44.dp) {
-    val avatarFile = baseDir?.let { dir -> chat.avatarFile?.let { File(File(dir, "chat_${chat.id}"), it) } }
+internal fun HomeChatTile(
+    chat: Chat,
+    baseDir: File?,
+    locked: Boolean,
+    size: androidx.compose.ui.unit.Dp = 44.dp,
+    /** Bumped when downloaded media lands, so a synced picture appears without a restart. */
+    mediaVersion: Int = 0,
+) {
+    val avatarFile = remember(baseDir, chat.id, chat.avatarFile, mediaVersion) {
+        baseDir?.let { ChatImages.resolve(File(it, "chat_${chat.id}"), chat.avatarFile) }
+    }
     when {
         locked -> NcyInkTile(size = size) { Icon(Icons.Outlined.Lock, null, Modifier.size(size * 0.42f)) }
-        avatarFile != null && avatarFile.exists() -> AsyncImage(
+        avatarFile != null -> AsyncImage(
             model = avatarFile,
             contentDescription = null,
             modifier = Modifier.size(size).clip(NcyAvatarShape),
@@ -290,6 +300,7 @@ internal fun HomeChatRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     profileTag: String? = null,
+    mediaVersion: Int = 0,
 ) {
     val view = LocalView.current
     val locked = chat.isProtected && !isUnlocked
@@ -308,7 +319,7 @@ internal fun HomeChatRow(
             .heightIn(min = 68.dp)
             .padding(horizontal = NcyGutter, vertical = 10.dp),
     ) {
-        HomeChatTile(chat, baseDir, locked)
+        HomeChatTile(chat, baseDir, locked, mediaVersion = mediaVersion)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

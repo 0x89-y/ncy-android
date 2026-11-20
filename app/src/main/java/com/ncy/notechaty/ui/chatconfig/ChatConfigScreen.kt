@@ -208,8 +208,8 @@ fun ChatConfigScreen(
         ) {
             // The chat's tile, with a small ink badge to change its picture.
             Box(contentAlignment = Alignment.BottomEnd) {
-                val avatarFile = chat?.avatarFile?.let { File(chatDir, it) }
-                if (avatarFile != null && avatarFile.exists()) {
+                val avatarFile = com.ncy.notechaty.data.sync.media.ChatImages.resolve(chatDir, chat?.avatarFile)
+                if (avatarFile != null) {
                     AsyncImage(
                         model = avatarFile,
                         contentDescription = stringResource(R.string.chat_avatar),
@@ -327,8 +327,8 @@ fun ChatConfigScreen(
                     subtitle = if (chat?.backgroundFile != null) stringResource(R.string.tap_to_change) else stringResource(R.string.tap_to_set),
                     onClick = { bgPicker.launch("image/*") },
                     trailing = {
-                        val bg = chat?.backgroundFile?.let { File(chatDir, it) }
-                        if (bg != null && bg.exists()) {
+                        val bg = com.ncy.notechaty.data.sync.media.ChatImages.resolve(chatDir, chat?.backgroundFile)
+                        if (bg != null) {
                             AsyncImage(
                                 model = bg,
                                 contentDescription = null,

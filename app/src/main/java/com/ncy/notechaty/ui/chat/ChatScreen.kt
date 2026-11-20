@@ -465,8 +465,10 @@ fun ChatScreen(
                 // Plain paper; a per-chat background image, when set, draws on top.
                 .ncyPaper()
         ) {
-            val bgFile = uiState.chat?.backgroundFile?.let { File(chatDir, it) }
-            if (bgFile != null && bgFile.exists()) {
+            val bgFile = remember(chatDir, uiState.chat?.backgroundFile, mediaVersion) {
+                com.ncy.notechaty.data.sync.media.ChatImages.resolve(chatDir, uiState.chat?.backgroundFile)
+            }
+            if (bgFile != null) {
                 Image(
                     painter = rememberAsyncImagePainter(bgFile),
                     contentDescription = null,

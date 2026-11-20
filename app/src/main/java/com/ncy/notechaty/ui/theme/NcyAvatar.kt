@@ -118,7 +118,7 @@ fun NcyInitialTile(
     NcyTile(hue = hue, modifier = modifier, size = size) {
         Text(
             text = name.trim().take(1).uppercase().ifEmpty { "·" },
-            style = TextStyle(fontFamily = NcySerif, fontSize = (size.value * 0.5f).sp),
+            style = TextStyle(fontFamily = NcySans, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = (size.value * 0.44f).sp),
             color = LocalContentColor.current,
         )
     }

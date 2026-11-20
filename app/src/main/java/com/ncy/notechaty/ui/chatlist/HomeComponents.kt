@@ -343,7 +343,7 @@ internal fun HomeChatRow(
     }
 }
 
-/** A coloured dot and a name in italic serif: which chat (or profile) something is in. */
+/** A coloured dot and a name: which chat (or profile) something is in. */
 @Composable
 internal fun HueTag(name: String, hue: Color, modifier: Modifier = Modifier) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {

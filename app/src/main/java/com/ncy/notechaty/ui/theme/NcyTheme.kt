@@ -5,8 +5,7 @@ package com.ncy.notechaty.ui.theme
  *  Ncy "Notebook" design system
  * ============================================================================
  *  Neutral paper tinted toward one accent (ink blue by default), black ink. Names and titles
- *  are set in Newsreader, the interface and notes in Instrument Sans, and times
- *  and labels in JetBrains Mono. See docs/redesign/ for the mockups this follows.
+ *  and notes are set in Geist, and times and labels in Geist Mono. See docs/redesign/ for the mockups this follows.
  *
  *  Material's ColorScheme carries the roles it has; the roles it lacks (ink,
  *  hairlines, the soft accent, online green) live in [NcyColors], read through
@@ -42,23 +41,19 @@ import com.ncy.notechaty.data.model.AccentColor
 import com.ncy.notechaty.data.model.ThemeMode
 
 // ---------------------------------------------------------------------------
-//  Fonts (OFL, bundled under res/font)
+//  Fonts: Geist and Geist Mono (OFL, bundled under res/font)
 // ---------------------------------------------------------------------------
-val NcySerif = FontFamily(
-    Font(R.font.newsreader_medium, FontWeight.Normal),
-    Font(R.font.newsreader_medium, FontWeight.Medium),
-    Font(R.font.newsreader_medium, FontWeight.SemiBold),
-    Font(R.font.newsreader_italic, FontWeight.Normal, FontStyle.Italic),
-)
+/** Geist for everything that is read; titles and names are its semibold. */
 val NcySans = FontFamily(
-    Font(R.font.instrument_sans_regular, FontWeight.Normal),
-    Font(R.font.instrument_sans_medium, FontWeight.Medium),
-    Font(R.font.instrument_sans_semibold, FontWeight.SemiBold),
-    Font(R.font.instrument_sans_semibold, FontWeight.Bold),
+    Font(R.font.geist_regular, FontWeight.Normal),
+    Font(R.font.geist_medium, FontWeight.Medium),
+    Font(R.font.geist_semibold, FontWeight.SemiBold),
+    Font(R.font.geist_semibold, FontWeight.Bold),
 )
+/** Geist Mono for times, counts and section labels. */
 val NcyMono = FontFamily(
-    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
-    Font(R.font.jetbrains_mono_medium, FontWeight.Medium),
+    Font(R.font.geist_mono_regular, FontWeight.Normal),
+    Font(R.font.geist_mono_medium, FontWeight.Medium),
 )
 
 // ---------------------------------------------------------------------------
@@ -190,34 +185,35 @@ data class NcyType(
     val time: TextStyle,
     /** Body of a note in the chat. */
     val note: TextStyle,
-    /** Italic serif: voice transcripts, day headers, chat names in results. */
+    /** Muted secondary text: voice transcripts, day headers, chat names in results. */
     val quote: TextStyle,
 )
 
 private val NcyTypeDefault = NcyType(
-    pageTitle = TextStyle(fontFamily = NcySerif, fontWeight = FontWeight.Medium, fontSize = 38.sp, lineHeight = 42.sp, letterSpacing = (-0.02).em),
-    name = TextStyle(fontFamily = NcySerif, fontWeight = FontWeight.Medium, fontSize = 18.sp, lineHeight = 23.sp),
+    pageTitle = TextStyle(fontFamily = NcySans, fontWeight = FontWeight.SemiBold, fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.03).em),
+    name = TextStyle(fontFamily = NcySans, fontWeight = FontWeight.SemiBold, fontSize = 16.5.sp, lineHeight = 22.sp, letterSpacing = (-0.01).em),
     label = TextStyle(fontFamily = NcyMono, fontWeight = FontWeight.Normal, fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.08.em),
     time = TextStyle(fontFamily = NcyMono, fontWeight = FontWeight.Normal, fontSize = 11.sp, lineHeight = 14.sp),
     note = TextStyle(fontFamily = NcySans, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp),
-    quote = TextStyle(fontFamily = NcySerif, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 21.sp),
+    // Geist has no italic, and a faked one reads worse than the upright face.
+    quote = TextStyle(fontFamily = NcySans, fontWeight = FontWeight.Normal, fontSize = 14.5.sp, lineHeight = 21.sp),
 )
 
 private val LocalNcyType = staticCompositionLocalOf { NcyTypeDefault }
 
 private val NcyTypography = Typography().run {
-    fun TextStyle.serif() = copy(fontFamily = NcySerif, fontWeight = FontWeight.Medium)
+    fun TextStyle.display() = copy(fontFamily = NcySans, fontWeight = FontWeight.SemiBold)
     fun TextStyle.sans() = copy(fontFamily = NcySans)
     copy(
-        displayLarge = displayLarge.serif(),
-        displayMedium = displayMedium.serif(),
-        displaySmall = displaySmall.serif(),
-        headlineLarge = headlineLarge.serif().copy(letterSpacing = (-0.02).em),
-        headlineMedium = headlineMedium.serif().copy(letterSpacing = (-0.015).em),
-        headlineSmall = headlineSmall.serif().copy(letterSpacing = (-0.01).em),
-        // Top bar titles and dialog titles read as names, so they are serif.
-        titleLarge = titleLarge.serif().copy(fontSize = 22.sp, lineHeight = 28.sp),
-        titleMedium = titleMedium.serif().copy(fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = 0.sp),
+        displayLarge = displayLarge.display(),
+        displayMedium = displayMedium.display(),
+        displaySmall = displaySmall.display(),
+        headlineLarge = headlineLarge.display().copy(letterSpacing = (-0.02).em),
+        headlineMedium = headlineMedium.display().copy(letterSpacing = (-0.015).em),
+        headlineSmall = headlineSmall.display().copy(letterSpacing = (-0.01).em),
+        // Top bar titles and dialog titles read as names, in the semibold.
+        titleLarge = titleLarge.display().copy(fontSize = 20.sp, lineHeight = 26.sp, letterSpacing = (-0.01).em),
+        titleMedium = titleMedium.display().copy(fontSize = 17.sp, lineHeight = 23.sp, letterSpacing = (-0.01).em),
         titleSmall = titleSmall.sans().copy(fontWeight = FontWeight.SemiBold),
         bodyLarge = bodyLarge.sans().copy(fontSize = 15.5.sp, lineHeight = 23.sp, letterSpacing = 0.sp),
         bodyMedium = bodyMedium.sans().copy(fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.sp),

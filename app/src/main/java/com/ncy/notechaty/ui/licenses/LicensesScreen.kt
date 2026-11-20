@@ -97,22 +97,16 @@ private val licenses = listOf(
         url = "https://github.com/journeyapps/zxing-android-embedded"
     ),
     LicenseEntry(
-        name = "Newsreader",
-        author = "Production Type",
+        name = "Geist",
+        author = "Vercel",
         license = "OFL-1.1",
-        url = "https://fonts.google.com/specimen/Newsreader"
+        url = "https://fonts.google.com/specimen/Geist"
     ),
     LicenseEntry(
-        name = "Instrument Sans",
-        author = "Instrument",
+        name = "Geist Mono",
+        author = "Vercel",
         license = "OFL-1.1",
-        url = "https://fonts.google.com/specimen/Instrument+Sans"
-    ),
-    LicenseEntry(
-        name = "JetBrains Mono",
-        author = "JetBrains",
-        license = "OFL-1.1",
-        url = "https://fonts.google.com/specimen/JetBrains+Mono"
+        url = "https://fonts.google.com/specimen/Geist+Mono"
     ),
 )
 

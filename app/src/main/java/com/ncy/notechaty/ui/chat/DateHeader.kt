@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.*
 
-/** A day in the journal: the date in italic serif between two hairlines. */
+/** A day in the chat: the date between two hairlines. */
 @Composable
 fun DateHeader(timestamp: Long) {
     val line = com.ncy.notechaty.ui.theme.NcyTheme.colors.lineStrong

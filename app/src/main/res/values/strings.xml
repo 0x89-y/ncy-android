@@ -480,7 +480,7 @@
     <string name="home_starred">Starred</string>
     <string name="home_archived">Archived</string>
     <string name="home_synced_with">Synced with %1$s · %2$s</string>
-    <string name="home_peer_away">%1$s is away · synced %2$s</string>
+    <string name="home_peer_away">Not connected · last synced %1$s</string>
     <string name="home_paired_not_synced">Paired · not synced yet</string>
     <string name="home_peers_and_more">%1$s and %2$d more</string>
     <string name="home_up_next">Up next</string>

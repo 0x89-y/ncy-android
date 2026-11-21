@@ -8,6 +8,7 @@ import com.google.gson.Gson
 import com.ncy.notechaty.data.sync.ChatEventBus
 import com.ncy.notechaty.data.sync.DeviceIdentity
 import com.ncy.notechaty.data.sync.SafeId
+import com.ncy.notechaty.data.sync.media.ChatImageCompressor
 import com.ncy.notechaty.data.sync.media.MediaHash
 import com.ncy.notechaty.data.sync.media.MediaRefs
 import com.ncy.notechaty.data.sync.protection.ProtectedMedia
@@ -356,7 +357,7 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun setChatAvatar(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_$chatId")
-        val target = ingestChatImage(chatDir, sourceFile, "avatar")
+        val target = ingestChatImage(chatDir, sourceFile, "avatar", ChatImageCompressor.AVATAR_MAX_PX)
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
         val existing = serializer.readFromFile(chatFile)
@@ -369,7 +370,7 @@ class FileChatRepository @Inject constructor(
 
     override suspend fun setChatBackground(chatId: String, sourceFile: File): Unit = withContext(Dispatchers.IO) {
         val chatDir = File(profileDir, "chat_$chatId")
-        val target = ingestChatImage(chatDir, sourceFile, "background")
+        val target = ingestChatImage(chatDir, sourceFile, "background", ChatImageCompressor.BACKGROUND_MAX_PX)
         val chatFile = File(chatDir, "chat.json")
         if (!chatFile.exists()) return@withContext
         val existing = serializer.readFromFile(chatFile)
@@ -383,12 +384,16 @@ class FileChatRepository @Inject constructor(
     /**
      * Copy [sourceFile] into `<chatDir>/<subdir>/<sha256>.jpg`, dedup'd by hash. Used by
      * `setChatAvatar` and `setChatBackground` so both produce content-addressed files
-     * that paired desktops can fetch via the existing blob protocol.
+     * that paired desktops can fetch via the existing blob protocol. The image is
+     * scaled to fit [maxPx] first; one that can't be decoded is stored as it is.
      */
-    private fun ingestChatImage(chatDir: File, sourceFile: File, subdir: String): File {
+    private fun ingestChatImage(chatDir: File, sourceFile: File, subdir: String, maxPx: Int): File {
         val dir = File(chatDir, subdir).apply { mkdirs() }
         val temp = File(dir, "incoming_${UUID.randomUUID()}.jpg")
-        sourceFile.copyTo(temp, overwrite = true)
+        val compressed = runCatching { ChatImageCompressor.compress(sourceFile, temp, maxPx) }
+            .onFailure { Log.w("FileChatRepo", "chat image: compression failed, storing the original", it) }
+            .getOrDefault(false)
+        if (!compressed) sourceFile.copyTo(temp, overwrite = true)
         val hash = MediaHash.ofFile(temp)
         val target = File(dir, "$hash.jpg")
         if (target.exists()) {

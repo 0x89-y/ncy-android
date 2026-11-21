@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.2 — 2026-11-21
+
+### Changed
+
+- All, Starred, Reminders and Archived are now tabs: plain words with the current one
+  underlined in your accent colour.
+- The selected filter in search, and choices such as a chat's auto-delete window, stand
+  out more clearly.
+- **New chat** is a plain + button.
+- The profile switcher highlights the current profile in your accent colour instead of
+  ticking it.
+- With several devices paired, the sync line sums them up instead of naming just one.
+- Chat pictures and backgrounds are scaled down before they're saved and synced, so they
+  take a fraction of the space. Their location data is removed.
+
+### Fixed
+
+- Chat pictures and backgrounds set on another device now show up, without restarting
+  the app.
+
 ## 0.9.1 — 2026-11-20
 
 ### Changed

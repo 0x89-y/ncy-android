@@ -14,6 +14,19 @@ data class ChangelogEntry(
 
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.9.2",
+        date = "2026-11-21",
+        changes = listOf(
+            "All, Starred, Reminders and Archived are now tabs.",
+            "Selected filters and choices stand out more clearly.",
+            "New chat is a plain + button.",
+            "The current profile is highlighted instead of ticked.",
+            "With several devices paired, the sync line sums them up.",
+            "Chat pictures and backgrounds are scaled down before syncing.",
+            "Chat pictures set on another device now show up without a restart.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.9.1",
         date = "2026-11-20",
         changes = listOf(

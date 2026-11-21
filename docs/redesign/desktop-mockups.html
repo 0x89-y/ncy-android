@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ncy Desktop Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--page-bg:#EDEDED;--page-text:#1A1A1A;--page-muted:#5E5E5E;--page-line:#D4D4D4;--page-card:#F7F7F7}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page-bg:#111112;--page-text:#ECECEC;--page-muted:#A0A0A0;--page-line:#2C2C2E;--page-card:#1A1A1B}}
+:root[data-theme="dark"]{--page-bg:#111112;--page-text:#ECECEC;--page-muted:#A0A0A0;--page-line:#2C2C2E;--page-card:#1A1A1B}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page-bg);color:var(--page-text)}
+html.embedded,html.embedded body{background:transparent}
+body{font-family:'Geist',system-ui,sans-serif;font-size:15px;line-height:1.5;padding:28px 16px 64px}
+html.embedded body{padding:8px 0 24px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-weight:600;font-size:30px;letter-spacing:-.03em;line-height:1.1}
+.lede{color:var(--page-muted);max-width:760px;margin:6px 0 16px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+.controls button{font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 13px 0 9px;border-radius:999px;border:1px solid var(--page-line);background:var(--page-card);color:var(--page-text);font-size:13.5px}
+.controls button i{width:18px;height:18px;border-radius:50%;display:block}
+.controls button[aria-pressed="true"]{outline:2px solid var(--page-text);outline-offset:1px}
+.controls .sep{width:1px;background:var(--page-line);margin:0 6px}
+.shot{margin-bottom:34px}
+.shot h3{font-size:12px;font-family:'Geist Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--page-muted);font-weight:500;margin:0 2px 10px}
+.shot ul{margin:12px 4px 0;padding-left:18px;font-size:13.5px;color:var(--page-muted);columns:2;column-gap:32px}
+.shot li{margin:3px 0;break-inside:avoid}.shot li b{color:var(--page-text);font-weight:600}
+.frame{width:1180px}
+@media (max-width:1210px){.frame{zoom:.82}}
+@media (max-width:1000px){.frame{zoom:.6}}
+@media (max-width:740px){.frame{zoom:.57}}
+@media (max-width:520px){.frame{zoom:.3}.shot ul{columns:1}}
+
+/* window */
+.win{width:1180px;height:720px;border-radius:12px;overflow:hidden;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);display:flex;flex-direction:column;position:relative;box-shadow:0 30px 60px -30px rgba(0,0,0,.4);font-family:'Geist',sans-serif}
+.ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ico.lg{width:18px;height:18px}
+.tb{height:40px;flex:none;display:flex;align-items:center;gap:2px;padding:0 0 0 8px;border-bottom:1px solid var(--line);background:var(--bg)}
+.tbb{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.tbb.on{background:var(--soft);color:var(--on-soft)}
+.sync{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:0 10px;height:28px;border-radius:8px}
+.sync .d{width:7px;height:7px;border-radius:50%;background:var(--online)}
+.wc{display:flex;margin-left:8px}
+.wc span{width:46px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.body{flex:1;display:flex;min-height:0}
+/* list pane */
+.lp{width:340px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--bg);position:relative}
+.lp .top{display:flex;align-items:center;padding:12px 10px 0 18px}
+.prof{display:flex;align-items:center;gap:7px;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.07em;color:var(--muted)}
+.prof i{width:18px;height:18px;border-radius:6px;background:var(--text);color:var(--bg);font-style:normal;display:flex;align-items:center;justify-content:center;font-size:10px}
+.sp{flex:1}
+.title{font-weight:600;font-size:30px;letter-spacing:-.03em;line-height:1.15;padding:4px 18px 0}
+.syncl{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:2px 18px 10px}
+.syncl .d{width:7px;height:7px;border-radius:50%;background:var(--online)}
+.chips{display:flex;gap:6px;padding:0 18px 12px;border-bottom:1px solid var(--line);flex-wrap:nowrap;overflow:hidden}
+.chip{font-size:12.5px;padding:4px 11px;border-radius:999px;border:1px solid var(--line-strong);white-space:nowrap;display:inline-flex;gap:5px;align-items:center}
+.chip b{font-family:'Geist Mono',monospace;font-weight:400;font-size:11px;color:var(--muted)}
+.chip.on{background:var(--soft);border-color:var(--edge);color:var(--on-soft);font-weight:600}
+.chip.on b{color:var(--on-soft)}
+.list{flex:1;overflow:hidden}
+.up{margin:12px 12px 4px;border-radius:12px;background:var(--soft);border:1px solid var(--edge);padding:9px 12px;display:flex;gap:10px;align-items:flex-start}
+.up .k{font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:var(--on-soft)}
+.up .w{font-size:13.5px;font-weight:500}
+.up .s{font-size:12px;color:var(--on-soft)}
+.lab{font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.08em;color:var(--muted);padding:12px 18px 3px}
+.row{display:flex;gap:12px;align-items:center;padding:8px 18px;position:relative}
+.row.sel{background:var(--soft)}
+.row.sel::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.tile{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;flex:none}
+.rn{font-weight:600;font-size:14.5px;letter-spacing:-.01em;line-height:1.25}
+.rp{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt{margin-left:auto;font-family:'Geist Mono',monospace;font-size:10.5px;color:var(--muted);align-self:flex-start;padding-top:3px;white-space:nowrap}
+.rb{flex:1;min-width:0}
+.fab{position:absolute;right:14px;bottom:14px;height:42px;padding:0 15px;border-radius:12px;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px}
+/* chat pane */
+.cp{flex:1;display:flex;flex-direction:column;min-width:0}
+.ch{display:flex;align-items:center;gap:6px;padding:10px 12px 10px 22px;border-bottom:1px solid var(--line)}
+.ch .nm{font-weight:600;font-size:17px;letter-spacing:-.01em;line-height:1.2}
+.ch .st{font-size:12px;color:var(--muted)}
+.thread{flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:0 0 12px}
+.col{width:100%;max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:6px;padding:0 24px}
+.day{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12.5px;margin:6px 0 2px}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--line-strong)}
+.b{max-width:78%;align-self:flex-end;border-radius:16px 16px 5px 16px;padding:8px 12px 6px;font-size:14px;line-height:1.5;background:var(--soft);border:1px solid var(--edge)}
+.b.them{align-self:flex-start;border-radius:16px 16px 16px 5px;background:var(--raised);border-color:var(--line)}
+.meta{font-family:'Geist Mono',monospace;font-size:10px;color:var(--muted);text-align:right;margin-top:2px;display:flex;justify-content:flex-end;gap:5px;align-items:center}
+.dev{font-family:'Geist Mono',monospace;font-size:10px;color:var(--muted)}
+.ci{display:flex;gap:9px;align-items:center;padding:2px 0}
+.box{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--outline);flex:none;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--on-accent)}
+.box.on{background:var(--accent);border-color:var(--accent)}
+.ci.done span:last-child{color:var(--muted);text-decoration:line-through}
+.quote{border-left:2px solid var(--accent);padding-left:8px;font-size:12px;color:var(--muted);margin:2px 0 4px}
+.rx{display:inline-flex;gap:5px;margin-top:5px}.rx span{font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line-strong);background:var(--raised)}
+.rem{display:inline-block;margin-top:5px;font-size:11.5px;font-weight:600;padding:1px 9px;border-radius:999px;border:1px solid var(--edge);color:var(--on-soft)}
+.comp{flex:none;padding:10px 24px 14px;border-top:1px solid var(--line)}
+.comp .in{max-width:680px;margin:0 auto;display:flex;gap:8px;align-items:center}
+.comp .p{width:38px;height:38px;border-radius:10px;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--text)}
+.comp .f{flex:1;min-height:40px;border-radius:12px;background:var(--raised);border:1px solid var(--line-strong);display:flex;align-items:center;padding:0 12px;color:var(--muted);font-size:13.5px}
+.comp .f .aa{margin-left:auto;color:var(--text);font-weight:600;font-size:13px}
+.comp .m{width:38px;height:38px;border-radius:10px;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center}
+.hint{font-family:'Geist Mono',monospace;font-size:10px;color:var(--muted);text-align:center;margin-top:6px}
+/* settings */
+.set{flex:1;display:flex;min-height:0}
+.rail{width:230px;flex:none;border-right:1px solid var(--line);padding:18px 10px}
+.rail .t{font-weight:600;font-size:24px;letter-spacing:-.03em;padding:0 10px 12px}
+.rl{display:flex;gap:10px;align-items:center;font-size:13.5px;padding:8px 10px;border-radius:9px;color:var(--text);position:relative}
+.rl .ico{color:var(--muted)}
+.rl.on{background:var(--soft);color:var(--on-soft);font-weight:600}
+.rl.on .ico{color:var(--on-soft)}
+.pane{flex:1;overflow:hidden;padding:22px 34px}
+.pane .inner{max-width:640px}
+.sl{font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.08em;color:var(--muted);margin:18px 0 6px}
+.sl:first-child{margin-top:0}
+.or{display:flex;align-items:center;gap:14px;min-height:54px;border-bottom:1px solid var(--line)}
+.or .tx{flex:1}.or .t1{font-size:14px}.or .t2{font-size:12.5px;color:var(--muted)}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;font-size:13px}
+.seg span{padding:6px 13px}.seg span.on{background:var(--soft);color:var(--on-soft);font-weight:600}
+.sw{display:flex;gap:10px;flex-wrap:wrap;padding:10px 0 14px;border-bottom:1px solid var(--line)}
+.sw div{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);width:62px}
+.sw div i{width:34px;height:34px;border-radius:50%;display:block}
+.sw div.on{color:var(--text);font-weight:600}
+.sw div.on i{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--text)}
+.tog{width:38px;height:22px;border-radius:11px;background:var(--line-strong);position:relative}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff}
+.tog.on{background:var(--accent)}.tog.on::after{left:19px}
+.preview{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--raised);display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.dl{display:flex;align-items:center;gap:12px;min-height:56px;border-bottom:1px solid var(--line)}
+.on-dot{display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono',monospace;font-size:11px;color:var(--online)}
+.on-dot::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.away{display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono',monospace;font-size:11px;color:var(--muted)}
+.away::before{content:"";width:6px;height:6px;border-radius:50%;border:1.5px solid currentColor}
+.btn{height:36px;padding:0 14px;border-radius:10px;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn.pri{background:var(--accent);color:var(--on-accent)}
+.btn.line{border:1px solid var(--line-strong);color:var(--text)}
+.qr{width:150px;height:150px;border-radius:14px;background:#fff;border:1px solid var(--line-strong);padding:10px}
+.scrim{position:absolute;inset:40px 0 0 0;background:rgba(10,10,12,.42)}
+.modal{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:400px;border-radius:14px;background:var(--surface);border:1px solid var(--line-strong);padding:20px}
+.modal h4{font-weight:600;font-size:18px;letter-spacing:-.01em}
+.modal p{font-size:13px;color:var(--muted);margin-top:4px}
+.code{font-family:'Geist Mono',monospace;font-weight:500;font-size:34px;letter-spacing:.06em;text-align:center;padding:12px 0;margin:14px 0;border-radius:12px;border:1px solid var(--line-strong);background:var(--bg)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.2-4.2"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M19 10.5v1a7 7 0 0 1-14 0v-1M12 18.5v3"/></symbol>
+  <symbol id="star" viewBox="0 0 24 24"><path d="M12 2.8l2.8 5.7 6.3.9-4.55 4.43 1.07 6.27L12 17.15l-5.62 2.95 1.07-6.27L2.9 9.4l6.3-.9z"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="archive" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="5" rx="1"/><path d="M4.5 8.5V19a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5M10 12.5h4"/></symbol>
+  <symbol id="tune" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+  <symbol id="sync" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="palette" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></symbol>
+  <symbol id="audio" viewBox="0 0 24 24"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></symbol>
+  <symbol id="db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></symbol>
+  <symbol id="hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+  <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="phone" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18h2"/></symbol>
+  <symbol id="laptop" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 20h20"/></symbol>
+  <symbol id="min" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="max" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></symbol>
+  <symbol id="close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+</svg>
+
+<div class="wrap">
+  <h1>Ncy desktop, redesigned</h1>
+  <p class="lede">The desktop window in the same system as the phone: neutral greys tinted toward your accent, Geist and Geist Mono, notes in bubbles. The layout stays as you know it: chat list on the left, the chat on the right, settings as a category rail.</p>
+  <div class="controls" id="controls"></div>
+
+  <figure class="shot"><h3>1 · Chats</h3><div class="frame" id="s1"></div>
+    <ul>
+      <li><b>The list pane mirrors the phone's home:</b> profile label, a big "Chats" title, the sync line, filter chips with counts, the Up next card, and tinted chat tiles.</li>
+      <li><b>The open chat</b> is marked by the accent tint and a short accent bar, instead of a solid highlight.</li>
+      <li><b>Notes are bubbles</b> in a centred column up to 680px wide, so lines stay readable on a wide window.</li>
+      <li><b>The title bar</b> keeps the list toggle, the sync status (now with the device name) and settings. No wordmark.</li>
+      <li>New chat and the mic are in the accent. Buttons on desktop stay rounded squares.</li>
+      <li>Keyboard hints sit quietly under the composer.</li>
+    </ul>
+  </figure>
+
+  <figure class="shot"><h3>2 · Settings · Interface</h3><div class="frame" id="s2"></div>
+    <ul>
+      <li><b>The same seven accents as the phone.</b> Picking one retints the whole window, as on Android.</li>
+      <li><b>The active category</b> uses the accent tint, the same as the selected filter.</li>
+      <li>Settings still apply at once, with no Save button. The category rail keeps the same sections.</li>
+      <li>A small preview shows your notes in the chosen accent before you leave the page.</li>
+    </ul>
+  </figure>
+
+  <figure class="shot"><h3>3 · Devices, approving a phone</h3><div class="frame" id="s3"></div>
+    <ul>
+      <li><b>The safety code is the hero</b> of the approval dialog: large mono digits, split 3 and 3, the same as on the phone.</li>
+      <li><b>"Codes match"</b> is the accent button; Reject sits beside it, outlined.</li>
+      <li>Paired devices show online or away with the phone's status dots.</li>
+      <li>The QR to scan sits on white in both themes so cameras can read it.</li>
+    </ul>
+  </figure>
+</div>
+
+<template id="tb">
+  <div class="tb">
+    <span class="tbb on"><svg class="ico"><use href="#panel"/></svg></span>
+    <span class="sp"></span>
+    <span class="sync"><span class="d"></span>Pixel 8 · synced</span>
+    <span class="tbb"><svg class="ico"><use href="#gear"/></svg></span>
+    <span class="wc"><span><svg class="ico"><use href="#min"/></svg></span><span><svg class="ico" style="width:13px;height:13px"><use href="#max"/></svg></span><span><svg class="ico"><use href="#close"/></svg></span></span>
+  </div>
+</template>
+
+<template id="main">
+  <div class="body">
+    <div class="lp">
+      <div class="top"><span class="prof"><i>P</i>PERSONAL ▾</span><span class="sp"></span><span class="tbb"><svg class="ico"><use href="#search"/></svg></span></div>
+      <div class="title">Chats</div>
+      <div class="syncl"><span class="d"></span>Synced with Pixel 8 · 2 min ago</div>
+      <div class="chips"><span class="chip on">All <b>8</b></span><span class="chip"><svg class="ico" style="width:12px;height:12px"><use href="#star"/></svg>Starred <b>2</b></span><span class="chip"><svg class="ico" style="width:12px;height:12px"><use href="#bell"/></svg>Reminders <b>2</b></span><span class="chip"><svg class="ico" style="width:12px;height:12px"><use href="#archive"/></svg>Archived</span></div>
+      <div class="list">
+        <div class="up"><svg class="ico" style="color:var(--on-soft);margin-top:2px"><use href="#bell"/></svg><div><div class="k">UP NEXT · 16:00</div><div class="w">Ask Sam about the sync edge-cases doc</div><div class="s">in Ideas</div></div></div>
+        <div class="lab">PINNED</div>
+        <div class="row sel"><span class="tile" data-h="#B4471F">I</span><div class="rb"><div class="rn">Ideas</div><div class="rp">Ask Sam about the sync edge-cases doc</div></div><span class="rt">08:30</span></div>
+        <div class="row"><span class="tile" data-h="#2F855A">G</span><div class="rb"><div class="rn">Groceries</div><div class="rp">4 of 9 · Oat milk, eggs, lemons</div></div><span class="rt">08:41</span></div>
+        <div class="lab">ALL CHATS</div>
+        <div class="row"><span class="tile" data-h="#2B6CB0">W</span><div class="rb"><div class="rn">Work log</div><div class="rp">Shipped 0.9.1: bubbles and the new theme</div></div><span class="rt">Yesterday</span></div>
+        <div class="row"><span class="tile" data-h="#805AD5">R</span><div class="rb"><div class="rn">Reading list</div><div class="rp">The Overstory, chapter 12</div></div><span class="rt">Mon</span></div>
+        <div class="row"><span class="tile" data-h="#0F766E">L</span><div class="rb"><div class="rn">Lisbon trip</div><div class="rp">Tram 28 early, before the crowds</div></div><span class="rt">12 Nov</span></div>
+      </div>
+      <span class="fab"><svg class="ico"><use href="#plus"/></svg>New chat</span>
+    </div>
+    <div class="cp">
+      <div class="ch"><div><div class="nm">Ideas</div><div class="st">5 notes · 1 starred</div></div><span class="sp"></span>
+        <span class="tbb"><svg class="ico"><use href="#search"/></svg></span><span class="tbb"><svg class="ico"><use href="#lock"/></svg></span><span class="tbb"><svg class="ico"><use href="#tune"/></svg></span></div>
+      <div class="thread"><div class="col">
+        <div class="b"><div class="dev" style="margin-bottom:2px">2 / 4</div>
+          <div class="ci done"><span class="box on">✓</span><span>Audit current screens</span></div>
+          <div class="ci done"><span class="box on">✓</span><span>Pick a type pairing</span></div>
+          <div class="ci"><span class="box"></span><span>Mockups for home and chat</span></div>
+          <div class="ci"><span class="box"></span><span>Composer states</span></div><div class="meta">16:58</div></div>
+        <div class="day">Yesterday</div>
+        <div class="b">Maybe pinned chats become cards at the top, with their checklist progress showing.<div class="meta">16:56</div></div>
+        <div class="b them"><div class="dev">Pixel 8</div><div class="quote">Maybe pinned chats become cards…</div>Yes, and show the <b>next reminder</b> on the card too.<br><span class="rx"><span>👍</span><span>💡</span></span><div class="meta"><svg class="ico" style="width:11px;height:11px;color:var(--accent);fill:currentColor"><use href="#star"/></svg>17:21</div></div>
+        <div class="day">Today</div>
+        <div class="b">Ask Sam about the sync edge-cases doc<br><span class="rem">Today 16:00</span><div class="meta">08:30</div></div>
+      </div></div>
+      <div class="comp"><div class="in"><span class="p"><svg class="ico lg"><use href="#plus"/></svg></span><span class="f">Write a note…<span class="aa">Aa</span></span><span class="m"><svg class="ico lg"><use href="#mic"/></svg></span></div><div class="hint">Enter to send · Shift+Enter for a new line · Ctrl+K to search</div></div>
+    </div>
+  </div>
+</template>
+
+<template id="settings">
+  <div class="body"><div class="set">
+    <div class="rail"><div class="t">Settings</div>
+      <div class="rl"><svg class="ico"><use href="#user"/></svg>General</div>
+      <div class="rl"><svg class="ico"><use href="#sync"/></svg>Sync</div>
+      <div class="rl on"><svg class="ico"><use href="#palette"/></svg>Interface</div>
+      <div class="rl"><svg class="ico"><use href="#audio"/></svg>Transcription</div>
+      <div class="rl"><svg class="ico"><use href="#db"/></svg>Backup</div>
+      <div class="rl"><svg class="ico"><use href="#hist"/></svg>Changelog</div>
+      <div class="rl"><svg class="ico"><use href="#info"/></svg>About</div>
+    </div>
+    <div class="pane"><div class="inner">
+      <div class="sl">THEME</div>
+      <div class="or"><div class="tx"><div class="t1">Appearance</div><div class="t2">Follows Windows when set to Auto</div></div><div class="seg"><span class="on">Auto</span><span>Light</span><span>Dark</span></div></div>
+      <div class="sl">ACCENT</div>
+      <div class="sw" id="sw"></div>
+      <div class="sl">PREVIEW</div>
+      <div class="preview">
+        <div class="b" style="max-width:70%">Your notes sit on the accent tint.<div class="meta">09:12</div></div>
+        <div class="b them" style="max-width:70%"><div class="dev">Pixel 8</div>Notes from other devices stay plain.<div class="meta">09:14</div></div>
+      </div>
+      <div class="sl">WINDOW</div>
+      <div class="or"><div class="tx"><div class="t1">Close to the tray</div><div class="t2">Keep syncing when the window is closed</div></div><span class="tog on"></span></div>
+    </div></div>
+  </div></div>
+</template>
+
+<template id="devices">
+  <div class="body"><div class="set">
+    <div class="rail"><div class="t">Settings</div>
+      <div class="rl"><svg class="ico"><use href="#user"/></svg>General</div>
+      <div class="rl on"><svg class="ico"><use href="#sync"/></svg>Sync</div>
+      <div class="rl"><svg class="ico"><use href="#palette"/></svg>Interface</div>
+      <div class="rl"><svg class="ico"><use href="#audio"/></svg>Transcription</div>
+      <div class="rl"><svg class="ico"><use href="#db"/></svg>Backup</div>
+      <div class="rl"><svg class="ico"><use href="#hist"/></svg>Changelog</div>
+      <div class="rl"><svg class="ico"><use href="#info"/></svg>About</div>
+    </div>
+    <div class="pane"><div class="inner" style="display:flex;gap:34px">
+      <div style="flex:1">
+        <div class="sl">PAIRED DEVICES</div>
+        <div class="dl"><svg class="ico lg" style="color:var(--muted)"><use href="#phone"/></svg><div style="flex:1"><div style="font-size:14px">Pixel 8</div><div style="font-size:12.5px;color:var(--muted)">Synced 2 min ago</div></div><span class="on-dot">online</span></div>
+        <div class="dl"><svg class="ico lg" style="color:var(--muted)"><use href="#laptop"/></svg><div style="flex:1"><div style="font-size:14px">ThinkPad</div><div style="font-size:12.5px;color:var(--muted)">Last seen Monday 19:12</div></div><span class="away">away</span></div>
+        <div class="sl">THIS COMPUTER</div>
+        <div class="or"><div class="tx"><div class="t1">Let other devices connect</div><div class="t2">Home-5G · 192.168.1.31</div></div><span class="tog on"></span></div>
+      </div>
+      <div style="width:190px">
+        <div class="sl">PAIR A PHONE</div>
+        <div class="qr" data-qr></div>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:8px">In Ncy on the phone, open Devices and scan this code.</div>
+      </div>
+    </div></div>
+  </div></div>
+  <div class="scrim"></div>
+  <div class="modal">
+    <h4>Allow this device?</h4>
+    <p>A phone called “Pixel 8” on Home-5G wants to pair. Check that this code matches the one on the phone:</p>
+    <div class="code">482 917</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><span class="btn line">Reject</span><span class="btn pri">Codes match</span></div>
+  </div>
+</template>
+
+<script>
+(function(){
+  try{if(window.self!==window.top)document.documentElement.classList.add('embedded')}catch(e){document.documentElement.classList.add('embedded')}
+  var accents=[
+    {n:'Ink blue',l:'#2F5AA8',d:'#8FB0EA'},{n:'Teal',l:'#0F7069',d:'#6CC9BE'},{n:'Moss',l:'#4A6E33',d:'#A3C487'},
+    {n:'Violet',l:'#6741C9',d:'#B29BF5'},{n:'Plum',l:'#8A3A66',d:'#DB9BC0'},{n:'Graphite',l:'#3F3F46',d:'#CFCFD6'},{n:'Terracotta',l:'#B4471F',d:'#DD8662'}];
+  function hex(h){h=h.replace('#','');return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)})}
+  function out(c){return '#'+c.map(function(v){return Math.round(v).toString(16).padStart(2,'0')}).join('')}
+  function mix(a,b,p){a=hex(a);b=hex(b);return out(a.map(function(v,i){return v*p+b[i]*(1-p)}))}
+  function lum(h){return hex(h).map(function(v){v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce(function(s,v,i){return s+v*[.2126,.7152,.0722][i]},0)}
+  function on(fill,ink){var w=1.05/(lum(fill)+.05),k=(Math.max(lum(fill),lum(ink))+.05)/(Math.min(lum(fill),lum(ink))+.05);return w>=k?'#FFFFFF':ink}
+  function palette(a,dark){var x=dark?a.d:a.l;
+    if(!dark){var text=mix(x,'#18181A',.06);return {bg:mix(x,'#F6F6F5',.05),surface:'#FFFFFF',raised:'#FFFFFF',text:text,muted:mix(x,'#5F6066',.10),line:mix(x,'#E3E3E3',.10),'line-strong':mix(x,'#D0D0D0',.12),outline:mix(x,'#86878C',.12),accent:x,'on-accent':on(x,text),soft:mix(x,'#FFFFFF',.11),edge:mix(x,'#FFFFFF',.26),'on-soft':mix(x,'#000000',.62),online:'#2F7D48'}}
+    var t=mix(x,'#E2E2E5',.06);return {bg:mix(x,'#1C1C1F',.07),surface:mix(x,'#242428',.08),raised:mix(x,'#28282C',.08),text:t,muted:mix(x,'#9D9EA4',.10),line:mix(x,'#323236',.10),'line-strong':mix(x,'#414146',.12),outline:mix(x,'#76777D',.12),accent:x,'on-accent':on(x,mix(x,'#1C1C1F',.07)),soft:mix(x,'#28282C',.20),edge:mix(x,'#28282C',.34),'on-soft':mix(x,'#FFFFFF',.55),online:'#7CCB94'}}
+  ['s1','s2','s3'].forEach(function(id,i){
+    var w=document.createElement('div');w.className='win';
+    w.appendChild(document.getElementById('tb').content.cloneNode(true));
+    w.appendChild(document.getElementById(['main','settings','devices'][i]).content.cloneNode(true));
+    document.getElementById(id).appendChild(w);
+  });
+  // QR
+  document.querySelectorAll('[data-qr]').forEach(function(el){var N=29,s=11,r='';
+    function f(x,y){return '<rect x="'+x+'" y="'+y+'" width="7" height="7" fill="#111"/><rect x="'+(x+1)+'" y="'+(y+1)+'" width="5" height="5" fill="#fff"/><rect x="'+(x+2)+'" y="'+(y+2)+'" width="3" height="3" fill="#111"/>'}
+    function inF(x,y){return (x<8&&y<8)||(x>N-9&&y<8)||(x<8&&y>N-9)}
+    for(var y=0;y<N;y++)for(var x=0;x<N;x++){if(inF(x,y))continue;s=(s*9301+49297)%233280;if(s/233280>.52)r+='<rect x="'+x+'" y="'+y+'" width="1.02" height="1.02" fill="#111"/>'}
+    el.innerHTML='<svg viewBox="0 0 '+N+' '+N+'" width="100%" height="100%" shape-rendering="crispEdges">'+r+f(0,0)+f(N-7,0)+f(0,N-7)+'</svg>'});
+  var state={a:accents[0],dark:false};
+  function render(){
+    var p=palette(state.a,state.dark);
+    document.querySelectorAll('.win').forEach(function(w){Object.keys(p).forEach(function(k){w.style.setProperty('--'+k,p[k])});
+      w.querySelectorAll('.tile').forEach(function(t){var h=t.dataset.h;t.style.background=mix(h,state.dark?p.raised:'#FFFFFF',state.dark?.26:.17);t.style.color=mix(h,p.text,state.dark?.55:.72)})});
+    var sw=document.getElementById('sw');sw.innerHTML=accents.map(function(a){return '<div class="'+(a===state.a?'on':'')+'"><i style="background:'+(state.dark?a.d:a.l)+'"></i>'+a.n+'</div>'}).join('');
+    document.querySelectorAll('#controls button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.k==='a:'+state.a.n||b.dataset.k==='t:'+(state.dark?'dark':'light'))});
+    document.documentElement.dataset.theme=state.dark?'dark':'light';
+  }
+  var c=document.getElementById('controls');
+  [['light','Light'],['dark','Dark']].forEach(function(t){var b=document.createElement('button');b.dataset.k='t:'+t[0];b.textContent=t[1];b.style.paddingLeft='13px';b.onclick=function(){state.dark=t[0]==='dark';render()};c.appendChild(b)});
+  var sp=document.createElement('span');sp.className='sep';c.appendChild(sp);
+  accents.forEach(function(a){var b=document.createElement('button');b.dataset.k='a:'+a.n;b.innerHTML='<i style="background:'+a.l+'"></i>'+a.n;b.onclick=function(){state.a=a;render()};c.appendChild(b)});
+  render();
+})();
+</script>
+</body>
+</html>
